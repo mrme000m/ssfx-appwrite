@@ -1,0 +1,13 @@
+{
+  "name": "ssfx-callback-proxy",
+  "version": "1.0.0",
+  "description": "Stable callback proxy for SSFX Appwrite Functions",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev --env production",
+    "deploy": "wrangler deploy --env production"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}

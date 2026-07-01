@@ -5,7 +5,7 @@
 ctrader:
   client_id: "your-ctrader-client-id"
   client_secret: "your-ctrader-client-secret"
-  redirect_uri: "https://ctrader-auth.sgp.appwrite.run/callback"
+  redirect_uri: "https://auth.mrme.tech/callback"
   environment: "demo" # or "live"
 
 master:
