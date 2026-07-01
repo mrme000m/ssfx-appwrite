@@ -1,0 +1,22 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "anthropic/claude-sonnet-4-20250514",
+  "instructions": ["AGENTS.md", ".rules"],
+  "mcp": {
+    "appwrite-api": {
+      "type": "local",
+      "command": ["uvx", "mcp-server-appwrite"],
+      "enabled": true,
+      "environment": {
+        "APPWRITE_PROJECT_ID": "{env:APPWRITE_PROJECT_ID}",
+        "APPWRITE_API_KEY": "{env:APPWRITE_API_KEY}",
+        "APPWRITE_ENDPOINT": "{env:APPWRITE_ENDPOINT}",
+      },
+    },
+    "appwrite-docs": {
+      "type": "remote",
+      "enabled": true,
+      "url": "https://mcp-for-docs.appwrite.io",
+    },
+  },
+}

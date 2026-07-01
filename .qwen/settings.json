@@ -1,0 +1,23 @@
+{
+  "general": {
+    "description": "slwp - Appwrite project. Read AGENTS.md for full context. Agent skills in .qwen/skills/ and .agents/skills/."
+  },
+  "mcpServers": {
+    "appwrite-api": {
+      "command": "uvx",
+      "args": ["mcp-server-appwrite"],
+      "env": {
+        "APPWRITE_PROJECT_ID": "$APPWRITE_PROJECT_ID",
+        "APPWRITE_API_KEY": "$APPWRITE_API_KEY",
+        "APPWRITE_ENDPOINT": "$APPWRITE_ENDPOINT"
+      },
+      "timeout": 60000,
+      "description": "Appwrite API MCP server for project slwp (sgp)"
+    },
+    "appwrite-docs": {
+      "httpUrl": "https://mcp-for-docs.appwrite.io",
+      "timeout": 30000,
+      "description": "Appwrite Docs MCP server"
+    }
+  }
+}

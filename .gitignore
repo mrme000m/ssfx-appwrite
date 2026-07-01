@@ -1,0 +1,23 @@
+# Environment variables  
+.env
+.env.local
+.env.*.local
+
+# Init scripts secrets
+init-scripts/config.yml
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Node modules
+node_modules/
+
+# Appwrite build caches
+.tmp/

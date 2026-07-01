@@ -1,0 +1,343 @@
+{
+    "projectId": "6a22a362002b9ae880bb",
+    "projectName": "slwp",
+    "endpoint": "https://sgp.cloud.appwrite.io/v1",
+    "includes": {
+        "functions": "appwrite/functions.json",
+        "sites": "appwrite/sites.json"
+    },
+    "tablesDB": [
+        {
+            "$id": "ctrader_auth",
+            "name": "cTrader Auth",
+            "enabled": true
+        }
+    ],
+    "tables": [
+        {
+            "$id": "slave_accounts",
+            "$permissions": [
+                "create(\"any\")"
+            ],
+            "databaseId": "ctrader_auth",
+            "name": "Slave Accounts",
+            "enabled": true,
+            "rowSecurity": true,
+            "columns": [
+                {
+                    "key": "appwrite_user_id",
+                    "type": "varchar",
+                    "required": true,
+                    "size": 64
+                },
+                {
+                    "key": "username",
+                    "type": "varchar",
+                    "required": false,
+                    "size": 64
+                },
+                {
+                    "key": "pin_hash",
+                    "type": "varchar",
+                    "required": false,
+                    "size": 100
+                },
+                {
+                    "key": "role",
+                    "type": "varchar",
+                    "required": true,
+                    "size": 16
+                },
+                {
+                    "key": "grant_id",
+                    "type": "varchar",
+                    "required": true,
+                    "size": 64
+                },
+                {
+                    "key": "access_token_enc",
+                    "type": "text",
+                    "required": false
+                },
+                {
+                    "key": "refresh_token_enc",
+                    "type": "mediumtext",
+                    "required": false
+                },
+                {
+                    "key": "access_token_expires_at",
+                    "type": "datetime",
+                    "required": false
+                },
+                {
+                    "key": "ctrader_account_ids",
+                    "type": "varchar",
+                    "required": false,
+                    "size": 256
+                },
+                {
+                    "key": "selected_account_id",
+                    "type": "varchar",
+                    "required": false,
+                    "size": 32
+                },
+                {
+                    "key": "status",
+                    "type": "varchar",
+                    "required": true,
+                    "size": 32
+                },
+                {
+                    "key": "active",
+                    "type": "boolean",
+                    "required": true
+                },
+                {
+                    "key": "email",
+                    "type": "varchar",
+                    "required": false,
+                    "size": 128
+                },
+                {
+                    "key": "last_heartbeat_at",
+                    "type": "datetime",
+                    "required": false
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "idx_appwrite_user_id",
+                    "type": "key",
+                    "attributes": [
+                        "appwrite_user_id"
+                    ]
+                },
+                {
+                    "key": "idx_username",
+                    "type": "unique",
+                    "attributes": [
+                        "username"
+                    ]
+                },
+                {
+                    "key": "idx_grant_id",
+                    "type": "unique",
+                    "attributes": [
+                        "grant_id"
+                    ]
+                },
+                {
+                    "key": "idx_expires_at",
+                    "type": "key",
+                    "attributes": [
+                        "access_token_expires_at"
+                    ]
+                },
+                {
+                    "key": "idx_status_active",
+                    "type": "key",
+                    "attributes": [
+                        "status",
+                        "active"
+                    ]
+                }
+            ]
+        },
+        {
+            "$id": "trade_configs",
+            "$permissions": [
+                "create(\"users\")",
+                "read(\"users\")",
+                "update(\"users\")",
+                "delete(\"users\")"
+            ],
+            "databaseId": "ctrader_auth",
+            "name": "Trade Configs",
+            "enabled": true,
+            "rowSecurity": true,
+            "columns": [
+                {
+                    "key": "slave_user_id",
+                    "type": "varchar",
+                    "required": true,
+                    "size": 64
+                },
+                {
+                    "key": "lot_size",
+                    "type": "double",
+                    "required": false,
+                    "default": 0.01
+                },
+                {
+                    "key": "lot_multiplier",
+                    "type": "double",
+                    "required": false,
+                    "default": 1
+                },
+                {
+                    "key": "max_daily_drawdown_pct",
+                    "type": "double",
+                    "required": false,
+                    "default": 5
+                },
+                {
+                    "key": "allowed_symbols",
+                    "type": "text",
+                    "required": false
+                },
+                {
+                    "key": "copy_enabled",
+                    "type": "boolean",
+                    "required": true
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "idx_slave_user_id",
+                    "type": "unique",
+                    "attributes": [
+                        "slave_user_id"
+                    ]
+                }
+            ]
+        },
+        {
+            "$id": "master_signals",
+            "$permissions": [
+                "create(\"label:master\")",
+                "read(\"any\")",
+                "update(\"label:master\")",
+                "delete(\"label:master\")"
+            ],
+            "databaseId": "ctrader_auth",
+            "name": "Master Signals",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "symbol",
+                    "type": "varchar",
+                    "required": true,
+                    "size": 16
+                },
+                {
+                    "key": "direction",
+                    "type": "varchar",
+                    "required": true,
+                    "size": 8
+                },
+                {
+                    "key": "lot_size",
+                    "type": "double",
+                    "required": false,
+                    "default": 0.01
+                },
+                {
+                    "key": "sl_pips",
+                    "type": "integer",
+                    "required": false,
+                    "default": 50
+                },
+                {
+                    "key": "tp_pips",
+                    "type": "integer",
+                    "required": false,
+                    "default": 100
+                },
+                {
+                    "key": "status",
+                    "type": "varchar",
+                    "required": true,
+                    "size": 16
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "idx_status_created",
+                    "type": "key",
+                    "attributes": [
+                        "status",
+                        "$createdAt"
+                    ]
+                }
+            ]
+        },
+        {
+            "$id": "ephemeral_tokens",
+            "$permissions": [],
+            "databaseId": "ctrader_auth",
+            "name": "Ephemeral Tokens",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "token",
+                    "type": "varchar",
+                    "required": true,
+                    "size": 128
+                },
+                {
+                    "key": "kind",
+                    "type": "varchar",
+                    "required": true,
+                    "size": 16
+                },
+                {
+                    "key": "user_id",
+                    "type": "varchar",
+                    "required": false,
+                    "size": 64
+                },
+                {
+                    "key": "payload",
+                    "type": "text",
+                    "required": false
+                },
+                {
+                    "key": "expires_at",
+                    "type": "datetime",
+                    "required": true
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "idx_kind_token",
+                    "type": "unique",
+                    "attributes": [
+                        "kind",
+                        "token"
+                    ]
+                },
+                {
+                    "key": "idx_expires_at",
+                    "type": "key",
+                    "attributes": [
+                        "expires_at"
+                    ]
+                }
+            ]
+        },
+        {
+            "$id": "grant_locks",
+            "$permissions": [],
+            "databaseId": "ctrader_auth",
+            "name": "Grant Locks",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "locked_at",
+                    "type": "datetime",
+                    "required": true
+                },
+                {
+                    "key": "locked_by",
+                    "type": "varchar",
+                    "required": true,
+                    "size": 32
+                }
+            ],
+            "indexes": []
+        }
+    ]
+}

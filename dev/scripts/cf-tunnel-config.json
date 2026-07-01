@@ -1,0 +1,23 @@
+{
+  "comment": "Ingress rules for Cloudflare tunnel ssfx_azurue (mrme.tech).",
+  "ingress": [
+    {
+      "hostname": "dataservice.mrme.tech",
+      "service": "http://localhost:9099",
+      "originRequest": {}
+    },
+    {
+      "hostname": "ds-sse.mrme.tech",
+      "service": "http://localhost:9001",
+      "originRequest": {}
+    },
+    {
+      "hostname": "admin.mrme.tech",
+      "service": "http://ubuntu-server:8100",
+      "originRequest": {}
+    },
+    {
+      "service": "http_status:404"
+    }
+  ]
+}

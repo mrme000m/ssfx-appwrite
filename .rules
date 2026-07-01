@@ -1,0 +1,94 @@
+# slwp Agent Rules
+
+Cross-agent rules for OpenCode, Claude Code, and Qwen Code working on the slwp project.
+
+## Architecture: Appwrite Database as the Source of Truth
+
+- All **user-level** and **system-level** configuration lives in Appwrite Database tables.
+- Runtime code, local services, CI/CD, and remote deployments must read configuration from Appwrite Database at startup or on demand.
+- `.env` is reserved only for bootstrap secrets required to connect to Appwrite:
+  - `APPWRITE_PROJECT_ID`
+  - `APPWRITE_API_KEY`
+  - `APPWRITE_ENDPOINT`
+- Do **not** add application configuration, feature flags, third-party credentials, or runtime settings to `.env`.
+- When introducing a new configurable value, create or update an Appwrite Database table and provide a repeatable script or SDK helper to read it.
+
+## Development Operations: `dev.sh`
+
+- All development operations must be invoked through `dev.sh <command>`.
+- The implementation of each command lives in a repeatable script at `dev/scripts/<command>.py` (preferred) or `dev/scripts/<command>.sh` (simple wrappers only).
+- Use Python for scripts that parse JSON, call HTTP APIs, manage Azure / Cloudflare / Resend resources, or handle structured data. Use shell only for trivial sequential commands.
+- Required commands include:
+  - `dev.sh start` — start local development services
+  - `dev.sh stop` — stop local development services
+  - `dev.sh status` — show service status (local + Azure VM)
+  - `dev.sh logs` — tail relevant logs
+  - `dev.sh test` — run tests
+  - `dev.sh lint` — run linting / type checking
+  - `dev.sh deploy` — deploy to the Azure VM
+  - `dev.sh deploy-remote <target>` — deploy to a specific remote target (default target is the Azure VM)
+  - `dev.sh deploy-status` — show deployment status (Azure VM health + service status)
+  - `dev.sh init` — run all third-party service init scripts
+- Do not run ad-hoc commands for dev operations; add them to `dev/scripts/` and expose them through `dev.sh`.
+- Scripts must be idempotent, print clear status, and exit non-zero on failure.
+
+### Remote Deployment Target: Azure VM
+
+- Remote deployments target the running Azure VM (`ubuntu-server` in resource group `RG-UBUNTU-VM`).
+- Use the Azure CLI (`az`) to discover the VM and its current public IP.
+- Do not hardcode the VM IP in deployment scripts; resolve it dynamically with `az vm list-ip-addresses`.
+- The deployment scripts use SSH to connect to the VM as user `m`.
+- Required tools: `az` (Azure CLI), `ssh`, and an SSH key configured for the `m` user on the VM.
+
+### Public Access: Cloudflare Tunnel on `mrme.tech`
+
+- All public access to services on the Azure VM must use the Cloudflare Tunnel `ssfx_azurue` for the `mrme.tech` domain on account `misterme00@icloud.com`.
+- Do not expose services directly via the Azure VM public IP.
+- Current public hostnames:
+  - `dataservice.mrme.tech` → `http://localhost:9099`
+  - `ds-sse.mrme.tech` → `http://localhost:9001`
+  - `admin.mrme.tech` → `http://ubuntu-server:8100`
+- To add a new public service:
+  1. Add a tunnel ingress rule mapping the subdomain to the local service.
+  2. Add a proxied CNAME record in the `mrme.tech` zone pointing to `<tunnel-id>.cfargotunnel.com`.
+  3. Verify with `curl https://<subdomain>.mrme.tech`.
+- Use `dev.sh cf-tunnel-status` and `dev.sh cf-tunnel-update` to manage the tunnel.
+- Cloudflare API tokens live in the Bitwarden item **"Cloudflare — mrme.tech"**. Do not commit tokens.
+
+## Email: Resend
+
+- Use Resend for all project email (transactional, agent notifications, alerts).
+- The Resend CLI is installed and authenticated with the API key from `.env` (`RESEND_API_KEY`).
+- Send from `noreply@email.mrme.tech` by default.
+- Use `dev.sh resend-send <to> <subject> <body>` for standard project emails.
+- For automated/agent use, prefer non-interactive `resend emails send --json` with `--idempotency-key` for safe retries.
+- The provided API key has sending access only. Domain creation/verification in Resend require a full-access key.
+
+## Third-Party Service Initialization
+
+- Configure third-party services using repeatable init scripts in `init-scripts/`.
+- Each init script reads required setup values from a YAML file (e.g., `init-scripts/config.yml`).
+- After collecting values, the init script writes them to Appwrite Database so local and remote runtimes can read them later.
+- Init scripts must be idempotent and safe to rerun.
+- Example pattern:
+  1. Parse `init-scripts/config.yml`.
+  2. Validate required fields.
+  3. Upsert configuration rows into Appwrite Database.
+  4. Print confirmation with the table/row identifiers.
+
+## Coding Conventions
+
+- Use **TablesDB** (not the deprecated `Databases` class) for all new database code.
+- Prefer object-param calling style for SDK methods (e.g., `{ databaseId: '...' }`).
+- Use explicit string column types (`varchar`, `text`, `mediumtext`, `longtext`) instead of the deprecated `string` type.
+- Set `Permissions` and `Roles` explicitly on rows/files or at the table/bucket level. Default is no access.
+- For SSR auth, use two clients: an **admin client** (API key, reusable) and a **session client** (per-request with cookie).
+- Cookie name for sessions: `a_session_<PROJECT_ID>`.
+- Handle errors with `AppwriteException` catch blocks.
+
+## Agent Collaboration
+
+- Read `AGENTS.md` in the project root for full project context, credentials, and conventions.
+- Use agent skills in `.agents/skills/` (universal) and `.qwen/skills/` (Qwen Code).
+- Always use TablesDB for new database code.
+- Keep instructions in this file concise; move detailed project context to `AGENTS.md`.

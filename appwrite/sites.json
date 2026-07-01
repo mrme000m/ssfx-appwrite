@@ -1,0 +1,19 @@
+[
+    {
+        "$id": "ctrader-auth-site",
+        "name": "ctrader-auth-site",
+        "logging": true,
+        "framework": "other",
+        "timeout": 10,
+        "installCommand": "",
+        "buildCommand": "",
+        "outputDirectory": ".",
+        "buildSpecification": "s-0.5vcpu-512mb",
+        "runtimeSpecification": "s-0.5vcpu-512mb",
+        "buildRuntime": "node-22",
+        "adapter": "static",
+        "fallbackFile": "index.html",
+        "deploymentRetention": 7,
+        "path": "../sites/ctrader-auth-site"
+    }
+]

@@ -1,0 +1,17 @@
+# Example configuration for third-party service init scripts.
+# Copy this file to config.yml and fill in real values.
+# config.yml is gitignored; do not commit secrets.
+
+ctrader:
+  client_id: "your-ctrader-client-id"
+  client_secret: "your-ctrader-client-secret"
+  redirect_uri: "https://ctrader-auth.sgp.appwrite.run/callback"
+  environment: "demo" # or "live"
+
+master:
+  email: "admin@example.com"
+
+# Add more services below as needed:
+# example_service:
+#   api_key: "..."
+#   endpoint: "..."
