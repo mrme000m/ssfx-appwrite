@@ -165,9 +165,16 @@ class AccountHub:
             return
 
         active_grants: set[str] = set()
+        found_count = 0
 
         for row in result.rows:
-            data = row.model_dump() if hasattr(row, "model_dump") else dict(row)
+            if hasattr(row, "data"):
+                data = row.data
+            elif hasattr(row, "model_dump"):
+                dumped = row.model_dump()
+                data = dumped.get("data", dumped)
+            else:
+                data = dict(row).get("data", dict(row))
             grant_id = data.get("grant_id", "")
             status = data.get("status", "")
             username = data.get("username")
@@ -190,6 +197,8 @@ class AccountHub:
 
             if not account_ids:
                 continue
+
+            found_count += 1
 
             for ctid in account_ids:
                 key_demo = f"{grant_id}:{ctid}:demo"
@@ -226,6 +235,10 @@ class AccountHub:
                         conn = AccountConnection(info=info_live)
                         self._connections[key_live] = conn
                         asyncio.create_task(self._manage_connection(key_live, conn))
+
+        if found_count > 0:
+            logger.info("AccountHub discovered %d active accounts (creating %d connections)",
+                        found_count, found_count * 2)
 
         async with self._lock:
             stale = set(self._connections.keys()) - active_grants

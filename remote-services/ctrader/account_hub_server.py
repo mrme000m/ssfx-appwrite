@@ -38,7 +38,7 @@ async def main() -> None:
     appwrite_client.set_project(config.appwrite_project_id)
     appwrite_client.set_key(config.appwrite_api_key)
 
-    database_id = config.ctrader_auth_database_id or config.appwrite_database_id
+    database_id = config.ctrader_auth_database_id or "ctrader_auth"
 
     hub = AccountHub(
         appwrite_client=appwrite_client,
