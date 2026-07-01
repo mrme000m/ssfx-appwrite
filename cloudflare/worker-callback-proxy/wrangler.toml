@@ -3,17 +3,8 @@ main = "src/index.js"
 compatibility_date = "2025-07-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Custom domain binding — deployed via Cloudflare Dashboard or API
-# After first deploy, add Custom Domain: auth.mrme.tech
-# routes = [
-#   { pattern = "auth.mrme.tech", custom_domain = true }
-# ]
-
 [env.production]
 name = "ssfx-callback-proxy"
 
 [env.staging]
 name = "ssfx-callback-proxy-staging"
-# routes = [
-#   { pattern = "auth-staging.mrme.tech", custom_domain = true }
-# ]

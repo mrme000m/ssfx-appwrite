@@ -11,7 +11,7 @@ const {
   releaseGrantLock,
   refreshCtraderToken,
   Query,
-} = require('../../_shared');
+} = require('../_shared');
 
 const DB_ID = process.env.CTRADER_AUTH_DATABASE_ID;
 const BUFFER_HOURS = parseFloat(process.env.REFRESH_BUFFER_HOURS || '48');

@@ -15,7 +15,7 @@ const {
   releaseGrantLock,
   refreshCtraderToken,
   Query,
-} = require('../../_shared');
+} = require('../_shared');
 
 const DB_ID = process.env.CTRADER_AUTH_DATABASE_ID;
 const INTERNAL_KEY = process.env.INTERNAL_API_KEY;

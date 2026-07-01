@@ -18,7 +18,7 @@ const {
   Query,
   Permission,
   Role,
-} = require('../../_shared');
+} = require('../_shared');
 
 const PROJECT_ID = process.env.APPWRITE_PROJECT_ID;
 const DB_ID = process.env.CTRADER_AUTH_DATABASE_ID;
