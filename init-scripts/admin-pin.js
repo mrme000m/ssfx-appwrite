@@ -1,4 +1,4 @@
-const { Client, Users, Databases, ID, Query, Permission, Role } = require('node-appwrite');
+const { Client, Users, TablesDB, ID, Query, Permission, Role } = require('node-appwrite');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -46,7 +46,7 @@ async function main() {
     .setKey(process.env.APPWRITE_API_KEY);
 
   const users = new Users(client);
-  const db = new Databases(client);
+  const db = new TablesDB(client);
 
   const PROJECT_ID = process.env.APPWRITE_PROJECT_ID;
   const DB_ID = 'ctrader_auth';
@@ -96,11 +96,13 @@ async function main() {
 
   let existingRow = null;
   try {
-    const list = await db.listDocuments(DB_ID, 'slave_accounts', [
-      Query.equal('appwrite_user_id', userId),
-    ]);
-    if (list.documents.length > 0) {
-      existingRow = list.documents[0];
+    const list = await db.listRows({
+      databaseId: DB_ID,
+      tableId: 'slave_accounts',
+      queries: [Query.equal('appwrite_user_id', userId)],
+    });
+    if (list.rows.length > 0) {
+      existingRow = list.rows[0];
     }
   } catch (e) {
     console.log('[init] Row lookup error:', e.message);
@@ -109,19 +111,25 @@ async function main() {
   if (!existingRow) {
     console.log('[init] Creating master row...');
     try {
-      await db.createDocument(DB_ID, 'slave_accounts', masterRowId, {
-        appwrite_user_id: userId,
-        username: 'admin',
-        pin_hash: pinHash,
-        role: 'master',
-        grant_id: '',
-        status: 'active',
-        active: true,
-        email: masterEmail,
-      }, [
-        Permission.read(Role.user(userId)),
-        Permission.update(Role.user(userId)),
-      ]);
+      await db.createRow({
+        databaseId: DB_ID,
+        tableId: 'slave_accounts',
+        rowId: masterRowId,
+        data: {
+          appwrite_user_id: userId,
+          username: 'admin',
+          pin_hash: pinHash,
+          role: 'master',
+          grant_id: '',
+          status: 'active',
+          active: true,
+          email: masterEmail,
+        },
+        permissions: [
+          Permission.read(Role.user(userId)),
+          Permission.update(Role.user(userId)),
+        ],
+      });
       console.log('[init] Created master row', masterRowId);
     } catch (e) {
       console.error('[init] Row creation failed:', e.message);
@@ -130,9 +138,14 @@ async function main() {
   } else {
     console.log('[init] Updating master PIN...');
     try {
-      await db.updateDocument(DB_ID, 'slave_accounts', existingRow.$id, {
-        pin_hash: pinHash,
-        active: true,
+      await db.updateRow({
+        databaseId: DB_ID,
+        tableId: 'slave_accounts',
+        rowId: existingRow.$id,
+        data: {
+          pin_hash: pinHash,
+          active: true,
+        },
       });
       console.log('[init] Updated master PIN on row', existingRow.$id);
     } catch (e) {

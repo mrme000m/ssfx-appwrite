@@ -12,6 +12,10 @@
         "events": [],
         "schedule": "",
         "timeout": 15,
+        "execute": [
+            "guests",
+            "users"
+        ],
         "entrypoint": "src/main.js",
         "commands": "npm install",
         "ignore": "node_modules\n.tmp\n.env",
@@ -30,6 +34,10 @@
         "events": [],
         "schedule": "",
         "timeout": 15,
+        "execute": [
+            "guests",
+            "users"
+        ],
         "entrypoint": "src/main.js",
         "commands": "npm install",
         "ignore": "node_modules\n.tmp\n.env",
@@ -48,6 +56,9 @@
         "events": [],
         "schedule": "",
         "timeout": 30,
+        "execute": [
+            "any"
+        ],
         "entrypoint": "src/main.js",
         "commands": "npm install",
         "ignore": "node_modules\n.tmp\n.env",
@@ -66,6 +77,9 @@
         "events": [],
         "schedule": "0 3 * * *",
         "timeout": 300,
+        "execute": [
+            "any"
+        ],
         "entrypoint": "src/main.js",
         "commands": "npm install",
         "ignore": "node_modules\n.tmp\n.env",

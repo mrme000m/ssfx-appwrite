@@ -1,7 +1,0 @@
-{
-  "name": "@slwp/ctrader-shared",
-  "version": "1.0.0",
-  "dependencies": {
-    "node-appwrite": "^14.0.0"
-  }
-}

@@ -2,10 +2,39 @@
   "general": {
     "description": "slwp - Appwrite project. Read AGENTS.md for full context. Agent skills in .qwen/skills/ and .agents/skills/."
   },
+  "env": {
+    "OPENAI_API_KEY": "$OPENAI_API_KEY"
+  },
+  "modelProviders": {
+    "openai": [
+      {
+        "id": "glm-5.2",
+        "name": "glm-5.2",
+        "baseUrl": "https://agentrouter.org/v1",
+        "envKey": "OPENAI_API_KEY"
+      },
+      {
+        "id": "gpt-5.5",
+        "name": "gpt-5.5",
+        "baseUrl": "https://agentrouter.org/v1",
+        "envKey": "OPENAI_API_KEY"
+      }
+    ]
+  },
+  "security": {
+    "auth": {
+      "selectedType": "openai"
+    }
+  },
+  "model": {
+    "name": "glm-5.2"
+  },
   "mcpServers": {
     "appwrite-api": {
-      "command": "uvx",
-      "args": ["mcp-server-appwrite"],
+      "command": "/Users/m/.local/share/mise/shims/uvx",
+      "args": [
+        "mcp-server-appwrite"
+      ],
       "env": {
         "APPWRITE_PROJECT_ID": "$APPWRITE_PROJECT_ID",
         "APPWRITE_API_KEY": "$APPWRITE_API_KEY",
@@ -19,5 +48,21 @@
       "timeout": 30000,
       "description": "Appwrite Docs MCP server"
     }
+  },
+  "$version": 4,
+  "permissions": {
+    "allow": [
+      "mcp__context-mode__ctx_batch_execute",
+      "mcp__appwrite-api__appwrite_search_tools",
+      "mcp__appwrite-docs__listFeatures",
+      "mcp__appwrite-docs__search",
+      "mcp__appwrite-docs__getDocsPage",
+      "mcp__appwrite-docs__getFeatureExamples",
+      "mcp__appwrite-docs__getTableOfContents",
+      "mcp__context-mode__ctx_execute_file",
+      "mcp__appwrite-api__appwrite_search_docs",
+      "mcp__context-mode__ctx_execute",
+      "mcp__appwrite-api__appwrite_call_tool"
+    ]
   }
 }

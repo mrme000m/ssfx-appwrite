@@ -76,6 +76,16 @@ Cross-agent rules for OpenCode, Claude Code, and Qwen Code working on the slwp p
   3. Upsert configuration rows into Appwrite Database.
   4. Print confirmation with the table/row identifiers.
 
+## CI/CD: GitHub Actions (develop branch)
+
+- All Appwrite deployments are controlled by GitHub Actions (`.github/workflows/deploy.yml`), triggered by pushes to the `develop` branch.
+- Functions are deployed via `appwrite push` CLI, **not** VCS git deployment. Never connect functions to git auto-deploy in the Appwrite Console.
+- Function variables are set explicitly in the workflow via `appwrite functions update-variable` (since `.env` files are gitignored).
+- `main` branch is for stable releases only — merge from `develop`, do not deploy from `main`.
+- Branch strategy: `develop` (CI/CD active) → `main` (stable, manual merge).
+- GitHub Secrets are set via `./dev.sh setup-gh-secrets` (fetches CF token from Bitwarden, reads function `.env` files for secret values).
+- Required GitHub Secrets: `APPWRITE_ENDPOINT`, `APPWRITE_PROJECT_ID`, `APPWRITE_API_KEY`, `CF_API_TOKEN`, `CF_ACCOUNT_ID`, `CF_ZONE_ID`, `CTRADER_CLIENT_ID`, `CTRADER_CLIENT_SECRET`, `TOKEN_ENCRYPTION_KEY`, `SESSION_HMAC_KEY`, `INTERNAL_API_KEY`.
+
 ## Coding Conventions
 
 - Use **TablesDB** (not the deprecated `Databases` class) for all new database code.
@@ -89,6 +99,6 @@ Cross-agent rules for OpenCode, Claude Code, and Qwen Code working on the slwp p
 ## Agent Collaboration
 
 - Read `AGENTS.md` in the project root for full project context, credentials, and conventions.
-- Use agent skills in `.agents/skills/` (universal) and `.qwen/skills/` (Qwen Code).
+- Use agent skills in `.agents/skills/` (universal) and `.qwen/skills/` (Qwen Code). Available skills include the Appwrite SDK skills (TypeScript, Python, Go, PHP, CLI) and the appwrite-ctrader plugin skills (Functions, TablesDB, Sites, CI/CD, cTrader Auth, cTrader Trading).
 - Always use TablesDB for new database code.
 - Keep instructions in this file concise; move detailed project context to `AGENTS.md`.

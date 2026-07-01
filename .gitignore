@@ -19,5 +19,22 @@ init-scripts/config.yml
 # Node modules
 node_modules/
 
+# Generated per-function shared copies (canonical source is functions/_shared/)
+functions/*/src/_shared/
+
 # Appwrite build caches
 .tmp/
+
+# Firecrawl local cache
+.firecrawl
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Agent skill symlinks (canonical source is ~/.claude/plugins/appwrite-ctrader/skills)
+.agents/skills/
+.qwen/skills/
+
+# Backup files
+*.orig

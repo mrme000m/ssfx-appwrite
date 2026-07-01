@@ -14,11 +14,15 @@ const {
   encrypt,
   generateGrantId,
   generateToken,
+  corsHeaders,
+  handleOptions,
+  sessionCookie,
+  clearCookie,
   ID,
   Query,
   Permission,
   Role,
-} = require('../_shared');
+} = require('./_shared');
 
 const PROJECT_ID = process.env.APPWRITE_PROJECT_ID;
 const DB_ID = process.env.CTRADER_AUTH_DATABASE_ID;
@@ -27,7 +31,6 @@ function cookieName() {
   return `a_session_${PROJECT_ID}`;
 }
 
-// In-memory rate limiter for OAuth start (per IP)
 const startRateLimit = new Map();
 
 function checkStartRate(ip) {
@@ -44,6 +47,9 @@ function checkStartRate(ip) {
 }
 
 module.exports = async function main({ req, res, log, error }) {
+  const preflight = handleOptions(req, res);
+  if (preflight) return preflight;
+
   const path = req.path;
   const method = req.method;
 
@@ -60,11 +66,14 @@ module.exports = async function main({ req, res, log, error }) {
     if (path === '/logout' && method === 'POST') {
       return await handleLogout(req, res, log);
     }
+    if (path === '/admin/slaves' && method === 'GET') {
+      return await handleAdminSlaves(req, res, log, error);
+    }
 
-    return res.json({ error: 'Not found' }, 404);
+    return res.json({ error: 'Not found' }, 404, corsHeaders());
   } catch (err) {
     error(String(err));
-    return res.json({ error: 'Internal error', detail: err.message }, 500);
+    return res.json({ error: 'Internal error', detail: err.message }, 500, corsHeaders());
   }
 };
 
@@ -73,31 +82,39 @@ module.exports = async function main({ req, res, log, error }) {
 async function handleStart(req, res, log) {
   const clientIp = req.headers['x-forwarded-for'] || 'unknown';
   if (!checkStartRate(clientIp)) {
-    return res.json({ error: 'Rate limited' }, 429);
+    return res.json({ error: 'Rate limited' }, 429, corsHeaders());
   }
 
   const userId = req.query.user_id || '';
-  const state = signState(userId || 'anon_' + generateToken(), process.env.SESSION_HMAC_KEY);
+  const nonce = generateToken();
+  const signedState = signState(userId || 'anon_' + nonce, process.env.SESSION_HMAC_KEY);
 
-  // Store ephemeral token (oauth_state)
   const db = makeAdminDb();
-  await db.createDocument(DB_ID, 'ephemeral_tokens', ID.unique(), {
-    token: state,
-    kind: 'oauth_state',
-    user_id: userId || null,
-    payload: JSON.stringify({ redirect_uri: process.env.CTRADER_REDIRECT_URI }),
-    expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+  await db.createRow({
+    databaseId: DB_ID,
+    tableId: 'ephemeral_tokens',
+    rowId: ID.unique(),
+    data: {
+      token: nonce,
+      kind: 'oauth_state',
+      user_id: userId || null,
+      payload: JSON.stringify({
+        redirect_uri: process.env.CTRADER_REDIRECT_URI,
+        signed_state: signedState,
+      }),
+      expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    },
   });
 
-  const ctraderUrl = new URL('https://id.ctrader.com/Apps/GetAuthToken');
+  const ctraderUrl = new URL('https://id.ctrader.com/my/settings/openapi/grantingaccess/');
   ctraderUrl.searchParams.set('client_id', process.env.CTRADER_CLIENT_ID);
   ctraderUrl.searchParams.set('redirect_uri', process.env.CTRADER_REDIRECT_URI);
   ctraderUrl.searchParams.set('scope', 'trading');
-  ctraderUrl.searchParams.set('response_type', 'code');
-  ctraderUrl.searchParams.set('state', state);
+  ctraderUrl.searchParams.set('product', 'web');
+  ctraderUrl.searchParams.set('state', nonce);
 
   log(`OAuth start → ${ctraderUrl.toString()}`);
-  return res.redirect(ctraderUrl.toString());
+  return res.send('', 302, { Location: ctraderUrl.toString() });
 }
 
 // ─── GET /callback ──────────────────────────────────────────────────
@@ -106,52 +123,64 @@ async function handleCallback(req, res, log, error) {
   const code = req.query.code;
   const state = req.query.state;
   const errorCode = req.query.error;
+  const sitesUrl = process.env.SITES_URL;
 
   if (errorCode) {
-    return res.redirect(`${process.env.SITES_URL}/#/onboarding?success=false&error=${encodeURIComponent(errorCode)}`);
+    return res.redirect(`${sitesUrl}/#/onboarding?success=false&error=${encodeURIComponent(errorCode)}`);
   }
 
   if (!code || !state) {
-    return res.redirect(`${process.env.SITES_URL}/#/onboarding?success=false&error=missing_params`);
+    return res.redirect(`${sitesUrl}/#/onboarding?success=false&error=missing_params`);
   }
 
-  // Verify ephemeral token (oauth_state)
   const db = makeAdminDb();
   let ephemeral;
   try {
-    const list = await db.listDocuments(DB_ID, 'ephemeral_tokens', [
-      Query.equal('token', state),
-      Query.equal('kind', 'oauth_state'),
-    ]);
-    if (list.documents.length === 0) {
-      return res.redirect(`${process.env.SITES_URL}/#/onboarding?success=false&error=invalid_state`);
+    const list = await db.listRows({
+      databaseId: DB_ID,
+      tableId: 'ephemeral_tokens',
+      queries: [
+        Query.equal('token', state),
+        Query.equal('kind', 'oauth_state'),
+      ],
+    });
+    if (list.rows.length === 0) {
+      return res.redirect(`${sitesUrl}/#/onboarding?success=false&error=invalid_state`);
     }
-    ephemeral = list.documents[0];
-    // Consume (delete)
-    await db.deleteDocument(DB_ID, 'ephemeral_tokens', ephemeral.$id);
+    ephemeral = list.rows[0];
+    const payload = JSON.parse(ephemeral.payload || '{}');
+    const stateUserId = verifyState(payload.signed_state, process.env.SESSION_HMAC_KEY);
+    if (!stateUserId) {
+      return res.redirect(`${sitesUrl}/#/onboarding?success=false&error=invalid_state`);
+    }
+    if (!ephemeral.user_id && stateUserId) {
+      ephemeral.user_id = stateUserId;
+    }
+    await db.deleteRow({
+      databaseId: DB_ID,
+      tableId: 'ephemeral_tokens',
+      rowId: ephemeral.$id,
+    });
   } catch (err) {
     error(`State lookup failed: ${err.message}`);
-    return res.redirect(`${process.env.SITES_URL}/#/onboarding?success=false&error=state_lookup_failed`);
+    return res.redirect(`${sitesUrl}/#/onboarding?success=false&error=state_lookup_failed`);
   }
 
-  // Exchange code for tokens
   let tokenData;
   try {
     tokenData = await exchangeCtraderCode(code);
   } catch (err) {
     error(`Token exchange failed: ${err.message}`);
-    return res.redirect(`${process.env.SITES_URL}/#/onboarding?success=false&error=token_exchange`);
+    return res.redirect(`${sitesUrl}/#/onboarding?success=false&error=token_exchange`);
   }
 
   const { access_token, refresh_token, expires_in } = tokenData;
   const expiresAt = new Date(Date.now() + (expires_in || 3600) * 1000).toISOString();
 
-  // Determine or create Appwrite user
   const users = makeAdminUsers();
   let appwriteUserId = ephemeral.user_id;
 
   if (!appwriteUserId || appwriteUserId.startsWith('anon_')) {
-    // Create a new synthetic user
     const generatedEmail = `slave_${generateGrantId().slice(6)}@local.slwp`;
     const generatedPassword = generateToken() + generateToken();
     try {
@@ -164,14 +193,12 @@ async function handleCallback(req, res, log, error) {
       appwriteUserId = user.$id;
     } catch (err) {
       error(`User creation failed: ${err.message}`);
-      return res.redirect(`${process.env.SITES_URL}/#/onboarding?success=false&error=user_create`);
+      return res.redirect(`${sitesUrl}/#/onboarding?success=false&error=user_create`);
     }
   } else {
-    // Verify existing user
     try {
       await users.get({ userId: appwriteUserId });
     } catch {
-      // User gone, create new
       const generatedEmail = `slave_${generateGrantId().slice(6)}@local.slwp`;
       const generatedPassword = generateToken() + generateToken();
       const user = await users.createArgon2User({
@@ -184,45 +211,77 @@ async function handleCallback(req, res, log, error) {
     }
   }
 
-  // Create slave_accounts row
-  const grantId = generateGrantId();
+  let grantId;
+  let role = 'slave';
   try {
-    await db.createDocument(DB_ID, 'slave_accounts', ID.unique(), {
-      appwrite_user_id: appwriteUserId,
-      username: '',
-      pin_hash: '',
-      role: 'slave',
-      grant_id: grantId,
-      access_token_enc: encrypt(access_token),
-      refresh_token_enc: encrypt(refresh_token),
-      access_token_expires_at: expiresAt,
-      ctrader_account_ids: '',
-      selected_account_id: '',
-      status: 'active',
-      active: false,
-      email: '',
-      last_heartbeat_at: null,
-    }, [
-      Permission.read(Role.user(appwriteUserId)),
-      Permission.update(Role.user(appwriteUserId)),
-    ]);
+    const existingList = await db.listRows({
+      databaseId: DB_ID,
+      tableId: 'slave_accounts',
+      queries: [Query.equal('appwrite_user_id', appwriteUserId)],
+    });
+    if (existingList.rows.length > 0) {
+      const existing = existingList.rows[0];
+      grantId = existing.grant_id || generateGrantId();
+      role = existing.role || 'slave';
+      await db.updateRow({
+        databaseId: DB_ID,
+        tableId: 'slave_accounts',
+        rowId: existing.$id,
+        data: {
+          grant_id: grantId,
+          access_token_enc: encrypt(access_token),
+          refresh_token_enc: encrypt(refresh_token),
+          access_token_expires_at: expiresAt,
+          ctrader_account_ids: '',
+          selected_account_id: '',
+          status: 'active',
+        },
+      });
+    } else {
+      grantId = generateGrantId();
+      await db.createRow({
+        databaseId: DB_ID,
+        tableId: 'slave_accounts',
+        rowId: ID.unique(),
+        data: {
+          appwrite_user_id: appwriteUserId,
+          username: '',
+          pin_hash: '',
+          role: 'slave',
+          grant_id: grantId,
+          access_token_enc: encrypt(access_token),
+          refresh_token_enc: encrypt(refresh_token),
+          access_token_expires_at: expiresAt,
+          ctrader_account_ids: '',
+          selected_account_id: '',
+          status: 'active',
+          active: false,
+          email: '',
+          last_heartbeat_at: null,
+        },
+        permissions: [
+          Permission.read(Role.user(appwriteUserId)),
+          Permission.update(Role.user(appwriteUserId)),
+          Permission.read(Role.users()),
+        ],
+      });
+    }
   } catch (err) {
-    error(`Slave row creation failed: ${err.message}`);
-    return res.redirect(`${process.env.SITES_URL}/#/onboarding?success=false&error=db_create`);
+    error(`Slave row upsert failed: ${err.message}`);
+    return res.redirect(`${sitesUrl}/#/onboarding?success=false&error=db_create`);
   }
 
-  // Create session via custom token → server-side session creation
   const adminClient = makeAdminClient();
   const account = new Account(adminClient);
   const token = await users.createToken({ userId: appwriteUserId });
   const session = await account.createSession({ userId: appwriteUserId, secret: token.secret });
 
-  // Set cookie and redirect
-  const cookie = `${cookieName()}=${session.secret}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800`;
-  log(`OAuth success user=${appwriteUserId} grant=${grantId}`);
+  const cookie = sessionCookie(cookieName(), session.secret);
+  log(`OAuth success user=${appwriteUserId} grant=${grantId} role=${role}`);
 
+  const redirectPath = role === 'master' ? '/master' : '/onboarding';
   return res.send('', 302, {
-    'Location': `${process.env.SITES_URL}/#/onboarding?success=true&grant_id=${grantId}`,
+    'Location': `${sitesUrl}/#${redirectPath}?success=true&grant_id=${grantId}`,
     'Set-Cookie': cookie,
   });
 }
@@ -233,25 +292,55 @@ async function handleSession(req, res, log) {
   const cookie = req.headers['cookie'] || '';
   const sessionMatch = cookie.match(new RegExp(`${cookieName()}=([^;]+)`));
   if (!sessionMatch) {
-    return res.json({ authenticated: false }, 200);
+    return res.json({ authenticated: false }, 200, corsHeaders());
   }
 
-  const sessionSecret = sessionMatch[1];
-  const client = makeAdminClient();
-  const account = new Account(client);
+  const sessionCookieValue = sessionMatch[1];
 
   try {
-    // Set session on the client to validate
-    client.setSession(sessionSecret);
-    const user = await account.get();
+    const accountRes = await fetch(`${process.env.APPWRITE_ENDPOINT}/account`, {
+      headers: {
+        'x-appwrite-project': PROJECT_ID,
+        'Cookie': `${cookieName()}=${sessionCookieValue}`,
+      },
+    });
 
-    // Fetch slave row for role/grant
+    if (!accountRes.ok) {
+      return res.json({ authenticated: false }, 200, corsHeaders());
+    }
+
+    const user = await accountRes.json();
+
     const db = makeAdminDb();
-    const slaveList = await db.listDocuments(DB_ID, 'slave_accounts', [
-      Query.equal('appwrite_user_id', user.$id),
-    ]);
+    const slaveList = await db.listRows({
+      databaseId: DB_ID,
+      tableId: 'slave_accounts',
+      queries: [Query.equal('appwrite_user_id', user.$id)],
+    });
 
-    const slave = slaveList.documents[0] || null;
+    const slave = slaveList.rows[0] || null;
+
+    let accounts = [];
+    if (slave && slave.grant_id) {
+      try {
+        const accountList = await db.listRows({
+          databaseId: DB_ID,
+          tableId: 'accounts',
+          queries: [Query.equal('grant_id', slave.grant_id)],
+        });
+        accounts = (accountList.rows || []).map((acc) => ({
+          ctid_trader_account_id: acc.ctidTraderAccountId,
+          is_live: acc.isLive,
+          trader_login: acc.traderLogin,
+          broker_title_short: acc.brokerTitleShort,
+          last_closing_deal_timestamp: acc.lastClosingDealTimestamp,
+          last_balance_update_timestamp: acc.lastBalanceUpdateTimestamp,
+          selected: acc.selected,
+        }));
+      } catch (accErr) {
+        error(`Account lookup failed: ${accErr.message}`);
+      }
+    }
 
     return res.json({
       authenticated: true,
@@ -259,10 +348,16 @@ async function handleSession(req, res, log) {
       grant_id: slave ? slave.grant_id : '',
       role: slave ? slave.role : 'slave',
       name: user.name,
-      expires_at: null, // Appwrite session expiry not exposed directly
-    });
+      username: slave ? slave.username : '',
+      status: slave ? slave.status : '',
+      active: slave ? slave.active : false,
+      ctrader_account_ids: slave ? slave.ctrader_account_ids : '',
+      selected_account_id: slave ? slave.selected_account_id : '',
+      last_heartbeat_at: slave ? slave.last_heartbeat_at : null,
+      accounts,
+    }, 200, corsHeaders());
   } catch (err) {
-    return res.json({ authenticated: false }, 200);
+    return res.json({ authenticated: false }, 200, corsHeaders());
   }
 }
 
@@ -273,18 +368,88 @@ async function handleLogout(req, res, log) {
   const sessionMatch = cookie.match(new RegExp(`${cookieName()}=([^;]+)`));
 
   if (sessionMatch) {
-    const client = makeAdminClient();
-    const account = new Account(client);
     try {
-      client.setSession(sessionMatch[1]);
-      await account.deleteSession({ sessionId: 'current' });
+      await fetch(`${process.env.APPWRITE_ENDPOINT}/account/sessions/current`, {
+        method: 'DELETE',
+        headers: {
+          'x-appwrite-project': PROJECT_ID,
+          'Cookie': `${cookieName()}=${sessionMatch[1]}`,
+        },
+      });
     } catch {
       // ignore
     }
   }
 
-  const clearCookie = `${cookieName()}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`;
-  return res.send('', 200, {
-    'Set-Cookie': clearCookie,
+  return res.json({ success: true }, 200, {
+    ...corsHeaders(),
+    'Set-Cookie': clearCookie(cookieName()),
   });
+}
+
+// ─── Session helper ─────────────────────────────────────────────────
+
+async function getSessionUser(req) {
+  const cookie = req.headers['cookie'] || '';
+  const sessionMatch = cookie.match(new RegExp(`${cookieName()}=([^;]+)`));
+  if (!sessionMatch) return null;
+
+  try {
+    const accountRes = await fetch(`${process.env.APPWRITE_ENDPOINT}/account`, {
+      headers: {
+        'x-appwrite-project': PROJECT_ID,
+        'Cookie': `${cookieName()}=${sessionMatch[1]}`,
+      },
+    });
+    if (!accountRes.ok) return null;
+    return await accountRes.json();
+  } catch {
+    return null;
+  }
+}
+
+// ─── GET /admin/slaves ──────────────────────────────────────────────
+
+async function handleAdminSlaves(req, res, log, error) {
+  const user = await getSessionUser(req);
+  if (!user) {
+    return res.json({ error: 'Unauthorized' }, 401, corsHeaders());
+  }
+
+  const db = makeAdminDb();
+
+  // Verify caller is a master
+  const callerList = await db.listRows({
+    databaseId: DB_ID,
+    tableId: 'slave_accounts',
+    queries: [Query.equal('appwrite_user_id', user.$id)],
+  });
+  const caller = callerList.rows[0] || null;
+  if (!caller || caller.role !== 'master') {
+    return res.json({ error: 'Forbidden' }, 403, corsHeaders());
+  }
+
+  try {
+    const list = await db.listRows({
+      databaseId: DB_ID,
+      tableId: 'slave_accounts',
+      queries: [Query.equal('role', 'slave'), Query.limit(100)],
+    });
+
+    const slaves = (list.rows || []).map((s) => ({
+      username: s.username || '',
+      email: s.email || '',
+      grant_id: s.grant_id || '',
+      status: s.status || '',
+      active: s.active || false,
+      ctrader_account_ids: s.ctrader_account_ids || '',
+      selected_account_id: s.selected_account_id || '',
+      last_heartbeat_at: s.last_heartbeat_at || null,
+    }));
+
+    return res.json({ success: true, slaves }, 200, corsHeaders());
+  } catch (err) {
+    error(`Admin slaves query failed: ${err.message}`);
+    return res.json({ error: 'Failed to load slaves' }, 500, corsHeaders());
+  }
 }

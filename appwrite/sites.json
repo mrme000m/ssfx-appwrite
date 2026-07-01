@@ -6,7 +6,7 @@
         "framework": "other",
         "timeout": 10,
         "installCommand": "",
-        "buildCommand": "",
+        "buildCommand": "node build.js",
         "outputDirectory": ".",
         "buildSpecification": "s-0.5vcpu-512mb",
         "runtimeSpecification": "s-0.5vcpu-512mb",
@@ -15,5 +15,22 @@
         "fallbackFile": "index.html",
         "deploymentRetention": 7,
         "path": "../sites/ctrader-auth-site"
+    },
+    {
+        "$id": "ctrader-command-center",
+        "name": "ctrader-command-center",
+        "logging": true,
+        "framework": "other",
+        "timeout": 10,
+        "installCommand": "",
+        "buildCommand": "node build.js",
+        "outputDirectory": ".",
+        "buildSpecification": "s-0.5vcpu-512mb",
+        "runtimeSpecification": "s-0.5vcpu-512mb",
+        "buildRuntime": "node-22",
+        "adapter": "static",
+        "fallbackFile": "index.html",
+        "deploymentRetention": 7,
+        "path": "../sites/ctrader-command-center"
     }
 ]

@@ -10,13 +10,18 @@ const {
   acquireGrantLock,
   releaseGrantLock,
   refreshCtraderToken,
+  corsHeaders,
+  handleOptions,
   Query,
-} = require('../_shared');
+} = require('./_shared');
 
 const DB_ID = process.env.CTRADER_AUTH_DATABASE_ID;
 const BUFFER_HOURS = parseFloat(process.env.REFRESH_BUFFER_HOURS || '48');
 
 module.exports = async function main({ req, res, log, error }) {
+  const preflight = handleOptions(req, res);
+  if (preflight) return preflight;
+
   try {
     const results = {
       rotated: 0,
@@ -31,15 +36,19 @@ module.exports = async function main({ req, res, log, error }) {
     const expiryThreshold = new Date(now.getTime() + BUFFER_HOURS * 60 * 60 * 1000).toISOString();
 
     // Find active grants expiring soon
-    const expiringList = await db.listDocuments(DB_ID, 'slave_accounts', [
-      Query.equal('status', 'active'),
-      Query.lessThan('access_token_expires_at', expiryThreshold),
-      Query.limit(100),
-    ]);
+    const expiringList = await db.listRows({
+      databaseId: DB_ID,
+      tableId: 'slave_accounts',
+      queries: [
+        Query.equal('status', 'active'),
+        Query.lessThan('access_token_expires_at', expiryThreshold),
+        Query.limit(100),
+      ],
+    });
 
-    log(`Found ${expiringList.documents.length} grants needing refresh`);
+    log(`Found ${expiringList.rows.length} grants needing refresh`);
 
-    for (const slave of expiringList.documents) {
+    for (const slave of expiringList.rows) {
       const rotated = await rotateOne(db, slave, log, error);
       if (rotated === true) results.rotated++;
       else if (rotated === false) results.failed++;
@@ -49,13 +58,21 @@ module.exports = async function main({ req, res, log, error }) {
     // Sweep old ephemeral tokens
     const staleTokenCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
     try {
-      const staleList = await db.listDocuments(DB_ID, 'ephemeral_tokens', [
-        Query.lessThan('expires_at', staleTokenCutoff),
-        Query.limit(100),
-      ]);
-      for (const token of staleList.documents) {
+      const staleList = await db.listRows({
+        databaseId: DB_ID,
+        tableId: 'ephemeral_tokens',
+        queries: [
+          Query.lessThan('expires_at', staleTokenCutoff),
+          Query.limit(100),
+        ],
+      });
+      for (const token of staleList.rows) {
         try {
-          await db.deleteDocument(DB_ID, 'ephemeral_tokens', token.$id);
+          await db.deleteRow({
+            databaseId: DB_ID,
+            tableId: 'ephemeral_tokens',
+            rowId: token.$id,
+          });
           results.swept++;
         } catch (e) {
           // ignore individual delete errors
@@ -68,12 +85,12 @@ module.exports = async function main({ req, res, log, error }) {
 
     return res.json({
       success: true,
-      processed: expiringList.documents.length,
+      processed: expiringList.rows.length,
       ...results,
-    });
+    }, 200, corsHeaders());
   } catch (err) {
     error(String(err));
-    return res.json({ error: 'Worker failed', detail: err.message }, 500);
+    return res.json({ error: 'Worker failed', detail: err.message }, 500, corsHeaders());
   }
 };
 
@@ -100,10 +117,15 @@ async function rotateOne(db, slave, log, error) {
     const newAccessEnc = encrypt(access_token);
     const newRefreshEnc = refresh_token ? encrypt(refresh_token) : slave.refresh_token_enc;
 
-    await db.updateDocument(DB_ID, 'slave_accounts', slave.$id, {
-      access_token_enc: newAccessEnc,
-      refresh_token_enc: newRefreshEnc,
-      access_token_expires_at: newExpiresAt,
+    await db.updateRow({
+      databaseId: DB_ID,
+      tableId: 'slave_accounts',
+      rowId: slave.$id,
+      data: {
+        access_token_enc: newAccessEnc,
+        refresh_token_enc: newRefreshEnc,
+        access_token_expires_at: newExpiresAt,
+      },
     });
 
     log(`Rotated grant=${grantId} new_expires=${newExpiresAt}`);
@@ -111,8 +133,11 @@ async function rotateOne(db, slave, log, error) {
   } catch (err) {
     error(`Rotation failed for ${grantId}: ${err.message}`);
     if (err.status === 400 || err.status === 401) {
-      await db.updateDocument(DB_ID, 'slave_accounts', slave.$id, {
-        status: 'reauth_required',
+      await db.updateRow({
+        databaseId: DB_ID,
+        tableId: 'slave_accounts',
+        rowId: slave.$id,
+        data: { status: 'reauth_required' },
       });
     }
     return false;

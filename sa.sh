@@ -14,6 +14,10 @@ if [[ -f "${ENV_FILE}" ]]; then
   set +a
 fi
 
+# Firecrawl CLI — ensure API key is exported for all agents
+export FIRECRAWL_API_KEY="${FIRECRAWL_API_KEY:-}"
+export FIRECRAWL_NO_TELEMETRY="${FIRECRAWL_NO_TELEMETRY:-1}"
+
 AGENT="${1:-}"
 shift || true
 

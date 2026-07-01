@@ -1,0 +1,31 @@
+{
+  "plugins": {
+    "user": ["~/.claude/plugins/appwrite-ctrader"]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/plugins/appwrite-ctrader/hooks/scripts/validate_appwrite_code.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/plugins/appwrite-ctrader/hooks/scripts/post_deploy_check.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

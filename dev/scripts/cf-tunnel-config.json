@@ -17,6 +17,16 @@
       "originRequest": {}
     },
     {
+      "hostname": "ssfx-api.mrme.tech",
+      "service": "http://ubuntu-server:8000",
+      "originRequest": {}
+    },
+    {
+      "hostname": "ssfx.mrme.tech",
+      "service": "http://localhost:9300",
+      "originRequest": {}
+    },
+    {
       "service": "http_status:404"
     }
   ]

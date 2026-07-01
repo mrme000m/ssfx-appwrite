@@ -2,6 +2,6 @@
   "name": "@slwp/ctrader-auth",
   "version": "1.0.0",
   "dependencies": {
-    "node-appwrite": "^14.0.0"
+    "node-appwrite": "^26.0.0"
   }
 }

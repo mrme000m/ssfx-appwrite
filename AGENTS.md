@@ -11,7 +11,7 @@
 
 ### Appwrite CLI
 
-The CLI is installed at `/opt/homebrew/bin/appwrite` (v20.1.0). The project is linked via `appwrite.json`.
+The CLI is installed at `/opt/homebrew/bin/appwrite` (v22.3.0). The project is linked via `appwrite.config.json`.
 
 Key commands:
 - `appwrite projects get --project-id "6a22a362002b9ae880bb"` – verify project
@@ -52,6 +52,14 @@ All agents read shared instructions from this file and from `.rules`:
 - **OpenCode**: loads `AGENTS.md` and `.rules` via the `instructions` array in `opencode.jsonc`.
 - **Claude Code**: loads `.claude/CLAUDE.md`, which imports `AGENTS.md` and `.rules`.
 - **Qwen Code**: loads `QWEN.md`, which imports `AGENTS.md` and `.rules`. Qwen Code also reads `AGENTS.md` automatically as a fallback.
+- **Qwen Code models**: configured in `.qwen/settings.json` to use `agentrouter.org` with `glm-5.2` (default) and `gpt-5.5`. The `OPENAI_API_KEY` is loaded from `.env` via `sa.sh`.
+
+### Mise / Tooling Environment
+
+- This machine uses **mise** to manage Node, Python, Go, `uv`, and other tools.
+- `uv` / `uvx` are invoked via mise shims at `/Users/m/.local/share/mise/shims/`.
+- The shim requires `MISE_DATA_DIR=/Volumes/Spare/mise` to resolve actual tool binaries. This variable is set in `.env` and exported by `sa.sh` before starting any agent.
+- If an MCP server or script fails to find `uvx`, ensure `MISE_DATA_DIR` is exported in the agent's environment.
 
 Keep tool-agnostic rules in `.rules` and project-specific context in `AGENTS.md`.
 
@@ -90,7 +98,8 @@ Common commands:
 | `dev.sh deploy` | Deploy to the primary remote environment |
 | `dev.sh deploy-remote <target>` | Deploy to a specific remote target |
 | `dev.sh deploy-status` | Show deployment status |
-| `dev.sh deploy-auth` | Deploy cTrader auth functions + site + tables |
+| `dev.sh deploy-auth` | Deploy cTrader auth functions + site + tables (local, manual) |
+| `dev.sh setup-gh-secrets` | Fetch CF token from Bitwarden, set all GitHub Actions secrets, populate .env |
 | `dev.sh init` | Run all third-party service init scripts |
 
 Do not run ad-hoc commands for these operations; add new commands to `dev/scripts/` and expose them through `dev.sh`.
@@ -276,6 +285,136 @@ The provided API key has **sending access only**. Domain creation and DNS verifi
 
 Until the domain is verified, emails can still be sent from Resend's shared domains for testing, but production sends should use `email.mrme.tech`.
 
+## Web Scraping: Firecrawl
+
+The project uses Firecrawl CLI for web scraping, searching, crawling, and browser interaction. The CLI is installed globally and skills are installed at user level for OpenCode, Claude Code, and Qwen Code.
+
+### Configuration
+
+- **API Key:** stored in `.env` as `FIRECRAWL_API_KEY` (loaded by `sa.sh`).
+- **Telemetry:** disabled via `FIRECRAWL_NO_TELEMETRY=1` in `.env`.
+- **CLI config:** persisted at `~/.firecrawl/` via `firecrawl login --api-key`.
+- **Skills:** installed in `~/.agents/skills/`, `~/.claude/skills/`, and `~/.qwen/skills/` for all three agents.
+
+### CLI Status
+
+```bash
+# Check installation, auth, and rate limits
+firecrawl --status
+
+# View current configuration
+firecrawl view-config
+
+# Check credit usage
+firecrawl credit-usage
+```
+
+### Common Commands
+
+```bash
+# Scrape a single page to markdown
+firecrawl scrape https://example.com
+
+# Search the web
+firecrawl search "Appwrite TablesDB documentation"
+
+# Crawl an entire site section
+firecrawl crawl https://docs.example.com/api --limit 50
+
+# Map all URLs on a site
+firecrawl map https://example.com
+
+# Interact with a page (clicks, form fills, login flows)
+firecrawl interact https://example.com/login --prompt "Fill login form and submit"
+```
+
+### Agent Skills
+
+Firecrawl skills are available at user level for all agents. Key skills:
+
+| Skill | Purpose |
+|-------|---------|
+| `firecrawl-scrape` | Extract markdown/HTML from a single URL |
+| `firecrawl-search` | Web search with full page content |
+| `firecrawl-crawl` | Bulk extract from entire site sections |
+| `firecrawl-map` | Discover and list all URLs on a site |
+| `firecrawl-interact` | Browser interaction (clicks, forms, login) |
+| `firecrawl-parse` | Parse local files (PDF, DOCX, XLSX) to markdown |
+| `firecrawl-deep-research` | Cited analytical reports from web research |
+| `firecrawl-workflows` | Outcome-focused deliverables (SEO audits, lead lists, etc.) |
+
+### Reinstalling Skills
+
+```bash
+# Install all firecrawl skills to all detected AI agents
+npx -y firecrawl-cli@latest init --all
+```
+
+## Plugin: appwrite-ctrader
+
+A user-level plugin at `~/.claude/plugins/appwrite-ctrader/` provides skills, commands, agents, and hooks for this project. All three agents (Claude Code, OpenCode, Qwen Code) load it when working in this repository.
+
+### How Each Agent Loads the Plugin
+
+| Agent | Mechanism |
+|-------|-----------|
+| **Claude Code** | `.claude/settings.json` enables the plugin via `plugins.user` + hooks from `hooks/hooks.json` |
+| **OpenCode** | 6 skills symlinked from plugin to `.agents/skills/` (auto-discovered) |
+| **Qwen Code** | 6 skills symlinked from plugin to `.qwen/skills/` and `~/.qwen/skills/` (auto-discovered) |
+
+### Skills (6) — available to all agents
+
+| Skill | Purpose |
+|-------|---------|
+| `appwrite-functions` | Create, deploy, and manage Appwrite Functions |
+| `appwrite-tablesdb` | Create TablesDB tables with correct column types and permissions |
+| `appwrite-sites` | Deploy and extend the auth/admin SPA |
+| `appwrite-cicd` | Hybrid GitHub Actions + Appwrite git deployment pipeline |
+| `ctrader-auth` | OAuth flow, PIN login, grant_id token management, encrypted storage |
+| `ctrader-trading` | TG signal ingestion, copy trading, position monitoring, master-slave execution |
+
+### Commands (7) — Claude Code slash commands
+
+| Command | Purpose |
+|---------|---------|
+| `/deploy-auth` | Deploy auth layer (functions + site + tables) |
+| `/deploy-functions` | Deploy one or all Appwrite Functions |
+| `/deploy-site` | Deploy the static auth/admin site |
+| `/deploy-all` | Full deployment + health checks |
+| `/init-service` | Initialize third-party services (TG, OAuth, admin) |
+| `/status` | System status across all components |
+| `/create-table` | Create TablesDB table with permissions |
+
+OpenCode and Qwen Code agents should use the equivalent `dev.sh` commands (e.g., `./dev.sh deploy-auth`) for the same functionality.
+
+### Sub-Agents (3) — Claude Code only
+
+| Agent | Purpose |
+|-------|---------|
+| `appwrite-deployer` | Deployment specialist for Functions, Sites, TablesDB |
+| `appwrite-reviewer` | Code review for Appwrite SDK patterns, security, TablesDB |
+| `trade-system-architect` | Architecture design for trading system components |
+
+### Hooks (2) — Claude Code only
+
+| Hook | Event | Action |
+|------|-------|--------|
+| `validate_appwrite_code` | PreToolUse (Write/Edit in `functions/`) | Check TablesDB patterns, SDK style, security |
+| `post_deploy_check` | PostToolUse (Bash) | Health check deployed functions |
+
+### Re-symlink Plugin Skills
+
+```bash
+# Run from project root to re-link skills after plugin updates
+PLUGIN_SKILLS="$HOME/.claude/plugins/appwrite-ctrader/skills"
+for skill in appwrite-cicd appwrite-sites ctrader-trading appwrite-functions appwrite-tablesdb ctrader-auth; do
+  ln -sfn "${PLUGIN_SKILLS}/${skill}" ".agents/skills/${skill}"
+  ln -sfn "${PLUGIN_SKILLS}/${skill}" ".qwen/skills/${skill}"
+  ln -sfn "${PLUGIN_SKILLS}/${skill}" "$HOME/.qwen/skills/${skill}"
+  ln -sfn "${PLUGIN_SKILLS}/${skill}" "$HOME/.agents/skills/${skill}"
+done
+```
+
 ## cTrader + Appwrite Auth Layer
 
 Replaces `cf-auth-broker` (Cloudflare Worker) with Appwrite Functions + TablesDB-backed static site. The Python backends in `/Volumes/ExMac/code/ssfx/v2` and `/Volumes/ExMac/code/ssfx/dataservice` consume grant handles via `CTRADER_AUTH_BROKER_URL` exactly as before.
@@ -318,10 +457,55 @@ Replaces `cf-auth-broker` (Cloudflare Worker) with Appwrite Functions + TablesDB
 4. **Python backend**: calls `POST /internal/ctrader/refresh` with `x-internal-key`, gets access_token, then uses `ctrader-open-api` locally for account list and trading.
 5. **Master**: username `admin` + PIN. Created by `init-scripts/admin-pin.sh`. Can view all slaves via master dashboard.
 
-### Deployment
+### CI/CD Pipeline
+
+Deployment is fully automated via **GitHub Actions** on push to the `develop` branch.
+
+**Workflow**: `.github/workflows/deploy.yml`
+
+| Job | Trigger | Purpose |
+|-----|---------|---------|
+| `deploy-tables` | Push to `develop` | Push TablesDB schema |
+| `deploy-functions` | Push to `develop` | Sync shared code → lint → create function deployments → upsert variables → activate → set cron |
+| `deploy-site` | Push to `develop` | Create site deployment and activate |
+| `verify-domains` | After deploy jobs | Check custom domain status |
+| `smoke-test` | After deploy jobs | Health check `auth.mrme.tech`, `app.mrme.tech` |
+| `cleanup` | After deploy jobs | Remove orphaned Appwrite resources |
+
+**Deployment flow**:
+1. Developer pushes to `develop` branch
+2. GitHub Actions runs `deploy-tables` first, then `deploy-functions` and `deploy-site` in parallel
+3. `deploy-functions` calls `dev/scripts/deploy_auth.py --functions`, which creates each function deployment with `appwrite functions create-deployment`, upserts variables by variable ID, activates the deployment, and sets the worker cron schedule
+4. `deploy-site` calls `dev/scripts/deploy_auth.py --site`, which creates the site deployment with `appwrite sites create-deployment` and activates it
+5. `smoke-test` verifies all endpoints are healthy
+6. `cleanup` removes old deployments
+
+**Branch strategy**:
+- `main` — stable, protected. Manual merges from `develop` for releases
+- `develop` — CI/CD active branch, all changes go here first
+
+**Functions are NOT connected to VCS** (no auto-deploy from git pushes). GitHub Actions controls all deployments via the Appwrite CLI using API key auth.
+
+**GitHub Secrets required** (set via `./dev.sh setup-gh-secrets`):
+
+| Secret | Purpose |
+|--------|---------|
+| `APPWRITE_ENDPOINT` | Appwrite endpoint |
+| `APPWRITE_PROJECT_ID` | Appwrite project ID |
+| `APPWRITE_API_KEY` | Appwrite API key |
+| `CF_API_TOKEN` | Cloudflare API token (fetched from Bitwarden) |
+| `CF_ACCOUNT_ID` | Cloudflare account ID |
+| `CF_ZONE_ID` | Cloudflare zone ID for mrme.tech |
+| `CTRADER_CLIENT_ID` | cTrader OAuth client ID |
+| `CTRADER_CLIENT_SECRET` | cTrader OAuth client secret |
+| `TOKEN_ENCRYPTION_KEY` | AES-GCM-256 key for token encryption |
+| `SESSION_HMAC_KEY` | HMAC key for session state signing |
+| `INTERNAL_API_KEY` | Internal API key for ctrader-internal |
+
+### Manual Deployment (one-time setup)
 
 ```bash
-# 1. Push tables + functions + site
+# 1. Push tables + functions + site (initial setup or manual override)
 ./dev.sh deploy-auth
 
 # 2. Set up master admin PIN
@@ -337,10 +521,12 @@ Replaces `cf-auth-broker` (Cloudflare Worker) with Appwrite Functions + TablesDB
 
 ### Function Variables (secrets)
 
-Set via `.env` files in each function directory (see `.env.example` files). Push with `--with-variables`.
+Variables are upserted by `dev/scripts/deploy_auth.py` from environment values (local `.env` or GitHub Secrets). They are not read from per-function `.env` files.
 
-- `CTRADER_CLIENT_SECRET`, `TOKEN_ENCRYPTION_KEY`, `SESSION_HMAC_KEY` → `ctrader-auth`
+- `CTRADER_CLIENT_ID`, `CTRADER_CLIENT_SECRET`, `TOKEN_ENCRYPTION_KEY`, `SESSION_HMAC_KEY`, `SITES_URL` → `ctrader-auth`
 - `INTERNAL_API_KEY` → `ctrader-internal`
+- `BCRYPT_SALT_ROUNDS` → `ctrader-pin-auth`
+- `REFRESH_BUFFER_HOURS` → `ctrader-token-refresh-worker`
 - `APPWRITE_PROJECT_ID`, `APPWRITE_API_KEY`, `APPWRITE_ENDPOINT`, `CTRADER_AUTH_DATABASE_ID` → all functions
 
 ### Python Backend Migration
@@ -354,7 +540,7 @@ Set via `.env` files in each function directory (see `.env.example` files). Push
 
 | File | Purpose |
 |------|---------|
-| `appwrite.json` | Appwrite CLI project config |
+| `appwrite.config.json` | Appwrite CLI project config |
 | `opencode.jsonc` | OpenCode MCP + project settings |
 | `.mcp.json` | Claude Code project-level MCP |
 | `.qwen/settings.json` | Qwen Code project-level MCP |

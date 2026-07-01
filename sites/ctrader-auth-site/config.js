@@ -1,18 +1,19 @@
 /**
  * Site configuration — deployed URLs
- * 
- * Uses stable custom domain (auth.mrme.tech) for function endpoints
- * instead of auto-generated Appwrite URLs that change per deployment.
+ *
+ * Uses stable custom domains for function endpoints.
+ * These domains do not change across function redeployments.
  */
 window.APP_CONFIG = {
-  // Appwrite project endpoint (custom domain recommended for production)
+  // Appwrite project endpoint
   endpoint: 'https://sgp.cloud.appwrite.io/v1',
   projectId: '6a22a362002b9ae880bb',
-  
-  // Stable proxy domain for all function calls via Cloudflare Worker
+
+  // Function endpoints (stable custom domains)
   authFunctionUrl: 'https://auth.mrme.tech',
-  pinFunctionUrl: 'https://auth.mrme.tech',
-  
-  // Site URL (Appwrite Site custom domain or auto-generated)
-  siteUrl: 'https://6a44b8ee000475e8df39.appwrite.network'
+  pinFunctionUrl: 'https://pin.mrme.tech',
+  internalFunctionUrl: 'https://internal.mrme.tech',
+
+  // Site URL (native Appwrite custom domain)
+  siteUrl: 'https://app.mrme.tech'
 };

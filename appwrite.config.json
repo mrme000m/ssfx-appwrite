@@ -15,135 +15,6 @@
     ],
     "tables": [
         {
-            "$id": "slave_accounts",
-            "$permissions": [
-                "create(\"any\")"
-            ],
-            "databaseId": "ctrader_auth",
-            "name": "Slave Accounts",
-            "enabled": true,
-            "rowSecurity": true,
-            "columns": [
-                {
-                    "key": "appwrite_user_id",
-                    "type": "varchar",
-                    "required": true,
-                    "size": 64
-                },
-                {
-                    "key": "username",
-                    "type": "varchar",
-                    "required": false,
-                    "size": 64
-                },
-                {
-                    "key": "pin_hash",
-                    "type": "varchar",
-                    "required": false,
-                    "size": 100
-                },
-                {
-                    "key": "role",
-                    "type": "varchar",
-                    "required": true,
-                    "size": 16
-                },
-                {
-                    "key": "grant_id",
-                    "type": "varchar",
-                    "required": true,
-                    "size": 64
-                },
-                {
-                    "key": "access_token_enc",
-                    "type": "text",
-                    "required": false
-                },
-                {
-                    "key": "refresh_token_enc",
-                    "type": "mediumtext",
-                    "required": false
-                },
-                {
-                    "key": "access_token_expires_at",
-                    "type": "datetime",
-                    "required": false
-                },
-                {
-                    "key": "ctrader_account_ids",
-                    "type": "varchar",
-                    "required": false,
-                    "size": 256
-                },
-                {
-                    "key": "selected_account_id",
-                    "type": "varchar",
-                    "required": false,
-                    "size": 32
-                },
-                {
-                    "key": "status",
-                    "type": "varchar",
-                    "required": true,
-                    "size": 32
-                },
-                {
-                    "key": "active",
-                    "type": "boolean",
-                    "required": true
-                },
-                {
-                    "key": "email",
-                    "type": "varchar",
-                    "required": false,
-                    "size": 128
-                },
-                {
-                    "key": "last_heartbeat_at",
-                    "type": "datetime",
-                    "required": false
-                }
-            ],
-            "indexes": [
-                {
-                    "key": "idx_appwrite_user_id",
-                    "type": "key",
-                    "attributes": [
-                        "appwrite_user_id"
-                    ]
-                },
-                {
-                    "key": "idx_username",
-                    "type": "unique",
-                    "attributes": [
-                        "username"
-                    ]
-                },
-                {
-                    "key": "idx_grant_id",
-                    "type": "unique",
-                    "attributes": [
-                        "grant_id"
-                    ]
-                },
-                {
-                    "key": "idx_expires_at",
-                    "type": "key",
-                    "attributes": [
-                        "access_token_expires_at"
-                    ]
-                },
-                {
-                    "key": "idx_status_active",
-                    "type": "key",
-                    "attributes": [
-                        "status",
-                        "active"
-                    ]
-                }
-            ]
-        },
-        {
             "$id": "trade_configs",
             "$permissions": [
                 "create(\"users\")",
@@ -160,44 +31,333 @@
                     "key": "slave_user_id",
                     "type": "varchar",
                     "required": true,
-                    "size": 64
+                    "array": false,
+                    "size": 64,
+                    "default": null,
+                    "encrypt": false
                 },
                 {
                     "key": "lot_size",
                     "type": "double",
                     "required": false,
-                    "default": 0.01
+                    "array": false,
+                    "default": 0.01,
+                    "min": -1.7976931348623157e+308,
+                    "max": 1.7976931348623157e+308
                 },
                 {
                     "key": "lot_multiplier",
                     "type": "double",
                     "required": false,
-                    "default": 1
+                    "array": false,
+                    "default": 1,
+                    "min": -1.7976931348623157e+308,
+                    "max": 1.7976931348623157e+308
                 },
                 {
                     "key": "max_daily_drawdown_pct",
                     "type": "double",
                     "required": false,
-                    "default": 5
+                    "array": false,
+                    "default": 5,
+                    "min": -1.7976931348623157e+308,
+                    "max": 1.7976931348623157e+308
                 },
                 {
                     "key": "allowed_symbols",
                     "type": "text",
-                    "required": false
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
                 },
                 {
                     "key": "copy_enabled",
                     "type": "boolean",
-                    "required": true
+                    "required": true,
+                    "array": false,
+                    "default": null
                 }
             ],
             "indexes": [
                 {
                     "key": "idx_slave_user_id",
                     "type": "unique",
-                    "attributes": [
+                    "status": "available",
+                    "columns": [
                         "slave_user_id"
-                    ]
+                    ],
+                    "orders": []
+                }
+            ]
+        },
+        {
+            "$id": "ephemeral_tokens",
+            "$permissions": [],
+            "databaseId": "ctrader_auth",
+            "name": "Ephemeral Tokens",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "token",
+                    "type": "varchar",
+                    "required": true,
+                    "array": false,
+                    "size": 128,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "kind",
+                    "type": "varchar",
+                    "required": true,
+                    "array": false,
+                    "size": 16,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "user_id",
+                    "type": "varchar",
+                    "required": false,
+                    "array": false,
+                    "size": 64,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "payload",
+                    "type": "text",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "expires_at",
+                    "type": "datetime",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "idx_kind_token",
+                    "type": "unique",
+                    "status": "available",
+                    "columns": [
+                        "kind",
+                        "token"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "idx_expires_at",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "expires_at"
+                    ],
+                    "orders": []
+                }
+            ]
+        },
+        {
+            "$id": "grant_locks",
+            "$permissions": [],
+            "databaseId": "ctrader_auth",
+            "name": "Grant Locks",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "locked_at",
+                    "type": "datetime",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                },
+                {
+                    "key": "locked_by",
+                    "type": "varchar",
+                    "required": true,
+                    "array": false,
+                    "size": 32,
+                    "default": null,
+                    "encrypt": false
+                }
+            ],
+            "indexes": []
+        },
+        {
+            "$id": "slave_accounts",
+            "$permissions": [
+                "create(\"any\")"
+            ],
+            "databaseId": "ctrader_auth",
+            "name": "Slave Accounts",
+            "enabled": true,
+            "rowSecurity": true,
+            "columns": [
+                {
+                    "key": "appwrite_user_id",
+                    "type": "varchar",
+                    "required": true,
+                    "array": false,
+                    "size": 64,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "grant_id",
+                    "type": "varchar",
+                    "required": true,
+                    "array": false,
+                    "size": 64,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "username",
+                    "type": "varchar",
+                    "required": false,
+                    "array": false,
+                    "size": 32,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "email",
+                    "type": "varchar",
+                    "required": false,
+                    "array": false,
+                    "size": 255,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "role",
+                    "type": "varchar",
+                    "required": false,
+                    "array": false,
+                    "size": 16,
+                    "default": "slave",
+                    "encrypt": false
+                },
+                {
+                    "key": "pin_hash",
+                    "type": "text",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "active",
+                    "type": "boolean",
+                    "required": false,
+                    "array": false,
+                    "default": false
+                },
+                {
+                    "key": "status",
+                    "type": "varchar",
+                    "required": false,
+                    "array": false,
+                    "size": 32,
+                    "default": "pending",
+                    "encrypt": false
+                },
+                {
+                    "key": "refresh_token_enc",
+                    "type": "text",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "access_token_enc",
+                    "type": "text",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "access_token_expires_at",
+                    "type": "datetime",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                },
+                {
+                    "key": "ctrader_account_ids",
+                    "type": "text",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "selected_account_id",
+                    "type": "varchar",
+                    "required": false,
+                    "array": false,
+                    "size": 64,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "last_heartbeat_at",
+                    "type": "datetime",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "idx_status_active",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "status"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "idx_username",
+                    "type": "unique",
+                    "status": "available",
+                    "columns": [
+                        "username"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "idx_appwrite_user_id",
+                    "type": "unique",
+                    "status": "available",
+                    "columns": [
+                        "appwrite_user_id"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "idx_grant_id",
+                    "type": "unique",
+                    "status": "available",
+                    "columns": [
+                        "grant_id"
+                    ],
+                    "orders": []
                 }
             ]
         },
@@ -218,126 +378,138 @@
                     "key": "symbol",
                     "type": "varchar",
                     "required": true,
-                    "size": 16
+                    "array": false,
+                    "size": 16,
+                    "default": null,
+                    "encrypt": false
                 },
                 {
                     "key": "direction",
                     "type": "varchar",
                     "required": true,
-                    "size": 8
+                    "array": false,
+                    "size": 8,
+                    "default": null,
+                    "encrypt": false
                 },
                 {
                     "key": "lot_size",
                     "type": "double",
                     "required": false,
-                    "default": 0.01
+                    "array": false,
+                    "default": 0.01,
+                    "min": -1.7976931348623157e+308,
+                    "max": 1.7976931348623157e+308
                 },
                 {
                     "key": "sl_pips",
                     "type": "integer",
                     "required": false,
-                    "default": 50
+                    "array": false,
+                    "default": 50,
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "tp_pips",
                     "type": "integer",
                     "required": false,
-                    "default": 100
+                    "array": false,
+                    "default": 100,
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "status",
                     "type": "varchar",
                     "required": true,
-                    "size": 16
+                    "array": false,
+                    "size": 16,
+                    "default": null,
+                    "encrypt": false
                 }
             ],
             "indexes": [
                 {
                     "key": "idx_status_created",
                     "type": "key",
-                    "attributes": [
+                    "status": "available",
+                    "columns": [
                         "status",
                         "$createdAt"
-                    ]
+                    ],
+                    "orders": []
                 }
             ]
         },
         {
-            "$id": "ephemeral_tokens",
-            "$permissions": [],
+            "$id": "ctrader_trading_events",
+            "$permissions": [
+                "create(\"any\")",
+                "read(\"users\")"
+            ],
             "databaseId": "ctrader_auth",
-            "name": "Ephemeral Tokens",
+            "name": "cTrader Trading Events",
             "enabled": true,
             "rowSecurity": false,
             "columns": [
                 {
-                    "key": "token",
+                    "key": "grant_id",
                     "type": "varchar",
                     "required": true,
-                    "size": 128
+                    "array": false,
+                    "size": 255,
+                    "default": null,
+                    "encrypt": false
                 },
                 {
-                    "key": "kind",
+                    "key": "ctid_trader_account_id",
                     "type": "varchar",
                     "required": true,
-                    "size": 16
+                    "array": false,
+                    "size": 32,
+                    "default": null,
+                    "encrypt": false
                 },
                 {
-                    "key": "user_id",
+                    "key": "event_type",
                     "type": "varchar",
-                    "required": false,
-                    "size": 64
+                    "required": true,
+                    "array": false,
+                    "size": 64,
+                    "default": null,
+                    "encrypt": false
                 },
                 {
                     "key": "payload",
-                    "type": "text",
-                    "required": false
+                    "type": "longtext",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
                 },
                 {
-                    "key": "expires_at",
-                    "type": "datetime",
-                    "required": true
+                    "key": "created_at",
+                    "type": "varchar",
+                    "required": true,
+                    "array": false,
+                    "size": 64,
+                    "default": null,
+                    "encrypt": false
                 }
             ],
             "indexes": [
                 {
-                    "key": "idx_kind_token",
-                    "type": "unique",
-                    "attributes": [
-                        "kind",
-                        "token"
-                    ]
-                },
-                {
-                    "key": "idx_expires_at",
+                    "key": "idx_grant_ctid",
                     "type": "key",
-                    "attributes": [
-                        "expires_at"
-                    ]
+                    "status": "available",
+                    "columns": [
+                        "grant_id",
+                        "ctid_trader_account_id"
+                    ],
+                    "orders": []
                 }
             ]
-        },
-        {
-            "$id": "grant_locks",
-            "$permissions": [],
-            "databaseId": "ctrader_auth",
-            "name": "Grant Locks",
-            "enabled": true,
-            "rowSecurity": false,
-            "columns": [
-                {
-                    "key": "locked_at",
-                    "type": "datetime",
-                    "required": true
-                },
-                {
-                    "key": "locked_by",
-                    "type": "varchar",
-                    "required": true,
-                    "size": 32
-                }
-            ],
-            "indexes": []
         }
     ]
 }

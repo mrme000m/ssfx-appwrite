@@ -4,7 +4,7 @@
  */
 
 const crypto = require('crypto');
-const { Client, Databases, ID, Query, Users, Permission, Role } = require('node-appwrite');
+const { Client, TablesDB, ID, Query, Users, Permission, Role } = require('node-appwrite');
 
 // ─── Crypto ─────────────────────────────────────────────────────────
 
@@ -66,7 +66,7 @@ function makeAdminClient() {
 }
 
 function makeAdminDb() {
-  return new Databases(makeAdminClient());
+  return new TablesDB(makeAdminClient());
 }
 
 function makeAdminUsers() {
@@ -75,16 +75,21 @@ function makeAdminUsers() {
 
 // ─── Grant locks (TablesDB row-level) ───────────────────────────────
 
+function grantLockRowId(grantId) {
+  // Appwrite row IDs are capped at 36 chars; grant_ids can exceed that.
+  return crypto.createHash('sha256').update(grantId).digest('hex').slice(0, 32);
+}
+
 async function acquireGrantLock(db, grantId, lockContext = 'refresh', timeoutMs = 30000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     try {
-      await db.createDocument(
-        process.env.CTRADER_AUTH_DATABASE_ID,
-        'grant_locks',
-        grantId,
-        { locked_at: new Date().toISOString(), locked_by: lockContext }
-      );
+      await db.createRow({
+        databaseId: process.env.CTRADER_AUTH_DATABASE_ID,
+        tableId: 'grant_locks',
+        rowId: grantLockRowId(grantId),
+        data: { locked_at: new Date().toISOString(), locked_by: lockContext },
+      });
       return true;
     } catch (e) {
       if (e.code === 409) {
@@ -99,11 +104,11 @@ async function acquireGrantLock(db, grantId, lockContext = 'refresh', timeoutMs 
 
 async function releaseGrantLock(db, grantId) {
   try {
-    await db.deleteDocument(
-      process.env.CTRADER_AUTH_DATABASE_ID,
-      'grant_locks',
-      grantId
-    );
+    await db.deleteRow({
+      databaseId: process.env.CTRADER_AUTH_DATABASE_ID,
+      tableId: 'grant_locks',
+      rowId: grantLockRowId(grantId),
+    });
   } catch {
     // ignore not-found or race
   }
@@ -112,7 +117,7 @@ async function releaseGrantLock(db, grantId) {
 // ─── cTrader token exchange ─────────────────────────────────────────
 
 async function exchangeCtraderCode(code) {
-  const body = new URLSearchParams({
+  const params = new URLSearchParams({
     grant_type: 'authorization_code',
     client_id: process.env.CTRADER_CLIENT_ID,
     client_secret: process.env.CTRADER_CLIENT_SECRET,
@@ -120,10 +125,9 @@ async function exchangeCtraderCode(code) {
     redirect_uri: process.env.CTRADER_REDIRECT_URI,
   });
 
-  const res = await fetch('https://id.ctrader.com/Apps/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
+  const res = await fetch(`https://openapi.ctrader.com/apps/token?${params}`, {
+    method: 'GET',
+    headers: { 'Accept': 'application/json' },
   });
 
   if (!res.ok) {
@@ -133,21 +137,31 @@ async function exchangeCtraderCode(code) {
     throw err;
   }
 
-  return res.json();
+  const data = await res.json();
+  if (data.errorCode) {
+    const err = new Error(`cTrader token exchange failed: ${data.errorCode} - ${data.description || ''}`);
+    err.status = 400;
+    throw err;
+  }
+
+  return {
+    access_token: data.accessToken,
+    refresh_token: data.refreshToken,
+    expires_in: data.expiresIn,
+  };
 }
 
 async function refreshCtraderToken(refreshToken) {
-  const body = new URLSearchParams({
+  const params = new URLSearchParams({
     grant_type: 'refresh_token',
     client_id: process.env.CTRADER_CLIENT_ID,
     client_secret: process.env.CTRADER_CLIENT_SECRET,
     refresh_token: refreshToken,
   });
 
-  const res = await fetch('https://id.ctrader.com/Apps/token', {
+  const res = await fetch(`https://openapi.ctrader.com/apps/token?${params}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
+    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
   });
 
   if (!res.ok) {
@@ -157,7 +171,18 @@ async function refreshCtraderToken(refreshToken) {
     throw err;
   }
 
-  return res.json();
+  const data = await res.json();
+  if (data.errorCode) {
+    const err = new Error(`cTrader refresh failed: ${data.errorCode} - ${data.description || ''}`);
+    err.status = 400;
+    throw err;
+  }
+
+  return {
+    access_token: data.accessToken,
+    refresh_token: data.refreshToken,
+    expires_in: data.expiresIn,
+  };
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────
@@ -178,11 +203,42 @@ function redirectResponse(url, status = 302) {
 }
 
 function generateGrantId() {
-  return 'grant_' + crypto.randomBytes(16).toString('hex');
+  // Keep total length ≤ 36 chars so it can safely be used as a TablesDB rowId.
+  return 'grant_' + crypto.randomBytes(14).toString('hex');
 }
 
 function generateToken() {
   return crypto.randomBytes(32).toString('hex');
+}
+
+// ─── CORS + Cookie helpers ──────────────────────────────────────────
+
+const CORS_ORIGIN = process.env.SITE_URL || process.env.SITES_URL || 'https://app.mrme.tech';
+const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN || '.mrme.tech';
+
+function corsHeaders() {
+  return {
+    'Access-Control-Allow-Origin': CORS_ORIGIN,
+    'Access-Control-Allow-Credentials': 'true',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, x-internal-key',
+    'Access-Control-Max-Age': '86400',
+  };
+}
+
+function handleOptions(req, res) {
+  if (req.method === 'OPTIONS') {
+    return res.send('', 204, corsHeaders());
+  }
+  return null;
+}
+
+function sessionCookie(name, secret, maxAge = 604800) {
+  return `${name}=${secret}; HttpOnly; Secure; SameSite=Lax; Domain=${COOKIE_DOMAIN}; Path=/; Max-Age=${maxAge}`;
+}
+
+function clearCookie(name) {
+  return `${name}=; HttpOnly; Secure; SameSite=Lax; Domain=${COOKIE_DOMAIN}; Path=/; Max-Age=0`;
 }
 
 // ─── Exports ────────────────────────────────────────────────────────
@@ -204,6 +260,12 @@ module.exports = {
   redirectResponse,
   generateGrantId,
   generateToken,
+  corsHeaders,
+  handleOptions,
+  sessionCookie,
+  clearCookie,
+  CORS_ORIGIN,
+  COOKIE_DOMAIN,
   ID,
   Query,
   Permission,

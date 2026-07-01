@@ -2,100 +2,119 @@ name: Deploy SSFX Appwrite Auth
 
 on:
   push:
-    branches: [main, functions, site, develop]
+    branches: [develop]
   workflow_dispatch:
 
 env:
   APPWRITE_ENDPOINT: ${{ secrets.APPWRITE_ENDPOINT }}
   APPWRITE_PROJECT_ID: ${{ secrets.APPWRITE_PROJECT_ID }}
   APPWRITE_API_KEY: ${{ secrets.APPWRITE_API_KEY }}
-  CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-  CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-  CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
 
 jobs:
-  deploy-functions:
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/functions' || github.ref == 'refs/heads/develop'
+  deploy-tables:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install Appwrite CLI
+        run: npm install -g appwrite@22.3.0
+      - name: Login
+        run: appwrite client --endpoint "$APPWRITE_ENDPOINT" --project-id "$APPWRITE_PROJECT_ID" --key "$APPWRITE_API_KEY"
+      - name: Push Tables
+        run: appwrite push tables --all --force
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
+  deploy-functions:
+    needs: deploy-tables
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-
       - name: Install Appwrite CLI
-        run: npm install -g appwrite@latest
-
-      - name: Login to Appwrite
-        run: appwrite client --endpoint "$APPWRITE_ENDPOINT" --project "$APPWRITE_PROJECT_ID" --key "$APPWRITE_API_KEY"
-
-      - name: Push Tables
-        run: appwrite push tables --all --force
-
-      - name: Push Functions
-        run: appwrite push functions --all --force --with-variables
-
-      - name: Extract Function URLs
-        id: extract-urls
+        run: npm install -g appwrite@22.3.0
+      - name: Login
+        run: appwrite client --endpoint "$APPWRITE_ENDPOINT" --project-id "$APPWRITE_PROJECT_ID" --key "$APPWRITE_API_KEY"
+      - name: Sync shared module
+        run: python3 dev/scripts/sync_shared.py
+      - name: Lint
+        run: bash dev/scripts/lint.sh
+      - name: Deploy functions
+        env:
+          CTRADER_CLIENT_ID: ${{ secrets.CTRADER_CLIENT_ID }}
+          CTRADER_CLIENT_SECRET: ${{ secrets.CTRADER_CLIENT_SECRET }}
+          TOKEN_ENCRYPTION_KEY: ${{ secrets.TOKEN_ENCRYPTION_KEY }}
+          SESSION_HMAC_KEY: ${{ secrets.SESSION_HMAC_KEY }}
+          INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
         run: |
-          pip install jq
-          AUTH_FUNC=$(appwrite functions get --function-id ctrader-auth --json | jq -r '.httpUrl // empty')
-          PIN_FUNC=$(appwrite functions get --function-id ctrader-pin-auth --json | jq -r '.httpUrl // empty')
-          INTERNAL_FUNC=$(appwrite functions get --function-id ctrader-internal --json | jq -r '.httpUrl // empty')
-          echo "auth_url=$AUTH_FUNC" >> "$GITHUB_OUTPUT"
-          echo "pin_url=$PIN_FUNC" >> "$GITHUB_OUTPUT"
-          echo "internal_url=$INTERNAL_FUNC" >> "$GITHUB_OUTPUT"
-          echo "Auth Function URL: $AUTH_FUNC"
-          echo "PIN Function URL: $PIN_FUNC"
-          echo "Internal Function URL: $INTERNAL_FUNC"
-
-      - name: Install Wrangler
-        run: npm install -g wrangler@latest
-
-      - name: Update Worker Environment Variables
-        working-directory: cloudflare/worker-callback-proxy
-        run: |
-          echo "Updating Cloudflare Worker secrets..."
-          echo "${{ steps.extract-urls.outputs.auth_url }}" | wrangler secret put CTRADER_AUTH_FUNCTION_URL --env production
-          echo "${{ steps.extract-urls.outputs.pin_url }}" | wrangler secret put CTRADER_PIN_FUNCTION_URL --env production
-          echo "${{ steps.extract-urls.outputs.internal_url }}" | wrangler secret put CTRADER_INTERNAL_FUNCTION_URL --env production
-
-      - name: Deploy Worker
-        if: github.ref == 'refs/heads/main'
-        working-directory: cloudflare/worker-callback-proxy
-        run: wrangler deploy --env production
+          python3 dev/scripts/deploy_auth.py \
+            --functions --no-tables --no-site --no-domains --no-smoke \
+            --no-sync --no-lint
 
   deploy-site:
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/site' || github.ref == 'refs/heads/develop'
+    needs: deploy-tables
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
       - name: Install Appwrite CLI
-        run: npm install -g appwrite@latest
-
-      - name: Login to Appwrite
-        run: appwrite client --endpoint "$APPWRITE_ENDPOINT" --project "$APPWRITE_PROJECT_ID" --key "$APPWRITE_API_KEY"
-
-      - name: Push Site
-        run: appwrite push sites --all --force --with-variables
-
-      - name: Extract Site URL
-        id: extract-site
+        run: npm install -g appwrite@22.3.0
+      - name: Login
+        run: appwrite client --endpoint "$APPWRITE_ENDPOINT" --project-id "$APPWRITE_PROJECT_ID" --key "$APPWRITE_API_KEY"
+      - name: Deploy site
         run: |
-          pip install jq
-          SITE_URL=$(appwrite sites get --site-id ctrader-auth-site --json | jq -r '.httpUrl // empty')
-          echo "site_url=$SITE_URL" >> "$GITHUB_OUTPUT"
-          echo "Site URL: $SITE_URL"
+          python3 dev/scripts/deploy_auth.py \
+            --site --no-tables --no-functions --no-domains --no-smoke \
+            --no-sync --no-lint
+
+  verify-domains:
+    needs: [deploy-functions, deploy-site]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Appwrite CLI
+        run: npm install -g appwrite@22.3.0
+      - name: Login
+        run: appwrite client --endpoint "$APPWRITE_ENDPOINT" --project-id "$APPWRITE_PROJECT_ID" --key "$APPWRITE_API_KEY"
+      - name: Verify custom domains
+        run: python3 dev/scripts/setup_function_domains.py --status
+
+  smoke-test:
+    needs: [deploy-functions, deploy-site]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          echo "[ci] Smoke testing deployed endpoints..."
+          sleep 10
+          curl -fsS --retry 5 --retry-delay 5 --connect-timeout 10 \
+            'https://auth.mrme.tech/session' | tee /tmp/session.json
+          test "$(jq -r '.authenticated' /tmp/session.json)" = "false"
+          echo "  ✓ /session returns authenticated=false"
+          curl -fsS --retry 5 --retry-delay 5 --connect-timeout 10 \
+            'https://app.mrme.tech/' | tee /tmp/site.html
+          grep -q '<div id="app">' /tmp/site.html
+          echo "  ✓ site HTML returned"
+          echo "[ci] Smoke tests passed."
+
+  cleanup:
+    needs: [deploy-functions, deploy-site]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Appwrite CLI
+        run: npm install -g appwrite@22.3.0
+      - name: Login
+        run: appwrite client --endpoint "$APPWRITE_ENDPOINT" --project-id "$APPWRITE_PROJECT_ID" --key "$APPWRITE_API_KEY"
+      - name: Cleanup orphaned resources
+        run: python3 dev/scripts/cleanup_appwrite_resources.py
+        continue-on-error: true
