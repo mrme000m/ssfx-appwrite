@@ -1,0 +1,103 @@
+# remote-services — Azure VM Docker runtime
+
+Self-contained cTrader services container. All Python packages live inside this
+directory. Code is baked into the image at build time; configuration is mounted
+at runtime.
+
+## What runs inside the container
+
+| Process | Port | Purpose | Public hostname |
+|---------|------|---------|-----------------|
+| `dataservice-daemon` | `9000` | Market-data ingestion / control API | — |
+| `dataservice-sse` | `9001` | MCP SSE server (live prices/tools) | `ds-sse.mrme.tech` |
+| `dataservice-api` | `9002` | OpenPI REST API + admin UI | `dataservice.mrme.tech` |
+| `ssfx-server` | `8000` | Telegram webhook + cTrader follower admin | `ssfx-api.mrme.tech` |
+| `ctrader` | `9300` | Unified cTrader service (WS hub + trade exec) | — |
+
+## Package layout
+
+```
+remote-services/
+├── ssfx_parser/             Signal parsing library (shared)
+├── ctrader_client/          cTrader Open API client library (shared)
+├── ssfx_trader/             Trade execution engine (shared)
+├── ssfx_server/             Telegram webhook server (service)
+├── ctrader/                 Unified cTrader service (service)
+├── market_data_service/     Market data MCP + daemon + REST API (service)
+├── bin/                     Process runner scripts
+├── config/                  Runtime configs (mounted, not committed)
+└── logs/                    Persistent log output
+```
+
+## First-time setup on the Azure VM
+
+1. Copy and fill in the runtime configs:
+
+   ```bash
+   cd remote-services
+   cp config/dataservice.env.example config/dataservice.env
+   cp config/v2.env.example config/v2.env
+   cp config/dataservice-config.yml.example config/dataservice-config.yml
+   cp config/tunnel-ingress.json.example config/tunnel-ingress.json
+   # Edit the files above with real credentials.
+   ```
+
+2. Sync this folder to the VM and start the container:
+
+   ```bash
+   ./dev.sh remote-services-sync
+   ```
+
+3. Publish the services through the Cloudflare tunnel and verify DNS:
+
+   ```bash
+   ./dev.sh remote-services-init-tunnel
+   ```
+
+## Day-to-day iteration
+
+After editing code in this directory:
+
+```bash
+./dev.sh remote-services-sync
+```
+
+This rsyncs the changed source, rebuilds the image, and restarts the container.
+
+## Manual commands on the VM
+
+```bash
+ssh m@<vm-ip>
+cd ~/ctrader-services
+
+# Start / restart
+docker compose up -d --build
+docker compose restart
+
+# View logs
+docker compose logs -f
+
+# Run the tunnel init script on the VM itself
+python3 init-tunnel.py
+```
+
+## Files
+
+| File | Purpose |
+|------|---------|
+| `Dockerfile` | Python 3.11 + supervisor image; installs deps from `pyproject.toml` |
+| `docker-compose.yml` | Mounts configs and exposes ports on the VM host |
+| `supervisord.conf` | Runs five service processes inside one container |
+| `pyproject.toml` | Unified Python project with all dependencies |
+| `bin/run-*` | Thin wrappers that invoke each service |
+| `init-tunnel.py` | Clears stale tunnel ingress, ensures DNS records, verifies public reachability |
+| `sync-and-restart.sh` | Manual rsync + restart helper |
+| `config/*.example` | Templates for runtime secrets and YAML config |
+
+## Notes
+
+- The container exposes ports on `localhost` of the Azure VM; `cloudflared` on the
+  VM forwards the public hostnames to those ports.
+- Source code is baked into the image at build time; configs and logs are mounted.
+- MongoDB and any other local dependencies are expected to run on the VM host and
+  be reachable via `host.docker.internal`.

@@ -1,0 +1,18 @@
+[Unit]
+Description=Unified cTrader service (market data + trading execution)
+After=network.target
+
+[Service]
+Type=simple
+User=m
+WorkingDirectory=/home/m/ssfx/v2
+EnvironmentFile=/home/m/ssfx/v2/.env
+ExecStart=/home/m/ssfx/v2/venv/bin/python -m ctrader
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ctrader
+
+[Install]
+WantedBy=multi-user.target

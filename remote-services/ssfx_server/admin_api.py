@@ -1,0 +1,341 @@
+"""Admin API surface for the cTrader AI Copy-Trading Command Center.
+
+The router is mounted by ssfx_server.web_app and consumes the global
+application state (followers, signal_store, account_store, parser).
+"""
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+from datetime import UTC, datetime
+from typing import Any
+
+from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel, Field
+
+from ssfx_parser import Direction, SignalStatus, SignalType, TradeSignal
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api")
+
+_app_state: Any | None = None
+
+
+def set_state(state: Any) -> None:
+    """Called by web_app lifespan after AppState is initialized."""
+    global _app_state
+    _app_state = state
+
+
+def _state() -> Any:
+    if _app_state is None:
+        raise HTTPException(status_code=503, detail="server not initialized")
+    return _app_state
+
+
+def _require_admin_key(request: Request) -> None:
+    cfg = _state().config
+    if cfg.admin_api_key:
+        key = request.headers.get("x-admin-key", "")
+        if key != cfg.admin_api_key:
+            raise HTTPException(status_code=401, detail="unauthorized")
+
+
+def _now_ms() -> int:
+    return int(datetime.now(UTC).timestamp() * 1000)
+
+
+def _serialize_signal(signal: TradeSignal) -> dict[str, Any]:
+    return {
+        "chat_id": signal.chat_id,
+        "message_id": signal.message_id,
+        "reply_to_message_id": signal.reply_to_message_id,
+        "timestamp_ms": signal.timestamp_ms,
+        "raw_text": signal.raw_text,
+        "direction": signal.direction.value if signal.direction else None,
+        "symbol": signal.symbol,
+        "signal_type": signal.signal_type.value,
+        "order_type": signal.order_type.value if signal.order_type else None,
+        "entry_price": signal.entry_price,
+        "tp1": signal.tp1,
+        "tp2": signal.tp2,
+        "tp3": signal.tp3,
+        "sl": signal.sl,
+        "profit_pips": signal.profit_pips,
+        "close_percentage": signal.close_percentage,
+        "tp_hit_number": signal.tp_hit_number,
+        "parse_confidence": signal.parse_confidence,
+        "parser_used": signal.parser_used,
+        "llm_reasoning": signal.llm_reasoning,
+        "status": signal.status.value,
+        "order_id": signal.order_id,
+        "position_id": signal.position_id,
+        "executed_price": signal.executed_price,
+        "error": signal.error,
+    }
+
+
+def _serialize_execution(exec_: Any) -> dict[str, Any]:
+    return {
+        "follower_id": exec_.follower_id,
+        "signal_chat_id": exec_.signal_chat_id,
+        "signal_message_id": exec_.signal_message_id,
+        "signal_type": exec_.signal_type,
+        "status": exec_.status,
+        "order_id": exec_.order_id,
+        "position_id": exec_.position_id,
+        "executed_price": exec_.executed_price,
+        "volume": exec_.volume,
+        "original_volume_lots": exec_.original_volume_lots,
+        "error": exec_.error,
+        "skip_reason": exec_.skip_reason,
+        "created_at": exec_.created_at,
+        "updated_at": exec_.updated_at,
+    }
+
+
+class InjectSignalRequest(BaseModel):
+    raw_text: str = ""
+    symbol: str
+    direction: str  # BUY or SELL
+    signal_type: str = "NEW"
+    entry_price: float | None = None
+    sl: float | str | None = None
+    tp1: float | None = None
+    tp2: float | None = None
+    tp3: float | None = None
+    order_type: str | None = None
+    chat_id: str = "manual"
+    message_id: int | None = None
+    reply_to_message_id: int | None = None
+    parse_confidence: float = 1.0
+    parser_used: str = "manual"
+
+
+@router.get("/accounts")
+async def list_accounts(request: Request) -> JSONResponse:
+    _require_admin_key(request)
+    state = _state()
+    accounts = state.account_store.list_accounts()
+    results = []
+    for doc in accounts:
+        name = doc.get("name", "")
+        follower = state.followers.get(name)
+        runtime = {"running": False, "connected": False, "active_positions": 0}
+        if follower is not None:
+            task = getattr(follower, "_watch_task", None)
+            runtime["running"] = task is not None and not task.done()
+            backend = getattr(follower._executor, "_backend", None)
+            runtime["connected"] = getattr(backend, "_connected", True)
+            runtime["active_positions"] = follower._executor.active_position_count
+        results.append({"name": name, "enabled": doc.get("enabled", True), "host_type": doc.get("ctrader", {}).get("host_type", "demo"), "runtime": runtime, "config": doc})
+    return JSONResponse(results)
+
+
+@router.get("/accounts/{name}/state")
+async def account_state(name: str, request: Request) -> JSONResponse:
+    _require_admin_key(request)
+    state = _state()
+    follower = state.followers.get(name)
+    if follower is None:
+        raise HTTPException(status_code=404, detail=f"account {name} not found")
+
+    executor = follower._executor
+    backend = executor._backend
+    connected = getattr(backend, "_connected", True)
+    summary = {"balance": None, "equity": None}
+    if connected:
+        try:
+            summary = await backend.get_account_summary()
+        except Exception as exc:
+            logger.warning("[%s] Failed to fetch account summary: %s", name, exc)
+
+    positions = []
+    for key, pos in executor._active_positions.items():
+        signal = pos.get("signal")
+        positions.append(
+            {
+                "key": key,
+                "symbol": signal.symbol if signal else None,
+                "direction": signal.direction.value if signal and signal.direction else None,
+                "volume_lots": pos.get("volume_lots"),
+                "remaining_volume_lots": pos.get("remaining_volume_lots"),
+                "order_id": pos.get("order_id"),
+                "position_id": pos.get("position_id"),
+            }
+        )
+
+    recent = state.account_store.list_recent_executions(name, limit=20)
+    last_error = None
+    for ex in recent:
+        if ex.status in ("failed", "rejected", "skipped") and (ex.error or ex.skip_reason):
+            last_error = ex.error or ex.skip_reason
+            break
+
+    return JSONResponse(
+        {
+            "name": name,
+            "running": getattr(follower, "_watch_task", None) is not None and not follower._watch_task.done(),
+            "connected": connected,
+            "summary": summary,
+            "active_positions": executor.active_position_count,
+            "positions": positions,
+            "last_error": last_error,
+            "recent_executions": [_serialize_execution(ex) for ex in recent],
+        }
+    )
+
+
+@router.get("/signals")
+async def list_signals(request: Request, limit: int = 50) -> JSONResponse:
+    _require_admin_key(request)
+    state = _state()
+    signals = state.signal_store.list_signals(limit=limit)
+    return JSONResponse([_serialize_signal(s) for s in signals])
+
+
+@router.get("/signals/{chat_id}/{message_id}/executions")
+async def signal_executions(chat_id: str, message_id: int, request: Request) -> JSONResponse:
+    _require_admin_key(request)
+    state = _state()
+    results = []
+    for name in state.followers:
+        exec_ = state.account_store.get_execution(name, chat_id, message_id)
+        if exec_ is not None:
+            results.append(_serialize_execution(exec_))
+    return JSONResponse(results)
+
+
+@router.post("/signals/inject")
+async def inject_signal(payload: InjectSignalRequest, request: Request) -> JSONResponse:
+    _require_admin_key(request)
+    state = _state()
+
+    try:
+        direction = Direction(payload.direction.upper())
+        signal_type = SignalType(payload.signal_type.upper())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"invalid enum value: {exc}") from exc
+
+    message_id = payload.message_id or _now_ms()
+    from ssfx_parser import RawMessage
+
+    raw = RawMessage(
+        chat_id=payload.chat_id,
+        message_id=message_id,
+        text=payload.raw_text or f"MANUAL {payload.direction} {payload.symbol} @ {payload.entry_price}",
+        reply_to_message_id=payload.reply_to_message_id,
+        timestamp_ms=_now_ms(),
+    )
+    state.signal_store.save_raw_message(raw)
+
+    signal = TradeSignal(
+        raw_text=raw.text,
+        direction=direction,
+        symbol=payload.symbol.upper(),
+        signal_type=signal_type,
+        entry_price=payload.entry_price,
+        sl=payload.sl,
+        tp1=payload.tp1,
+        tp2=payload.tp2,
+        tp3=payload.tp3,
+        parse_confidence=payload.parse_confidence,
+        parser_used=payload.parser_used,
+        message_id=message_id,
+        chat_id=payload.chat_id,
+        reply_to_message_id=payload.reply_to_message_id,
+        timestamp_ms=raw.timestamp_ms,
+        status=SignalStatus.EMITTED,
+    )
+    state.signal_store.save_signal(signal)
+
+    logger.info(
+        "Manual signal injected: %s %s %s entry=%s by %s",
+        signal.signal_type.value,
+        signal.direction.value,
+        signal.symbol,
+        signal.entry_price,
+        request.headers.get("x-admin-key", "unknown"),
+    )
+
+    for follower in state.followers.values():
+        await follower.on_signal(signal)
+
+    return JSONResponse({"ok": True, "signal": _serialize_signal(signal)})
+
+
+@router.get("/executions")
+async def list_executions(request: Request, limit: int = 50) -> JSONResponse:
+    _require_admin_key(request)
+    state = _state()
+    results = []
+    for name in state.followers:
+        for ex in state.account_store.list_recent_executions(name, limit=limit):
+            results.append(_serialize_execution(ex))
+    results.sort(key=lambda e: e.get("updated_at") or e.get("created_at", ""), reverse=True)
+    return JSONResponse(results[:limit])
+
+
+@router.get("/executions/stream")
+async def execution_stream(request: Request) -> StreamingResponse:
+    _require_admin_key(request)
+    state = _state()
+
+    async def event_generator():
+        seen_trade_keys: set[str] = set()
+        while True:
+            await asyncio.sleep(2)
+            try:
+                trades = state.signal_store.list_trades(limit=100)
+                for trade in trades:
+                    key = trade.get("signal_key", "")
+                    updated = trade.get("updated_at", "")
+                    unique = f"{key}:{updated}"
+                    if unique in seen_trade_keys:
+                        continue
+                    seen_trade_keys.add(unique)
+                    # prune set to avoid unbounded growth
+                    if len(seen_trade_keys) > 500:
+                        seen_trade_keys.clear()
+                    payload = {
+                        "type": "trade",
+                        "signal_key": key,
+                        "signal": trade.get("signal"),
+                        "result": trade.get("result"),
+                        "updated_at": updated,
+                    }
+                    yield f"data: {json.dumps(payload)}\n\n"
+            except Exception as exc:
+                logger.warning("execution_stream error: %s", exc)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@router.get("/agent-logs")
+async def agent_logs(request: Request, limit: int = 50) -> JSONResponse:
+    _require_admin_key(request)
+    state = _state()
+    signals = state.signal_store.list_signals(limit=limit)
+    logs = []
+    for signal in signals:
+        executions = []
+        for name in state.followers:
+            exec_ = state.account_store.get_execution(name, signal.chat_id or "", signal.message_id or 0)
+            if exec_ is not None:
+                executions.append(_serialize_execution(exec_))
+        logs.append(
+            {
+                "signal": _serialize_signal(signal),
+                "executions": executions,
+                "agents": [
+                    {"agent": "parser", "status": "done", "detail": signal.parser_used},
+                    {"agent": "risk", "status": "done", "detail": f"confidence {signal.parse_confidence:.2f}"},
+                    {"agent": "router", "status": "done", "detail": f"routed to {len(state.followers)} followers"},
+                    {"agent": "executor", "status": "done", "detail": f"{sum(1 for e in executions if e['status'] == 'executed')} executed"},
+                ],
+            }
+        )
+    return JSONResponse(logs)

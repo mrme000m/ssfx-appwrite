@@ -1,0 +1,36 @@
+services:
+  ctrader-services:
+    container_name: ctrader-services
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ctrader-services:latest
+    restart: unless-stopped
+    ports:
+      - "8000:8000"   # ssfx-server (Telegram webhook / admin API)
+      - "9000:9000"   # dataservice control API
+      - "9001:9001"   # dataservice MCP SSE server
+      - "9002:9002"   # dataservice OpenPI REST API
+      - "9300:9300"   # ctrader unified service
+      - "9301:9301"   # account hub WS server (persistent cTrader connections)
+    volumes:
+      # Runtime configuration files.
+      - ./config/dataservice.env:/app/config/dataservice.env:ro
+      - ./config/dataservice-config.yml:/app/config/dataservice-config.yml:ro
+      - ./config/v2.env:/app/config/v2.env:ro
+      # Persistent logs.
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "bash", "-c", "nc -z 127.0.0.1 8000 && nc -z 127.0.0.1 9001 && nc -z 127.0.0.1 9002 && nc -z 127.0.0.1 9301"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - ctrader-services
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+networks:
+  ctrader-services:
+    name: ctrader-services

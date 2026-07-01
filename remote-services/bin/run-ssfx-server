@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+set -euo pipefail
+exec python -c "from ssfx_server.web_app import main; main()" "$@"

@@ -1,0 +1,75 @@
+[project]
+name = "ctrader-services"
+version = "0.2.0"
+description = "cTrader services: market data MCP server, Telegram webhook signal receiver, trade executor, and unified cTrader service"
+requires-python = ">=3.11"
+dependencies = [
+    "aiohttp>=3.9",
+    "aiosqlite>=0.20",
+    "appwrite>=8.0",
+    "ctrader-open-api>=0.9",
+    "fastapi>=0.115",
+    "mcp>=1.6.0",
+    "numpy>=1.24",
+    "pydantic>=2",
+    "pydantic-settings>=2",
+    "pymongo>=4.6",
+    "python-dotenv>=1.0",
+    "python-telegram-bot>=21.0",
+    "pyyaml>=6.0",
+    "service-identity>=24.0",
+    "structlog>=23",
+    "uvicorn>=0.34",
+    "websockets>=12.0",
+]
+
+[project.optional-dependencies]
+mongodb = ["motor>=3.3", "pymongo>=4.6"]
+appwrite = ["appwrite>=7.0"]
+influxdb = ["influxdb3-python>=0.10.0", "influxdb-client>=1.38.0"]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.8",
+    "httpx>=0.27",
+    "mongomock>=4.1",
+    "mypy>=1.14",
+]
+
+[project.scripts]
+ssfx-server = "ssfx_server.web_app:main"
+ssfx-set-webhook = "ssfx_server.cli:set_webhook"
+ssfx-account = "ssfx_trader.cli:main"
+ctrader = "ctrader.__main__:main"
+market-data-service = "market_data_service.__main__:main"
+market-data-service-sse = "market_data_service.server_sse:main"
+market-data-service-daemon = "market_data_service.data_service:main"
+market-data-service-api = "market_data_service.api_server:main"
+
+[tool.setuptools.packages.find]
+include = [
+    "ctrader_client",
+    "ctrader", "ctrader.market", "ctrader.trading",
+    "ssfx_parser",
+    "ssfx_server",
+    "ssfx_trader", "ssfx_trader.backends", "ssfx_trader.stores",
+    "market_data_service", "market_data_service.auth", "market_data_service.util",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["."]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true

@@ -1,0 +1,232 @@
+"""FastAPI webhook server for SSFX v2."""
+from __future__ import annotations
+
+import asyncio
+import logging
+from contextlib import asynccontextmanager
+from typing import Any
+
+from fastapi import BackgroundTasks, FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from ssfx_parser import RawMessage, SignalStatus
+from ssfx_trader.config import AccountConfig
+from ssfx_trader.factory import create_follower, create_parser
+from ssfx_trader.follower import AccountFollower
+from ssfx_trader.stores.appwrite_account_store import AppwriteAccountStore
+from ssfx_trader.stores.mongo_store import MongoAccountStore, MongoSignalStore
+
+from .config_loader import ServerConfig, load_config
+from .telegram_webhook import parse_channel_post
+from . import admin_api
+
+logger = logging.getLogger(__name__)
+
+
+class AppState:
+    def __init__(self, config: ServerConfig):
+        self.config = config
+        self.signal_store = MongoSignalStore(config.mongo_uri, config.mongo_database)
+        self.parser = create_parser(config.agent_config())
+        self.followers: dict[str, AccountFollower] = {}
+        self._follower_tasks: set[asyncio.Task] = set()
+
+    async def start(self) -> None:
+        if self.config.appwrite_api_key:
+            self.account_store = AppwriteAccountStore()
+            source = "Appwrite"
+        else:
+            self.account_store = MongoAccountStore(
+                self.config.mongo_uri, self.config.mongo_database, "_system"
+            )
+            source = "MongoDB"
+        accounts = self.account_store.list_accounts()
+        if not accounts:
+            logger.warning("No accounts configured. Create one in the SSFX config UI.")
+
+        for doc in accounts:
+            try:
+                cfg = AccountConfig.from_mongo(doc)
+                follower = create_follower(
+                    cfg,
+                    self.config.mongo_uri,
+                    self.config.mongo_database,
+                    account_store=self.account_store,
+                    data_service_base_url=self.config.dataservice_base_url,
+                    data_service_api_key=self.config.dataservice_api_key,
+                )
+                await follower._executor._backend.connect()
+                task = asyncio.create_task(follower.start())
+                self._follower_tasks.add(task)
+                task.add_done_callback(self._follower_tasks.discard)
+                self.followers[cfg.name] = follower
+                logger.info("Started follower for account %s (source: %s)", cfg.name, source)
+            except Exception as exc:
+                logger.error("Failed to start follower for %s: %s", doc.get("_id"), exc)
+
+    async def stop(self) -> None:
+        for follower in self.followers.values():
+            follower.stop()
+        if self._follower_tasks:
+            await asyncio.gather(*self._follower_tasks, return_exceptions=True)
+        await self.parser.close()
+
+    def _follower_tasks_done(self, task: asyncio.Task) -> None:
+        self._follower_tasks.discard(task)
+
+
+state: AppState | None = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global state
+    config = load_config()
+    logging.basicConfig(level=getattr(logging, config.log_level.upper(), logging.INFO))
+    state = AppState(config)
+    await state.start()
+    admin_api.set_state(state)
+    logger.info("SSFX server ready on %s", config.webhook_url)
+    yield
+    await state.stop()
+
+
+app = FastAPI(title="SSFX v2", lifespan=lifespan)
+
+_CORS_ORIGINS = [
+    origin.strip()
+    for origin in (
+        f"{load_config().admin_site_origin},"
+        "http://localhost:8001,http://127.0.0.1:8001,"
+        "http://localhost:3000,http://127.0.0.1:3000,"
+        "http://localhost:5000,http://127.0.0.1:5000"
+    ).split(",")
+    if origin.strip()
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(admin_api.router)
+
+
+@app.get("/health")
+async def health() -> dict[str, Any]:
+    return {
+        "status": "ok",
+        "accounts": list(state.followers.keys()) if state else [],
+        "active_positions": {
+            name: follower._executor.active_position_count
+            for name, follower in (state.followers.items() if state else [])
+        },
+    }
+
+
+@app.post(state.config.webhook_path if state else "/webhook")
+async def telegram_webhook(request: Request, background_tasks: BackgroundTasks) -> JSONResponse:
+    if state is None:
+        return JSONResponse({"ok": False, "error": "server not initialized"}, status_code=503)
+
+    try:
+        update = await request.json()
+    except Exception as exc:
+        logger.warning("Invalid webhook payload: %s", exc)
+        return JSONResponse({"ok": False, "error": "invalid json"}, status_code=400)
+
+    post = parse_channel_post(update)
+    if post is None:
+        return JSONResponse({"ok": True, "ignored": "not a channel post"})
+
+    logger.info(
+        "Webhook from chat=%s message=%s reply_to=%s text=%r",
+        post.chat_id,
+        post.message_id,
+        post.reply_to_message_id,
+        post.text[:80],
+    )
+
+    background_tasks.add_task(
+        _process_channel_post,
+        state,
+        post.chat_id,
+        post.message_id,
+        post.text,
+        post.reply_to_message_id,
+    )
+
+    return JSONResponse({"ok": True})
+
+
+async def _process_channel_post(
+    app_state: AppState,
+    chat_id: str,
+    message_id: int,
+    text: str,
+    reply_to_message_id: int | None,
+) -> None:
+    timestamp_ms = int(__import__("time").time() * 1000)
+
+    raw_msg = RawMessage(
+        chat_id=chat_id,
+        message_id=message_id,
+        text=text,
+        reply_to_message_id=reply_to_message_id,
+        timestamp_ms=timestamp_ms,
+    )
+    app_state.signal_store.save_raw_message(raw_msg)
+
+    today_msgs = app_state.signal_store.get_today_messages(chat_id)
+    context_lines: list[str] = []
+    for msg in today_msgs:
+        if msg.message_id == message_id:
+            continue
+        reply_info = f" [reply to msg #{msg.reply_to_message_id}]" if msg.reply_to_message_id else ""
+        snippet = msg.text[:500] if len(msg.text) > 500 else msg.text
+        context_lines.append(f"[msg #{msg.message_id}]{reply_info}: {snippet}")
+
+    signal = await app_state.parser.parse(
+        raw_text=text,
+        message_id=message_id,
+        chat_id=chat_id,
+        reply_to_message_id=reply_to_message_id,
+        timestamp_ms=timestamp_ms,
+        context=context_lines,
+    )
+
+    if signal is None:
+        logger.info("No signal parsed from message %s", message_id)
+        return
+
+    signal.status = SignalStatus.EMITTED
+    app_state.signal_store.save_signal(signal)
+    logger.info(
+        "Signal emitted: %s %s %s entry=%s confidence=%.2f parser=%s",
+        signal.signal_type,
+        signal.direction,
+        signal.symbol,
+        signal.entry_price,
+        signal.parse_confidence,
+        signal.parser_used,
+    )
+
+    for follower in app_state.followers.values():
+        await follower.on_signal(signal)
+
+
+def main() -> None:
+    import uvicorn
+
+    config = load_config()
+    logging.basicConfig(level=getattr(logging, config.log_level.upper(), logging.INFO))
+    uvicorn.run(
+        "ssfx_server.web_app:app",
+        host="0.0.0.0",
+        port=config.webhook_port,
+        log_level=config.log_level.lower(),
+    )

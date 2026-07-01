@@ -1,0 +1,40 @@
+# Dataservice workspace YAML config.
+# Copy to config/dataservice-config.yml and fill in credentials.
+# Precedence (highest first):
+#   1. Explicit environment variables
+#   2. .env file (config/dataservice.env)
+#   3. This YAML file
+
+service:
+  name: market-data-service
+  host: 0.0.0.0
+  port: 9001
+  ds_control_port: 9000
+  api_port: 9002
+  log_level: INFO
+  tick_buffer_size: 10000
+  bar_buffer_size: 5000
+  depth_buffer_size: 1000
+  tick_flush_batch_size: 100
+  bar_flush_batch_size: 20
+  flush_interval_seconds: 5.0
+  reconnect_delay: 5.0
+  max_reconnect_delay: 60.0
+
+database:
+  backend: sqlite
+  sqlite_path: /app/logs/market_data.db
+
+ctrader:
+  host_type: demo
+  transport_type: tcp
+  # broker_url and grant_id are written automatically by the auth flow.
+  # Set use_appwrite_auth: true to use the Appwrite-based auth (ctrader-internal)
+  # instead of the legacy Cloudflare auth broker.
+  use_appwrite_auth: false
+  # broker_url: https://internal.mrme.tech
+  # grant_id:
+  # client_id:
+  # client_secret:
+  # account_id:
+  # internal_api_key:

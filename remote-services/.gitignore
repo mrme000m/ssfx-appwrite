@@ -1,0 +1,15 @@
+# Runtime configuration files contain secrets.
+config/dataservice.env
+config/v2.env
+config/dataservice-config.yml
+config/tunnel-ingress.json
+
+# Runtime logs and databases.
+logs/
+*.db
+
+# Local build artifacts.
+__pycache__/
+*.pyc
+.ruff_cache/
+.pytest_cache/

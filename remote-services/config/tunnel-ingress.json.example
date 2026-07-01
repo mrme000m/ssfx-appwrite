@@ -1,0 +1,17 @@
+[
+  {
+    "hostname": "ssfx-api.mrme.tech",
+    "service": "http://localhost:8000",
+    "originRequest": {}
+  },
+  {
+    "hostname": "dataservice.mrme.tech",
+    "service": "http://localhost:9002",
+    "originRequest": {}
+  },
+  {
+    "hostname": "ds-sse.mrme.tech",
+    "service": "http://localhost:9001",
+    "originRequest": {}
+  }
+]
