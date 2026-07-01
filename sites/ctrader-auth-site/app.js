@@ -241,6 +241,19 @@
   }
 
   // ─── Account Cards Helper ────────────────────────────────────────
+  function accountTypeLabel(type) {
+    const t = String(type || '').toUpperCase();
+    if (t === 'NETTED' || t === '1') return 'Netting';
+    if (t === 'SPREAD_BETTING' || t === '2') return 'Spread Bet';
+    return t || 'Hedging';
+  }
+
+  function leverageDisplay(leverageInCents) {
+    const num = Number(leverageInCents);
+    if (!num) return '\u2014';
+    return (num / 100).toFixed(0) + ':1';
+  }
+
   function accountsHtml(accounts) {
     if (!accounts || accounts.length === 0) {
       return `
@@ -253,16 +266,29 @@
     return `<div class="account-cards">${accounts.map(acc => {
       const id = String(acc.ctid_trader_account_id || acc.ctidTraderAccountId || '');
       const login = String(acc.trader_login || acc.traderLogin || '');
-      const broker = String(acc.broker_title_short || acc.brokerTitleShort || 'Unknown Broker');
+      const broker = String(acc.broker_name || acc.brokerName || acc.broker_title_short || acc.brokerTitleShort || 'Unknown Broker');
       const isLive = acc.is_live === true || acc.isLive === true;
       const selected = acc.selected === true;
+      const balance = typeof acc.balance === 'number' ? acc.balance : null;
+      const accountType = acc.account_type || acc.accountType || '';
+      const currencyId = String(acc.deposit_asset_id || acc.depositAssetId || '');
+      const leverage = acc.leverage_in_cents || acc.leverageInCents || 0;
+      const moneyDigits = acc.money_digits || acc.moneyDigits || 0;
+      const formattedBalance = balance !== null
+        ? balance.toFixed(moneyDigits > 0 ? moneyDigits : 2)
+        : '\u2014';
       return `
         <div class="account-card ${selected ? 'account-card-selected' : ''}">
           <div class="account-card-header">
             <span class="account-card-broker">${esc(broker)}</span>
             <span class="badge badge-${isLive ? 'active' : 'inactive'}">${isLive ? 'Live' : 'Demo'}</span>
           </div>
-          <div class="account-card-login">${login ? esc(login) : '\u2014'}</div>
+          <div class="account-card-balance">${formattedBalance}</div>
+          <div class="account-card-details">
+            <div class="account-card-detail-row"><span class="detail-label">Type</span><span class="detail-value">${accountTypeLabel(accountType)}</span></div>
+            <div class="account-card-detail-row"><span class="detail-label">Leverage</span><span class="detail-value">${leverageDisplay(leverage)}</span></div>
+            <div class="account-card-detail-row"><span class="detail-label">Login</span><span class="detail-value mono">${login ? esc(login) : '\u2014'}</span></div>
+          </div>
           <div class="account-card-meta">
             <span class="code" title="${esc(id)}">${esc(id).slice(0, 10)}${id.length > 10 ? '...' : ''}</span>
             ${selected ? '<span class="account-card-selected-label">Selected</span>' : ''}

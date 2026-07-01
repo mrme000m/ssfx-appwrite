@@ -251,14 +251,24 @@ async function handleGrantAccounts(req, res, log, error) {
       if (!id) continue;
       accountIds.push(id);
       const rowId = accountRowId(grantId, id);
+      const moneyDigits = typeof acc.moneyDigits === 'number' ? acc.moneyDigits : 0;
+      const rawBalance = typeof acc.balance === 'number' ? acc.balance : 0;
+      const divisor = moneyDigits > 0 ? 10 ** moneyDigits : 100;
       const row = {
         grant_id: grantId,
         ctidTraderAccountId: id,
         isLive: acc.isLive === true || acc.isLive === 'true',
         traderLogin: acc.traderLogin ? String(acc.traderLogin) : '',
         brokerTitleShort: acc.brokerTitleShort ? String(acc.brokerTitleShort) : '',
+        brokerName: acc.brokerName ? String(acc.brokerName) : '',
         lastClosingDealTimestamp: acc.lastClosingDealTimestamp ? new Date(Number(acc.lastClosingDealTimestamp)).toISOString() : null,
         lastBalanceUpdateTimestamp: acc.lastBalanceUpdateTimestamp ? new Date(Number(acc.lastBalanceUpdateTimestamp)).toISOString() : null,
+        balance: rawBalance / divisor,
+        moneyDigits: moneyDigits,
+        accountType: acc.accountType ? String(acc.accountType) : '',
+        depositAssetId: acc.depositAssetId ? String(acc.depositAssetId) : '',
+        leverageInCents: typeof acc.leverageInCents === 'number' ? acc.leverageInCents : 0,
+        registrationTimestamp: acc.registrationTimestamp ? new Date(Number(acc.registrationTimestamp)).toISOString() : null,
         selected: (selectedAccountId && selectedAccountId === id) || acc.selected === true || acc.selected === 'true',
       };
       accountRows.push(row);
@@ -348,8 +358,15 @@ async function handleGetAccounts(req, res, log, error) {
     isLive: acc.isLive,
     traderLogin: acc.traderLogin,
     brokerTitleShort: acc.brokerTitleShort,
+    brokerName: acc.brokerName,
     lastClosingDealTimestamp: acc.lastClosingDealTimestamp,
     lastBalanceUpdateTimestamp: acc.lastBalanceUpdateTimestamp,
+    balance: acc.balance,
+    moneyDigits: acc.moneyDigits,
+    accountType: acc.accountType,
+    depositAssetId: acc.depositAssetId,
+    leverageInCents: acc.leverageInCents,
+    registrationTimestamp: acc.registrationTimestamp,
     selected: acc.selected,
   }));
 

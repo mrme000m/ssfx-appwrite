@@ -333,8 +333,15 @@ async function handleSession(req, res, log) {
           is_live: acc.isLive,
           trader_login: acc.traderLogin,
           broker_title_short: acc.brokerTitleShort,
+          broker_name: acc.brokerName,
           last_closing_deal_timestamp: acc.lastClosingDealTimestamp,
           last_balance_update_timestamp: acc.lastBalanceUpdateTimestamp,
+          balance: typeof acc.balance === 'number' ? acc.balance : null,
+          money_digits: acc.moneyDigits,
+          account_type: acc.accountType,
+          deposit_asset_id: acc.depositAssetId,
+          leverage_in_cents: acc.leverageInCents,
+          registration_timestamp: acc.registrationTimestamp,
           selected: acc.selected,
         }));
       } catch (accErr) {

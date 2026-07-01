@@ -479,6 +479,42 @@ input[type="checkbox"] {
   border-radius: 100px;
 }
 
+.account-card-balance {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 10px;
+}
+
+.account-card-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.account-card-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.detail-label {
+  color: var(--text-dim);
+  font-family: var(--font-body);
+}
+
+.detail-value {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.detail-value.mono {
+  font-family: var(--font-display);
+}
+
 .account-cards-skeleton {
   display: grid;
   gap: 12px;
