@@ -17,6 +17,7 @@ class RiskLimits:
 
     max_daily_loss_pct: float | None = None
     max_drawdown_pct: float | None = None
+    max_open_risk_pct: float | None = None
     panic_stop: bool = False
     risk_reset_utc_hour: int = 0
 
@@ -122,8 +123,14 @@ class RiskMonitor:
             else:
                 self._state = state
 
-    def check_new_signal(self, equity: float) -> tuple[bool, str]:
-        """Return (allowed, reason). Must be called before opening a NEW position."""
+    def check_new_signal(self, equity: float, open_risk_pct: float | None = None) -> tuple[bool, str]:
+        """Return (allowed, reason). Must be called before opening a NEW position.
+        
+        Args:
+            equity: Current account equity
+            open_risk_pct: Estimated % of equity at risk for the new position (optional).
+                          If provided and max_open_risk_pct is set, checks against the limit.
+        """
         if self._limits.panic_stop:
             logger.error("[%s] Risk kill-switch: panic_stop active", self._account_name)
             return False, "panic_stop_active"
@@ -152,6 +159,12 @@ class RiskMonitor:
                 if drawdown >= self._limits.max_drawdown_pct / 100.0:
                     self._trip(f"drawdown_{self._limits.max_drawdown_pct}%")
                     return False, state.kill_switch_reason or "drawdown_limit"
+
+        if self._limits.max_open_risk_pct is not None and self._limits.max_open_risk_pct > 0:
+            if open_risk_pct is not None:
+                if open_risk_pct >= self._limits.max_open_risk_pct:
+                    self._trip(f"max_open_risk_{self._limits.max_open_risk_pct}%")
+                    return False, state.kill_switch_reason or "max_open_risk_limit"
 
         return True, ""
 

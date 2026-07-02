@@ -33,6 +33,12 @@ def build_db() -> TablesDB:
     return TablesDB(client)
 
 
+def _row_id(row) -> str | None:
+    if hasattr(row, "get"):
+        return row.get("$id")
+    return getattr(row, "$id", getattr(row, "id", None))
+
+
 def main() -> int:
     load_env()
     db = build_db()
@@ -76,7 +82,7 @@ def main() -> int:
         )
         existing_rows = getattr(existing, "documents", getattr(existing, "rows", []))
         if existing_rows:
-            row_id = existing_rows[0].get("$id", getattr(existing_rows[0], "id", None))
+            row_id = _row_id(existing_rows[0])
             db.update_row(database_id=DB_ID, table_id="service_config", row_id=row_id, data=body)
             print(f"[migrate] Updated service_config row '{row_id}'")
         else:

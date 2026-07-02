@@ -123,18 +123,29 @@ def appwrite_api(method, path, payload=None):
 
 
 def list_proxy_rules():
-    data = appwrite_api("GET", "/v1/proxy/rules")
-    return data.get("rules", [])
+    rules = []
+    offset = 0
+    limit = 100
+    while True:
+        data = appwrite_api("GET", f"/v1/proxy/rules?limit={limit}&offset={offset}")
+        page = data.get("rules", [])
+        rules.extend(page)
+        if len(page) < limit:
+            break
+        offset += limit
+    return rules
 
 
 def get_site_generated_domain(site_id: str) -> str | None:
-    """Fetch the auto-generated domain for a site from the Appwrite sites API."""
+    """Fetch the active deployment ID and build the generated domain for a site."""
     try:
         data = appwrite_api("GET", f"/v1/sites/{site_id}")
-        return data.get("domain", "")
+        deployment_id = data.get("deploymentId", "")
+        if deployment_id:
+            return f"{deployment_id}.appwrite.network"
     except Exception as exc:
         print(f"[domains] Could not fetch generated domain for site {site_id}: {exc}", file=sys.stderr)
-        return None
+    return None
 
 
 def get_generated_domains():
@@ -298,18 +309,11 @@ def setup_domain(name, resource_id, resource_type, generated_domains):
         return True
 
     # Need to create the rule
-    # Determine CNAME target:
-    # - Functions: sgp.cloud.appwrite.io (regional endpoint, same as verified auth.mrme.tech)
-    # - Sites: site's generated domain (*.appwrite.network)
     if resource_type == "function":
         cname_target = "sgp.cloud.appwrite.io"
         print(f"[domains] + Creating proxy rule: {name} -> {resource_id}")
         result = create_function_rule(name, resource_id)
     else:  # site
-        cname_target = get_site_generated_domain(resource_id)
-        if not cname_target:
-            print(f"[domains] ⚠ Could not find generated domain for site {resource_id}")
-            return False
         print(f"[domains] + Creating site proxy rule: {name} -> {resource_id}")
         result = create_site_rule(name, resource_id)
 
@@ -322,7 +326,10 @@ def setup_domain(name, resource_id, resource_type, generated_domains):
         print(f"[domains] ⚠ Unexpected response: {result}")
         return False
 
-    # Create/update CNAME in Cloudflare
+    # Determine CNAME target. For sites, the generated domain is "<deploymentId>.appwrite.network".
+    if resource_type == "site":
+        cname_target = f"{result.get('deploymentId')}.appwrite.network"
+
     print(f"[domains] + Creating CNAME: {name} -> {cname_target}")
     existing_cname = find_cname(CF_ZONE_ID, name)
     if existing_cname:

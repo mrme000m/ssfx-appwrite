@@ -76,6 +76,12 @@ def find_or_create_master_user(users: Users, email: str) -> str:
     return getattr(new_user, "id", getattr(new_user, "$id", None))
 
 
+def _row_id(row) -> str | None:
+    if hasattr(row, "get"):
+        return row.get("$id")
+    return getattr(row, "$id", getattr(row, "id", None))
+
+
 def find_existing_master(db: TablesDB) -> dict | None:
     try:
         result = db.list_rows(
@@ -140,7 +146,7 @@ def main() -> int:
         )
         print("[init] Created master_auth row in service_config")
     else:
-        row_id = existing.get("$id", getattr(existing, "id", None))
+        row_id = _row_id(existing)
         db.update_row(
             database_id=DB_ID,
             table_id="service_config",

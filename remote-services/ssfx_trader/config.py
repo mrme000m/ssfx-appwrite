@@ -86,6 +86,7 @@ class PerAccountTradingConfig:
     # Kill-switches (per-account safety guardrails)
     max_daily_loss_pct: float | None = None  # e.g. 2.0 = 2% of daily starting equity
     max_drawdown_pct: float | None = None    # e.g. 5.0 = 5% peak-to-trough drawdown
+    max_open_risk_pct: float | None = None   # e.g. 2.0 = max % of equity at risk across open positions
     panic_stop: bool = False                 # manual kill-switch; overrides everything
     risk_reset_utc_hour: int = 0             # hour of day to reset daily counters
 
@@ -196,6 +197,7 @@ class AccountConfig:
                 # Kill-switches
                 "max_daily_loss_pct": self.trading.max_daily_loss_pct,
                 "max_drawdown_pct": self.trading.max_drawdown_pct,
+                "max_open_risk_pct": self.trading.max_open_risk_pct,
                 "panic_stop": self.trading.panic_stop,
                 "risk_reset_utc_hour": self.trading.risk_reset_utc_hour,
                 "partial_close": {
@@ -271,6 +273,7 @@ class AccountConfig:
                 market_context_mode=tr.get("market_context_mode", "warn"),
                 max_daily_loss_pct=float(tr.get("max_daily_loss_pct")) if tr.get("max_daily_loss_pct") is not None else None,
                 max_drawdown_pct=float(tr.get("max_drawdown_pct")) if tr.get("max_drawdown_pct") is not None else None,
+                max_open_risk_pct=float(tr.get("max_open_risk_pct")) if tr.get("max_open_risk_pct") is not None else None,
                 panic_stop=bool(tr.get("panic_stop", False)),
                 risk_reset_utc_hour=int(tr.get("risk_reset_utc_hour", 0)),
                 partial_close=tr.get("partial_close", {}),

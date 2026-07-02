@@ -176,6 +176,7 @@ class TradeExecutor:
         if self._risk_monitor is not None:
             self._risk_monitor._limits.max_daily_loss_pct = trading.max_daily_loss_pct
             self._risk_monitor._limits.max_drawdown_pct = trading.max_drawdown_pct
+            self._risk_monitor._limits.max_open_risk_pct = trading.max_open_risk_pct
             self._risk_monitor._limits.panic_stop = trading.panic_stop
             self._risk_monitor._limits.risk_reset_utc_hour = trading.risk_reset_utc_hour
         logger.info("[%s] TradeExecutor config updated", self._follower_id)

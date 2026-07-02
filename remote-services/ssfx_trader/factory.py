@@ -81,6 +81,7 @@ def create_follower(
         limits=RiskLimits(
             max_daily_loss_pct=account_config.trading.max_daily_loss_pct,
             max_drawdown_pct=account_config.trading.max_drawdown_pct,
+            max_open_risk_pct=account_config.trading.max_open_risk_pct,
             panic_stop=account_config.trading.panic_stop,
             risk_reset_utc_hour=account_config.trading.risk_reset_utc_hour,
         ),

@@ -110,3 +110,42 @@ def test_peak_equity_tracks_watermark():
     monitor.check_new_signal(equity=10000.0)
     monitor.check_new_signal(equity=10500.0)
     assert monitor._state.peak_equity == pytest.approx(10500.0)
+
+
+def test_max_open_risk_pct_blocks_high_risk_signal():
+    store = _MemoryStore()
+    monitor = _monitor(RiskLimits(max_open_risk_pct=5.0), store)
+    
+    # Signal with 6% risk should be blocked
+    allowed, reason = monitor.check_new_signal(equity=10000.0, open_risk_pct=6.0)
+    assert allowed is False
+    assert "max_open_risk" in reason
+    assert monitor._state.kill_switch_active is True
+
+
+def test_max_open_risk_pct_allows_low_risk_signal():
+    store = _MemoryStore()
+    monitor = _monitor(RiskLimits(max_open_risk_pct=5.0), store)
+    
+    # Signal with 3% risk should be allowed
+    allowed, reason = monitor.check_new_signal(equity=10000.0, open_risk_pct=3.0)
+    assert allowed is True
+    assert reason == ""
+
+
+def test_max_open_risk_pct_ignored_when_not_set():
+    store = _MemoryStore()
+    monitor = _monitor(RiskLimits(max_open_risk_pct=None), store)
+    
+    # Signal with high risk should be allowed when no limit is set
+    allowed, reason = monitor.check_new_signal(equity=10000.0, open_risk_pct=50.0)
+    assert allowed is True
+
+
+def test_max_open_risk_pct_ignored_when_no_risk_value():
+    store = _MemoryStore()
+    monitor = _monitor(RiskLimits(max_open_risk_pct=5.0), store)
+    
+    # Signal without open_risk_pct should be allowed (backward compatible)
+    allowed, reason = monitor.check_new_signal(equity=10000.0)
+    assert allowed is True

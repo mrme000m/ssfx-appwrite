@@ -46,6 +46,12 @@ def build_tables_db() -> TablesDB:
     return TablesDB(client)
 
 
+def _row_id(row) -> str | None:
+    if hasattr(row, "get"):
+        return row.get("$id")
+    return getattr(row, "$id", getattr(row, "id", None))
+
+
 def find_existing(db: TablesDB) -> dict | None:
     try:
         result = db.list_rows(
@@ -94,7 +100,7 @@ def main() -> int:
         )
         print(f"[init] Created OAuth config row with key '{SERVICE_CONFIG_KEY}'")
     else:
-        row_id = existing.get("$id", getattr(existing, "id", None))
+        row_id = _row_id(existing)
         db.update_row(
             database_id=DB_ID,
             table_id="service_config",

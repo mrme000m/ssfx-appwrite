@@ -19,4 +19,19 @@ else
     echo "[dev] pytest not found; skipping Python tests"
 fi
 
+# Node.js unit tests for functions
+if command -v node >/dev/null 2>&1; then
+    echo "[dev] Running Node.js tests..."
+    cd "${PROJECT_ROOT}"
+    
+    # Run Node tests for shared functions
+    if [ -f "functions/_shared/tests/test_getServiceConfig.mjs" ]; then
+        node functions/_shared/tests/test_getServiceConfig.mjs
+    fi
+    
+    cd "${PROJECT_ROOT}"
+else
+    echo "[dev] Node.js not found; skipping Node tests"
+fi
+
 echo "[dev] Tests completed."

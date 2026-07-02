@@ -95,6 +95,54 @@ function isLocked(ip, username) {
   return rec && rec.lockedUntil > Date.now();
 }
 
+async function getMasterAuth(db) {
+  try {
+    const svc = await getServiceConfig(db, 'master_auth');
+    if (svc && svc.appwrite_user_id && svc.pin_hash) {
+      return {
+        appwrite_user_id: svc.appwrite_user_id,
+        username: svc.username || 'admin',
+        pin_hash: svc.pin_hash,
+        role: svc.role || 'master',
+        active: svc.active !== false,
+        grant_id: svc.grant_id || '',
+      };
+    }
+  } catch (err) {
+    // fall through to legacy lookup
+  }
+  return null;
+}
+
+async function getPinUser(db, username) {
+  if (username === 'admin') {
+    const master = await getMasterAuth(db);
+    if (master) return master;
+  }
+
+  const list = await db.listRows({
+    databaseId: DB_ID,
+    tableId: 'slave_accounts',
+    queries: [Query.equal('username', username)],
+  });
+
+  if (!list.rows.length) return null;
+  const s = list.rows[0];
+  return {
+    appwrite_user_id: s.appwrite_user_id,
+    username: s.username,
+    pin_hash: s.pin_hash,
+    role: s.role || 'slave',
+    active: s.active !== false,
+    grant_id: s.grant_id,
+  };
+}
+
+async function isMasterUser(db, userId) {
+  const master = await getMasterAuth(db);
+  return master && master.appwrite_user_id === userId;
+}
+
 async function getCurrentUser(req) {
   const cookie = req.headers['cookie'] || '';
   const sessionMatch = cookie.match(new RegExp(`${cookieName()}=([^;]+)`));
@@ -158,29 +206,23 @@ async function handlePinLogin(req, res, log, error) {
   }
 
   const db = makeAdminDb();
-  const list = await db.listRows({
-    databaseId: DB_ID,
-    tableId: 'slave_accounts',
-    queries: [Query.equal('username', username)],
-  });
+  const user = await getPinUser(db, username);
 
-  if (list.rows.length === 0) {
+  if (!user) {
     recordFailure(ip, username, db);
     return res.json({ error: 'Invalid credentials' }, 401, corsHeaders(req.headers['origin'] || ''));
   }
 
-  const slave = list.rows[0];
-
-  if (!slave.pin_hash) {
+  if (!user.pin_hash) {
     return res.json({ error: 'PIN not set. Please complete onboarding.' }, 403, corsHeaders(req.headers['origin'] || ''));
   }
 
-  if (!verifyPin(pin, slave.pin_hash)) {
+  if (!verifyPin(pin, user.pin_hash)) {
     recordFailure(ip, username, db);
     return res.json({ error: 'Invalid credentials' }, 401, corsHeaders(req.headers['origin'] || ''));
   }
 
-  if (!slave.active) {
+  if (!user.active) {
     return res.json({ error: 'Account inactive or locked' }, 403, corsHeaders(req.headers['origin'] || ''));
   }
 
@@ -189,21 +231,21 @@ async function handlePinLogin(req, res, log, error) {
   const adminClient = makeAdminClient();
   const users = new Users(adminClient);
   const account = new Account(adminClient);
-  const token = await users.createToken({ userId: slave.appwrite_user_id });
+  const token = await users.createToken({ userId: user.appwrite_user_id });
   const session = await account.createSession({
-    userId: slave.appwrite_user_id,
+    userId: user.appwrite_user_id,
     secret: token.secret,
   });
 
   const cookie = sessionCookie(cookieName(), session.secret);
-  log(`PIN login success user=${slave.appwrite_user_id} role=${slave.role}`);
+  log(`PIN login success user=${user.appwrite_user_id} role=${user.role}`);
 
   return res.send(JSON.stringify({
     success: true,
-    user_id: slave.appwrite_user_id,
-    role: slave.role,
-    grant_id: slave.grant_id,
-    username: slave.username,
+    user_id: user.appwrite_user_id,
+    role: user.role,
+    grant_id: user.grant_id,
+    username: user.username,
   }), 200, {
     'Content-Type': 'application/json',
     'Set-Cookie': cookie,
@@ -236,6 +278,52 @@ async function handleSetCredentials(req, res, log, error) {
   }
 
   const db = makeAdminDb();
+
+  // Master admin credentials live in service_config, not slave_accounts.
+  if (await isMasterUser(db, user.$id)) {
+    const body = {
+      config_key: 'master_auth',
+      config_value: JSON.stringify({
+        appwrite_user_id: user.$id,
+        username,
+        pin_hash: hashPin(pin),
+        role: 'master',
+        active: true,
+      }),
+      description: 'Master admin authentication record',
+      updated_at: new Date().toISOString(),
+    };
+    const existing = await db.listRows({
+      databaseId: DB_ID,
+      tableId: 'service_config',
+      queries: [Query.equal('config_key', 'master_auth')],
+    });
+    if (existing.rows.length === 0) {
+      await db.createRow({
+        databaseId: DB_ID,
+        tableId: 'service_config',
+        rowId: ID.unique(),
+        data: body,
+      });
+    } else {
+      await db.updateRow({
+        databaseId: DB_ID,
+        tableId: 'service_config',
+        rowId: existing.rows[0].$id,
+        data: body,
+      });
+    }
+
+    const users = makeAdminUsers();
+    try {
+      await users.updateName({ userId: user.$id, name: username });
+    } catch (err) {
+      log(`Failed to update master user name: ${err.message}`);
+    }
+
+    log(`Set master credentials user=${user.$id} username=${username}`);
+    return res.json({ success: true, username }, 200, corsHeaders(req.headers['origin'] || ''));
+  }
 
   const existing = await db.listRows({
     databaseId: DB_ID,
@@ -293,17 +381,26 @@ async function handlePinResetRequest(req, res, log, error) {
   }
 
   const db = makeAdminDb();
-  const list = await db.listRows({
+  let list = await db.listRows({
     databaseId: DB_ID,
     tableId: 'slave_accounts',
     queries: [Query.equal('email', email)],
   });
 
-  if (list.rows.length === 0) {
+  let target = list.rows[0] || null;
+
+  // If no slave account matches, check master admin email in service_config.
+  if (!target) {
+    const master = await getMasterAuth(db);
+    if (master && master.email && master.email.toLowerCase() === email) {
+      target = master;
+    }
+  }
+
+  if (!target) {
     return res.json({ success: true, message: 'If the email exists, a reset link has been sent.' }, 200, corsHeaders(req.headers['origin'] || ''));
   }
 
-  const slave = list.rows[0];
   const resetToken = generateToken();
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
@@ -314,8 +411,8 @@ async function handlePinResetRequest(req, res, log, error) {
     data: {
       token: resetToken,
       kind: 'pin_reset',
-      user_id: slave.appwrite_user_id,
-      payload: JSON.stringify({ grant_id: slave.grant_id }),
+      user_id: target.appwrite_user_id,
+      payload: JSON.stringify({ grant_id: target.grant_id || '' }),
       expires_at: expiresAt,
     },
   });
@@ -407,6 +504,47 @@ async function handlePinResetConfirm(req, res, log, error) {
     tableId: 'ephemeral_tokens',
     rowId: et.$id,
   });
+
+  // Master admin PIN is stored in service_config.
+  if (await isMasterUser(db, et.user_id)) {
+    const master = await getMasterAuth(db);
+    const body = {
+      config_key: 'master_auth',
+      config_value: JSON.stringify({
+        appwrite_user_id: master.appwrite_user_id,
+        username: master.username,
+        email: master.email || '',
+        pin_hash: hashPin(newPin),
+        role: 'master',
+        active: true,
+      }),
+      description: 'Master admin authentication record',
+      updated_at: new Date().toISOString(),
+    };
+    const existing = await db.listRows({
+      databaseId: DB_ID,
+      tableId: 'service_config',
+      queries: [Query.equal('config_key', 'master_auth')],
+    });
+    if (existing.rows.length === 0) {
+      await db.createRow({
+        databaseId: DB_ID,
+        tableId: 'service_config',
+        rowId: ID.unique(),
+        data: body,
+      });
+    } else {
+      await db.updateRow({
+        databaseId: DB_ID,
+        tableId: 'service_config',
+        rowId: existing.rows[0].$id,
+        data: body,
+      });
+    }
+
+    log(`PIN reset confirmed user=${et.user_id} role=master`);
+    return res.json({ success: true }, 200, corsHeaders(req.headers['origin'] || ''));
+  }
 
   const slaveList = await db.listRows({
     databaseId: DB_ID,
