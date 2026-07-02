@@ -23,7 +23,7 @@ from _azure_vm import get_public_ip  # noqa: E402
 
 
 REMOTE_USER = os.getenv("AZURE_VM_USER", "m")
-REMOTE_PATH = "~/ctrader-services"
+REMOTE_PATH = "~/ssfx-remote-services"
 RSYNC_EXCLUDES = [
     ".git",
     ".venv",

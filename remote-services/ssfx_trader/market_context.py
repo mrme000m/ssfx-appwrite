@@ -110,3 +110,14 @@ class DataServiceClient:
             error = f"DataService unreachable: {exc}"
             logger.warning(error)
             return MarketContext(symbol=symbol, timestamp_ms=0, error=error)
+
+    async def get_gold_quant(self) -> dict[str, Any] | None:
+        url = f"{self.base_url}/api/v1/gold/quant"
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.get(url, headers=self._headers())
+                response.raise_for_status()
+                return response.json()
+        except Exception as exc:
+            logger.warning("Failed to fetch gold quant snapshot: %s", exc)
+            return None

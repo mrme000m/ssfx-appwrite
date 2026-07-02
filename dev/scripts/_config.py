@@ -33,8 +33,7 @@ FUNCTION_DOMAINS = {
 
 # Site -> custom domain mappings
 SITE_DOMAINS = {
-    "ctrader-auth-site": "app.mrme.tech",
-    "ctrader-command-center": "command.mrme.tech",
+    "ssfx-hq": "app.mrme.tech",
 }
 
 # Zone root domain

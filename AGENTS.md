@@ -204,9 +204,14 @@ CF_API_TOKEN=$(bw get item "Cloudflare — mrme.tech" | jq -r '.fields[] | selec
 
 | Hostname | Local Service | Purpose |
 |----------|---------------|---------|
-| `dataservice.mrme.tech` | `http://localhost:9099` | Market data REST API |
+| `ssfx-api.mrme.tech` | `http://localhost:8000` | Telegram webhook + cTrader follower admin |
+| `ds-control.mrme.tech` | `http://localhost:9000` | DataService control API |
 | `ds-sse.mrme.tech` | `http://localhost:9001` | MCP SSE live price/tools |
-| `admin.mrme.tech` | `http://ubuntu-server:8100` | Admin panel |
+| `dataservice.mrme.tech` | `http://localhost:9002` | Market data OpenPI REST API |
+| `agent.mrme.tech` | `http://localhost:9003` | AI agent harness (XAUUSD decision layer) |
+| `ctrader.mrme.tech` | `http://localhost:9300` | cTrader unified service |
+| `account-hub.mrme.tech` | `http://localhost:9301` | Account hub WebSocket server |
+| `admin.mrme.tech` | `http://localhost:8100` | Admin panel |
 | catch-all | `http_status:404` | — |
 
 New public services on the Azure VM must be added as ingress rules on this tunnel and as proxied CNAME records in the `mrme.tech` zone.

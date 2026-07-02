@@ -76,6 +76,10 @@ FUNCTION_VARIABLES = {
         "APPWRITE_API_KEY": "{APPWRITE_API_KEY}",
         "CTRADER_AUTH_DATABASE_ID": "ctrader_auth",
         "BCRYPT_SALT_ROUNDS": "10",
+        "SITES_URL": "https://app.mrme.tech",
+        "RESEND_API_KEY": "{RESEND_API_KEY}",
+        "RESEND_FROM_EMAIL": "{RESEND_FROM_EMAIL}",
+        "PIN_RESET_BASE_URL": "https://app.mrme.tech",
     },
     "ctrader-internal": {
         "APPWRITE_ENDPOINT": "{APPWRITE_ENDPOINT}",
@@ -86,6 +90,7 @@ FUNCTION_VARIABLES = {
         "CTRADER_CLIENT_ID": "{CTRADER_CLIENT_ID}",
         "CTRADER_CLIENT_SECRET": "{CTRADER_CLIENT_SECRET}",
         "TOKEN_ENCRYPTION_KEY": "{TOKEN_ENCRYPTION_KEY}",
+        "SITES_URL": "https://app.mrme.tech",
     },
     "ctrader-token-refresh-worker": {
         "APPWRITE_ENDPOINT": "{APPWRITE_ENDPOINT}",
@@ -106,6 +111,20 @@ REDACT_KEYS = {
     "TOKEN_ENCRYPTION_KEY",
     "SESSION_HMAC_KEY",
     "INTERNAL_API_KEY",
+    "RESEND_API_KEY",
+}
+
+# Variables that should be stored as plain (non-secret) in Appwrite.
+PLAIN_KEYS = {
+    "APPWRITE_ENDPOINT",
+    "APPWRITE_PROJECT_ID",
+    "CTRADER_AUTH_DATABASE_ID",
+    "CTRADER_REDIRECT_URI",
+    "SITES_URL",
+    "BCRYPT_SALT_ROUNDS",
+    "REFRESH_BUFFER_HOURS",
+    "RESEND_FROM_EMAIL",
+    "PIN_RESET_BASE_URL",
 }
 
 # How long to wait for a build before giving up.
@@ -259,18 +278,6 @@ def build_tarball(code_dir: Path, ignore_text: str) -> Path:
 
 # ─── Variables ──────────────────────────────────────────────────────────────
 
-def list_function_variables(function_id: str) -> dict[str, str]:
-    """Return a mapping variable-key -> variable-$id for a function."""
-    result = run_cli([
-        "appwrite", "functions", "list-variables",
-        "--function-id", function_id,
-        "--json",
-    ], capture=True)
-    data = json.loads(result.stdout)
-    variables = data.get("variables", [])
-    return {v["key"]: v["$id"] for v in variables if "key" in v and "$id" in v}
-
-
 def render_variables(template: dict[str, str]) -> dict[str, str]:
     """Substitute environment placeholders into a variable template."""
     rendered = {}
@@ -285,20 +292,54 @@ def render_variables(template: dict[str, str]) -> dict[str, str]:
     return rendered
 
 
+def list_function_variable_metadata(function_id: str) -> dict[str, dict]:
+    """Return a mapping variable-key -> metadata dict for a function."""
+    result = run_cli([
+        "appwrite", "functions", "list-variables",
+        "--function-id", function_id,
+        "--json",
+    ], capture=True)
+    data = json.loads(result.stdout)
+    variables = data.get("variables", [])
+    return {v["key"]: v for v in variables if "key" in v}
+
+
 def upsert_function_variables(function_id: str, variables: dict[str, str]) -> None:
-    """Create or update variables for a function, using stable variable IDs."""
-    existing = list_function_variables(function_id)
+    """Create or update variables for a function, recreating when secret flag changes."""
+    existing_meta = list_function_variable_metadata(function_id)
+    existing = {k: v["$id"] for k, v in existing_meta.items()}
     for key, value in variables.items():
         safe_value = redact_value(key, value)
+        desired_secret = key not in PLAIN_KEYS
+        secret_flag = "true" if desired_secret else "false"
+
         if key in existing:
-            log(f"  updating variable {key}={safe_value}")
-            run_cli([
-                "appwrite", "functions", "update-variable",
-                "--function-id", function_id,
-                "--variable-id", existing[key],
-                "--key", key,
-                "--value", value,
-            ])
+            current_secret = existing_meta[key].get("secret", True)
+            if current_secret != desired_secret:
+                log(f"  recreating variable {key}={safe_value} (secret {current_secret} -> {desired_secret})")
+                run_cli([
+                    "appwrite", "functions", "delete-variable",
+                    "--function-id", function_id,
+                    "--variable-id", existing[key],
+                ])
+                run_cli([
+                    "appwrite", "functions", "create-variable",
+                    "--function-id", function_id,
+                    "--variable-id", uuid.uuid4().hex[:20],
+                    "--key", key,
+                    "--value", value,
+                    "--secret", secret_flag,
+                ])
+            else:
+                log(f"  updating variable {key}={safe_value}")
+                run_cli([
+                    "appwrite", "functions", "update-variable",
+                    "--function-id", function_id,
+                    "--variable-id", existing[key],
+                    "--key", key,
+                    "--value", value,
+                    "--secret", secret_flag,
+                ])
         else:
             log(f"  creating variable {key}={safe_value}")
             run_cli([
@@ -307,6 +348,7 @@ def upsert_function_variables(function_id: str, variables: dict[str, str]) -> No
                 "--variable-id", uuid.uuid4().hex[:20],
                 "--key", key,
                 "--value", value,
+                "--secret", secret_flag,
             ])
 
 

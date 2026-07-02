@@ -83,6 +83,12 @@ class PerAccountTradingConfig:
     max_spread_pips: float | None = None
     market_context_mode: str = "warn"  # strict | warn | ignore
 
+    # Kill-switches (per-account safety guardrails)
+    max_daily_loss_pct: float | None = None  # e.g. 2.0 = 2% of daily starting equity
+    max_drawdown_pct: float | None = None    # e.g. 5.0 = 5% peak-to-trough drawdown
+    panic_stop: bool = False                 # manual kill-switch; overrides everything
+    risk_reset_utc_hour: int = 0             # hour of day to reset daily counters
+
     partial_close: PartialCloseConfig = field(default_factory=PartialCloseConfig)
     update_actions: UpdateActionConfig = field(default_factory=UpdateActionConfig)
     symbol_overrides: list[SymbolOverride] = field(default_factory=list)
@@ -187,6 +193,11 @@ class AccountConfig:
                 "max_daily_risk_pct": self.trading.max_daily_risk_pct,
                 "max_spread_pips": self.trading.max_spread_pips,
                 "market_context_mode": self.trading.market_context_mode,
+                # Kill-switches
+                "max_daily_loss_pct": self.trading.max_daily_loss_pct,
+                "max_drawdown_pct": self.trading.max_drawdown_pct,
+                "panic_stop": self.trading.panic_stop,
+                "risk_reset_utc_hour": self.trading.risk_reset_utc_hour,
                 "partial_close": {
                     "on_tp1_pct": self.trading.partial_close.on_tp1_pct,
                     "on_tp2_pct": self.trading.partial_close.on_tp2_pct,
@@ -258,6 +269,10 @@ class AccountConfig:
                 max_daily_risk_pct=float(tr.get("max_daily_risk_pct")) if tr.get("max_daily_risk_pct") is not None else None,
                 max_spread_pips=float(tr.get("max_spread_pips")) if tr.get("max_spread_pips") is not None else None,
                 market_context_mode=tr.get("market_context_mode", "warn"),
+                max_daily_loss_pct=float(tr.get("max_daily_loss_pct")) if tr.get("max_daily_loss_pct") is not None else None,
+                max_drawdown_pct=float(tr.get("max_drawdown_pct")) if tr.get("max_drawdown_pct") is not None else None,
+                panic_stop=bool(tr.get("panic_stop", False)),
+                risk_reset_utc_hour=int(tr.get("risk_reset_utc_hour", 0)),
                 partial_close=tr.get("partial_close", {}),
                 update_actions=tr.get("update_actions", {}),
                 symbol_overrides=tr.get("symbol_overrides", []),

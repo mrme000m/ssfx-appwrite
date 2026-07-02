@@ -5,7 +5,7 @@
   "mcp": {
     "appwrite-api": {
       "type": "local",
-      "command": ["uvx", "mcp-server-appwrite"],
+      "command": ["/Users/m/.local/bin/mcp-server-appwrite"],
       "enabled": true,
       "environment": {
         "APPWRITE_PROJECT_ID": "{env:APPWRITE_PROJECT_ID}",

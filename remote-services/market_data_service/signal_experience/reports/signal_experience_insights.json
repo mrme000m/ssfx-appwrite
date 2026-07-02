@@ -1,0 +1,267 @@
+{
+  "generated_at": "2026-07-02T06:42:06.523113+00:00",
+  "overall": {
+    "rolling_30d_win_rate": null,
+    "signals_today": 968,
+    "good_vs_bad_ratio": null
+  },
+  "top_authors": [
+    {
+      "author": "Liam",
+      "total_signals": 130,
+      "win_rate": 0.95,
+      "avg_profit_pips": 127.86,
+      "avg_loss_pips": 800,
+      "profit_factor": 3.25,
+      "expectancy": 84.37,
+      "current_streak": 0,
+      "recommendation": "allow"
+    },
+    {
+      "author": "Grace",
+      "total_signals": 82,
+      "win_rate": 0.98,
+      "avg_profit_pips": 122.6,
+      "avg_loss_pips": 1952,
+      "profit_factor": 3.33,
+      "expectancy": 84.19,
+      "current_streak": 0,
+      "recommendation": "allow"
+    },
+    {
+      "author": "Mark",
+      "total_signals": 121,
+      "win_rate": 0.97,
+      "avg_profit_pips": 94.44,
+      "avg_loss_pips": 800,
+      "profit_factor": 3.66,
+      "expectancy": 66.48,
+      "current_streak": 0,
+      "recommendation": "allow"
+    },
+    {
+      "author": "Jason",
+      "total_signals": 40,
+      "win_rate": 0.96,
+      "avg_profit_pips": 98.45,
+      "avg_loss_pips": 825,
+      "profit_factor": 2.63,
+      "expectancy": 58.3,
+      "current_streak": 3,
+      "recommendation": "allow"
+    },
+    {
+      "author": "Matthew",
+      "total_signals": 197,
+      "win_rate": 0.93,
+      "avg_profit_pips": 84.99,
+      "avg_loss_pips": 858.63,
+      "profit_factor": 1.32,
+      "expectancy": 19.35,
+      "current_streak": 2,
+      "recommendation": "allow"
+    },
+    {
+      "author": "William",
+      "total_signals": 374,
+      "win_rate": 0.89,
+      "avg_profit_pips": 111.34,
+      "avg_loss_pips": 947.81,
+      "profit_factor": 0.91,
+      "expectancy": -9.82,
+      "current_streak": 0,
+      "recommendation": "allow"
+    },
+    {
+      "author": "Julian",
+      "total_signals": 22,
+      "win_rate": 1,
+      "avg_profit_pips": 174.3,
+      "avg_loss_pips": null,
+      "profit_factor": null,
+      "expectancy": null,
+      "current_streak": 0,
+      "recommendation": "allow"
+    }
+  ],
+  "bottom_authors": [
+    {
+      "author": "Julian",
+      "total_signals": 22,
+      "win_rate": 1,
+      "avg_profit_pips": 174.3,
+      "avg_loss_pips": null,
+      "profit_factor": null,
+      "expectancy": null,
+      "current_streak": 0,
+      "recommendation": "allow"
+    },
+    {
+      "author": "William",
+      "total_signals": 374,
+      "win_rate": 0.89,
+      "avg_profit_pips": 111.34,
+      "avg_loss_pips": 947.81,
+      "profit_factor": 0.91,
+      "expectancy": -9.82,
+      "current_streak": 0,
+      "recommendation": "allow"
+    },
+    {
+      "author": "Matthew",
+      "total_signals": 197,
+      "win_rate": 0.93,
+      "avg_profit_pips": 84.99,
+      "avg_loss_pips": 858.63,
+      "profit_factor": 1.32,
+      "expectancy": 19.35,
+      "current_streak": 2,
+      "recommendation": "allow"
+    },
+    {
+      "author": "Jason",
+      "total_signals": 40,
+      "win_rate": 0.96,
+      "avg_profit_pips": 98.45,
+      "avg_loss_pips": 825,
+      "profit_factor": 2.63,
+      "expectancy": 58.3,
+      "current_streak": 3,
+      "recommendation": "allow"
+    },
+    {
+      "author": "Mark",
+      "total_signals": 121,
+      "win_rate": 0.97,
+      "avg_profit_pips": 94.44,
+      "avg_loss_pips": 800,
+      "profit_factor": 3.66,
+      "expectancy": 66.48,
+      "current_streak": 0,
+      "recommendation": "allow"
+    }
+  ],
+  "best_sessions": [
+    {
+      "hour_utc": 15,
+      "total_signals": 34,
+      "win_rate": 1,
+      "avg_rr": null,
+      "noise_ratio": null,
+      "recommendation": "allow"
+    },
+    {
+      "hour_utc": 11,
+      "total_signals": 42,
+      "win_rate": 1,
+      "avg_rr": null,
+      "noise_ratio": null,
+      "recommendation": "allow"
+    },
+    {
+      "hour_utc": 8,
+      "total_signals": 65,
+      "win_rate": 0.98,
+      "avg_rr": null,
+      "noise_ratio": null,
+      "recommendation": "allow"
+    },
+    {
+      "hour_utc": 14,
+      "total_signals": 71,
+      "win_rate": 0.97,
+      "avg_rr": null,
+      "noise_ratio": null,
+      "recommendation": "allow"
+    },
+    {
+      "hour_utc": 10,
+      "total_signals": 44,
+      "win_rate": 0.96,
+      "avg_rr": null,
+      "noise_ratio": null,
+      "recommendation": "allow"
+    }
+  ],
+  "worst_sessions": [
+    {
+      "hour_utc": 1,
+      "total_signals": 15,
+      "win_rate": 0.78,
+      "avg_rr": null,
+      "noise_ratio": null,
+      "recommendation": "allow"
+    },
+    {
+      "hour_utc": 2,
+      "total_signals": 50,
+      "win_rate": 0.83,
+      "avg_rr": null,
+      "noise_ratio": null,
+      "recommendation": "allow"
+    },
+    {
+      "hour_utc": 5,
+      "total_signals": 99,
+      "win_rate": 0.86,
+      "avg_rr": null,
+      "noise_ratio": null,
+      "recommendation": "allow"
+    },
+    {
+      "hour_utc": 4,
+      "total_signals": 94,
+      "win_rate": 0.87,
+      "avg_rr": null,
+      "noise_ratio": null,
+      "recommendation": "allow"
+    },
+    {
+      "hour_utc": 9,
+      "total_signals": 44,
+      "win_rate": 0.9,
+      "avg_rr": null,
+      "noise_ratio": null,
+      "recommendation": "allow"
+    }
+  ],
+  "top_patterns": [
+    {
+      "pattern_key": "XAUUSD_SELL_MARKET",
+      "total_signals": 344,
+      "win_rate": 0.96,
+      "expectancy": 76.35,
+      "confidence_score": 0.96,
+      "recommendation": "allow"
+    },
+    {
+      "pattern_key": "XAUUSD_SELL_LIMIT",
+      "total_signals": 35,
+      "win_rate": 0.9,
+      "expectancy": -8.61,
+      "confidence_score": 0.9,
+      "recommendation": "reduce"
+    },
+    {
+      "pattern_key": "XAUUSD_BUY_LIMIT",
+      "total_signals": 73,
+      "win_rate": 0.92,
+      "expectancy": null,
+      "confidence_score": 0.92,
+      "recommendation": "reduce"
+    },
+    {
+      "pattern_key": "XAUUSD_BUY_MARKET",
+      "total_signals": 510,
+      "win_rate": 0.9,
+      "expectancy": null,
+      "confidence_score": 0.9,
+      "recommendation": "reduce"
+    }
+  ],
+  "routing_rules": [
+    "Allow normal execution for authors: Liam, Grace, Mark, Jason, Matthew, William, Julian.",
+    "Highest-confidence UTC hours: 15, 11, 8.",
+    "Reduce size or block signals with corrupted SL/TP, missing author, or promotional text."
+  ]
+}

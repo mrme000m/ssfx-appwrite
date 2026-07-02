@@ -1,6 +1,8 @@
 """Factory for building followers and executors from configuration."""
 from __future__ import annotations
 
+import typing
+
 from pymongo import MongoClient
 
 from ssfx_parser import AgentConfig, ChainedParser, LlmSignalParser, RegexSignalParser
@@ -11,10 +13,14 @@ from .config import AccountConfig
 from .executor import TradeExecutor
 from .follower import AccountFollower
 from .market_context import DataServiceClient
+from .risk_monitor import RiskLimits, RiskMonitor
 from .stores.base import AccountStore
 from .stores.mongo_store import MongoAccountStore, MongoSignalStore
 from .symbol_resolver import SymbolResolver
 from .volume_resolver import VolumeResolver
+
+if typing.TYPE_CHECKING:
+    from market_data_service.signal_experience.updater import SignalExperienceUpdater
 
 
 def create_parser(agent_config: AgentConfig | None = None) -> ChainedParser:
@@ -56,6 +62,7 @@ def create_follower(
     data_service_base_url: str | None = None,
     data_service_api_key: str | None = None,
     data_service_client: DataServiceClient | None = None,
+    experience_updater: "SignalExperienceUpdater | None" = None,
 ) -> AccountFollower:
     """Build an AccountFollower with the appropriate execution backend."""
     signal_store = signal_store or MongoSignalStore(mongo_uri, mongo_database, client=client)
@@ -69,6 +76,17 @@ def create_follower(
         if data_service_base_url
         else None
     )
+    risk_monitor = RiskMonitor(
+        account_name=account_config.name,
+        limits=RiskLimits(
+            max_daily_loss_pct=account_config.trading.max_daily_loss_pct,
+            max_drawdown_pct=account_config.trading.max_drawdown_pct,
+            panic_stop=account_config.trading.panic_stop,
+            risk_reset_utc_hour=account_config.trading.risk_reset_utc_hour,
+        ),
+        store=account_store,
+    )
+
     executor = TradeExecutor(
         follower_id=account_config.name,
         backend=backend,
@@ -78,6 +96,8 @@ def create_follower(
         trading=account_config.trading,
         volume_resolver=volume_resolver,
         market_context_client=market_context_client,
+        experience_updater=experience_updater,
+        risk_monitor=risk_monitor,
     )
 
     def config_provider() -> AccountConfig:

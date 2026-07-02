@@ -11,6 +11,7 @@ const crypto = require('crypto');
 const {
   makeAdminClient,
   makeAdminDb,
+  getServiceConfig,
   decrypt,
   encrypt,
   acquireGrantLock,
@@ -23,6 +24,25 @@ const {
 
 const DB_ID = process.env.CTRADER_AUTH_DATABASE_ID;
 const INTERNAL_KEY = process.env.INTERNAL_API_KEY;
+
+async function getOAuthConfig() {
+  const db = makeAdminDb();
+  const svc = await getServiceConfig(db, 'ctrader_oauth', 'CTRADER_OAUTH_JSON');
+  if (svc && typeof svc === 'object' && svc.client_id) {
+    return {
+      clientId: svc.client_id,
+      clientSecret: svc.client_secret,
+      redirectUri: svc.redirect_uri,
+      environment: svc.environment,
+    };
+  }
+  return {
+    clientId: process.env.CTRADER_CLIENT_ID,
+    clientSecret: process.env.CTRADER_CLIENT_SECRET,
+    redirectUri: process.env.CTRADER_REDIRECT_URI,
+    environment: process.env.CTRADER_ENVIRONMENT || 'demo',
+  };
+}
 
 function checkInternalKey(req) {
   const key = req.headers['x-internal-key'] || '';
@@ -42,7 +62,7 @@ module.exports = async function main({ req, res, log, error }) {
 
   try {
     if (!checkInternalKey(req)) {
-      return res.json({ error: 'Unauthorized' }, 401, corsHeaders());
+      return res.json({ error: 'Unauthorized' }, 401, corsHeaders(req.headers['origin'] || ''));
     }
 
     if (path === '/internal/ctrader/refresh' && method === 'POST') {
@@ -56,10 +76,10 @@ module.exports = async function main({ req, res, log, error }) {
       if (method === 'GET') return await handleGetAccounts(req, res, log, error);
     }
 
-    return res.json({ error: 'Not found' }, 404, corsHeaders());
+    return res.json({ error: 'Not found' }, 404, corsHeaders(req.headers['origin'] || ''));
   } catch (err) {
     error(String(err));
-    return res.json({ error: 'Internal error', detail: err.message }, 500, corsHeaders());
+    return res.json({ error: 'Internal error', detail: err.message }, 500, corsHeaders(req.headers['origin'] || ''));
   }
 };
 
@@ -70,7 +90,7 @@ async function handleRefresh(req, res, log, error) {
   const grantId = String(body.grantId || '');
 
   if (!grantId) {
-    return res.json({ error: 'grantId required' }, 400, corsHeaders());
+    return res.json({ error: 'grantId required' }, 400, corsHeaders(req.headers['origin'] || ''));
   }
 
   const db = makeAdminDb();
@@ -81,13 +101,13 @@ async function handleRefresh(req, res, log, error) {
   });
 
   if (list.rows.length === 0) {
-    return res.json({ error: 'Grant not found' }, 404, corsHeaders());
+    return res.json({ error: 'Grant not found' }, 404, corsHeaders(req.headers['origin'] || ''));
   }
 
   const slave = list.rows[0];
 
   if (slave.status !== 'active') {
-    return res.json({ error: `Grant status is ${slave.status}` }, 403, corsHeaders());
+    return res.json({ error: `Grant status is ${slave.status}` }, 403, corsHeaders(req.headers['origin'] || ''));
   }
 
   const now = Date.now();
@@ -102,24 +122,25 @@ async function handleRefresh(req, res, log, error) {
         access_token: accessToken,
         expires_at: slave.access_token_expires_at,
         refreshed: false,
-      }, 200, corsHeaders());
+      }, 200, corsHeaders(req.headers['origin'] || ''));
     } catch {
       // decryption failed, fall through to refresh
     }
   }
 
   if (!slave.refresh_token_enc) {
-    return res.json({ error: 'No refresh token available' }, 403, corsHeaders());
+    return res.json({ error: 'No refresh token available' }, 403, corsHeaders(req.headers['origin'] || ''));
   }
 
   const acquired = await acquireGrantLock(db, grantId, 'refresh', 30000);
   if (!acquired) {
-    return res.json({ error: 'Grant locked by another refresh' }, 423, corsHeaders());
+    return res.json({ error: 'Grant locked by another refresh' }, 423, corsHeaders(req.headers['origin'] || ''));
   }
 
   try {
+    const oauth = await getOAuthConfig();
     const refreshToken = decrypt(slave.refresh_token_enc);
-    const tokenData = await refreshCtraderToken(refreshToken);
+    const tokenData = await refreshCtraderToken(refreshToken, oauth);
     const { access_token, refresh_token, expires_in } = tokenData;
     const newExpiresAt = new Date(Date.now() + (expires_in || 3600) * 1000).toISOString();
 
@@ -143,7 +164,7 @@ async function handleRefresh(req, res, log, error) {
       access_token: access_token,
       expires_at: newExpiresAt,
       refreshed: true,
-    }, 200, corsHeaders());
+    }, 200, corsHeaders(req.headers['origin'] || ''));
   } catch (err) {
     error(`Refresh failed for ${grantId}: ${err.message}`);
     if (err.status === 400 || err.status === 401) {
@@ -153,9 +174,9 @@ async function handleRefresh(req, res, log, error) {
         rowId: slave.$id,
         data: { status: 'reauth_required' },
       });
-      return res.json({ error: 'Refresh token invalid, re-authentication required' }, 401, corsHeaders());
+      return res.json({ error: 'Refresh token invalid, re-authentication required' }, 401, corsHeaders(req.headers['origin'] || ''));
     }
-    return res.json({ error: 'cTrader refresh failed', detail: err.message }, 502, corsHeaders());
+    return res.json({ error: 'cTrader refresh failed', detail: err.message }, 502, corsHeaders(req.headers['origin'] || ''));
   } finally {
     await releaseGrantLock(db, grantId);
   }
@@ -166,7 +187,7 @@ async function handleRefresh(req, res, log, error) {
 async function handleGrantLatest(req, res, log, error) {
   const userId = String(req.query.user_id || '');
   if (!userId) {
-    return res.json({ error: 'user_id required' }, 400, corsHeaders());
+    return res.json({ error: 'user_id required' }, 400, corsHeaders(req.headers['origin'] || ''));
   }
 
   const db = makeAdminDb();
@@ -182,13 +203,13 @@ async function handleGrantLatest(req, res, log, error) {
   });
 
   if (list.rows.length === 0) {
-    return res.json({ grant_id: null }, 200, corsHeaders());
+    return res.json({ grant_id: null }, 200, corsHeaders(req.headers['origin'] || ''));
   }
 
   return res.json({
     grant_id: list.rows[0].grant_id,
     updated_at: list.rows[0].$updatedAt,
-  }, 200, corsHeaders());
+  }, 200, corsHeaders(req.headers['origin'] || ''));
 }
 
 // ─── POST /internal/grant/:grant_id/accounts ────────────────────────
@@ -220,7 +241,7 @@ async function handleGrantAccounts(req, res, log, error) {
   const grantId = parts[3];
 
   if (!grantId) {
-    return res.json({ error: 'grant_id required in path' }, 400, corsHeaders());
+    return res.json({ error: 'grant_id required in path' }, 400, corsHeaders(req.headers['origin'] || ''));
   }
 
   const body = req.bodyJson || {};
@@ -232,7 +253,7 @@ async function handleGrantAccounts(req, res, log, error) {
     queries: [Query.equal('grant_id', grantId)],
   });
   if (slaveList.rows.length === 0) {
-    return res.json({ error: 'Grant not found' }, 404, corsHeaders());
+    return res.json({ error: 'Grant not found' }, 404, corsHeaders(req.headers['origin'] || ''));
   }
   const slave = slaveList.rows[0];
 
@@ -333,7 +354,7 @@ async function handleGrantAccounts(req, res, log, error) {
   });
 
   log(`Updated accounts grant=${grantId} accounts=${accountIds.length}`);
-  return res.json({ success: true, grant_id: grantId, accounts: accountIds.length, detail: accountRows }, 200, corsHeaders());
+  return res.json({ success: true, grant_id: grantId, accounts: accountIds.length, detail: accountRows }, 200, corsHeaders(req.headers['origin'] || ''));
 }
 
 // ─── GET /internal/grant/:grant_id/accounts ─────────────────────────
@@ -343,7 +364,7 @@ async function handleGetAccounts(req, res, log, error) {
   const grantId = parts[3];
 
   if (!grantId) {
-    return res.json({ error: 'grant_id required in path' }, 400, corsHeaders());
+    return res.json({ error: 'grant_id required in path' }, 400, corsHeaders(req.headers['origin'] || ''));
   }
 
   const db = makeAdminDb();
@@ -370,5 +391,5 @@ async function handleGetAccounts(req, res, log, error) {
     selected: acc.selected,
   }));
 
-  return res.json({ success: true, grant_id: grantId, accounts }, 200, corsHeaders());
+  return res.json({ success: true, grant_id: grantId, accounts }, 200, corsHeaders(req.headers['origin'] || ''));
 }

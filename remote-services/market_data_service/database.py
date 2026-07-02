@@ -1,4 +1,4 @@
-"""Async database access layer supporting SQLite (default), MongoDB (optional), and Appwrite (optional)."""
+"""Async database access layer supporting InfluxDB (default), SQLite (fallback), and Appwrite (optional)."""
 
 from __future__ import annotations
 
@@ -187,6 +187,18 @@ class BaseDatabaseManager(ABC):
 
     @abstractmethod
     async def get_latest_quality_report(self, symbol_id: int | None = None) -> DataQualityReport | None:
+        ...
+
+    # ── Gold quantitative analysis ───────────────────────────────────────────
+
+    @abstractmethod
+    async def store_gold_quant_snapshot(self, snapshot: dict[str, Any]) -> None:
+        """Persist a gold quant snapshot (InfluxDB) or no-op (SQLite)."""
+        ...
+
+    @abstractmethod
+    async def get_latest_gold_quant_snapshot(self, symbol_id: int) -> dict[str, Any] | None:
+        """Retrieve the latest gold quant snapshot."""
         ...
 
     # ── Symbol config ────────────────────────────────────────────────────────
@@ -545,6 +557,14 @@ class SQLiteDatabaseManager(BaseDatabaseManager):
                 config_json TEXT NOT NULL DEFAULT '{}',
                 updated_at TEXT
             );
+
+            CREATE TABLE IF NOT EXISTS gold_quant_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                symbol_id INTEGER NOT NULL DEFAULT 1,
+                symbol TEXT NOT NULL DEFAULT 'XAUUSD',
+                snapshot_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT
+            );
         """)
         await self._conn.execute(
             "INSERT OR IGNORE INTO service_config (id, config_json, updated_at) VALUES ('service_config', '{}', ?)",
@@ -811,6 +831,33 @@ class SQLiteDatabaseManager(BaseDatabaseManager):
             row = await self._fetchone("SELECT * FROM data_quality ORDER BY checked_at DESC LIMIT 1")
         return _dq_from_row(row) if row else None
 
+    # ── Gold quantitative analysis ───────────────────────────────────────────
+
+    async def store_gold_quant_snapshot(self, snapshot: dict[str, Any]) -> None:
+        sql = "INSERT INTO gold_quant_snapshots (symbol_id, symbol, snapshot_json, created_at) VALUES (?, ?, ?, ?)"
+        await self._execute(
+            sql,
+            (
+                snapshot.get("symbol_id", 1),
+                snapshot.get("symbol", "XAUUSD"),
+                json.dumps(snapshot),
+                _iso_now(),
+            ),
+        )
+        await self._conn.commit()
+
+    async def get_latest_gold_quant_snapshot(self, symbol_id: int) -> dict[str, Any] | None:
+        row = await self._fetchone(
+            "SELECT * FROM gold_quant_snapshots WHERE symbol_id = ? ORDER BY created_at DESC LIMIT 1",
+            (symbol_id,),
+        )
+        if row is None:
+            return None
+        try:
+            return json.loads(row["snapshot_json"])
+        except Exception:
+            return None
+
     # ── Symbol config ────────────────────────────────────────────────────────
 
     async def upsert_symbol_config(self, config: SymbolConfig) -> None:
@@ -998,391 +1045,6 @@ class SQLiteDatabaseManager(BaseDatabaseManager):
         await self._conn.commit()
 
 
-# ── MongoDB Implementation (optional) ────────────────────────────────────────
-
-class MongoDBDatabaseManager(BaseDatabaseManager):
-    """MongoDB-based async database manager using motor."""
-
-    def __init__(self) -> None:
-        self._client: Any = None
-        self._db: Any = None
-
-    async def connect(self) -> None:
-        from motor.motor_asyncio import AsyncIOMotorClient
-
-        settings = get_settings()
-        self._client = AsyncIOMotorClient(
-            settings.mongodb_uri,
-            maxPoolSize=settings.mongodb_max_pool_size,
-        )
-        self._db = self._client[settings.mongodb_db]
-        await self.ensure_indexes()
-        logger.info("Connected to MongoDB: %s", settings.mongodb_db)
-
-    async def disconnect(self) -> None:
-        if self._client:
-            self._client.close()
-            self._client = None
-            self._db = None
-            logger.info("Disconnected from MongoDB")
-
-    @property
-    def is_connected(self) -> bool:
-        return self._client is not None and self._db is not None
-
-    @property
-    def db(self) -> Any:
-        if self._db is None:
-            raise RuntimeError("Database not connected")
-        return self._db
-
-    async def ensure_indexes(self) -> None:
-        from pymongo import ASCENDING, DESCENDING, IndexModel
-
-        db = self._db
-        assert db is not None
-
-        await db.ticks.create_indexes([
-            IndexModel([("symbol_id", ASCENDING), ("timestamp_ms", DESCENDING)]),
-            IndexModel([("symbol_name", ASCENDING), ("timestamp_ms", DESCENDING)]),
-            IndexModel([("received_at", DESCENDING)]),
-        ])
-        await db.bars.create_indexes([
-            IndexModel([("symbol_id", ASCENDING), ("timeframe", ASCENDING), ("timestamp_ms", DESCENDING)], unique=True),
-            IndexModel([("symbol_name", ASCENDING), ("timeframe", ASCENDING), ("timestamp_ms", DESCENDING)]),
-        ])
-        await db.orderbook.create_indexes([
-            IndexModel([("symbol_id", ASCENDING), ("timestamp_ms", DESCENDING)]),
-        ])
-        await db.symbols.create_indexes([
-            IndexModel([("symbol_id", ASCENDING)], unique=True),
-            IndexModel([("name", ASCENDING)], unique=True),
-        ])
-        await db.indicators.create_indexes([
-            IndexModel([("symbol_id", ASCENDING), ("indicator", ASCENDING), ("timeframe", ASCENDING), ("timestamp_ms", DESCENDING)]),
-        ])
-        await db.signals.create_indexes([
-            IndexModel([("symbol_id", ASCENDING), ("timestamp_ms", DESCENDING)]),
-            IndexModel([("signal_type", ASCENDING), ("timestamp_ms", DESCENDING)]),
-        ])
-        await db.market_structure.create_indexes([
-            IndexModel([("symbol_id", ASCENDING), ("timeframe", ASCENDING), ("timestamp_ms", DESCENDING)]),
-        ])
-        await db.data_quality.create_indexes([
-            IndexModel([("symbol_id", ASCENDING), ("checked_at", DESCENDING)]),
-        ])
-        await db.symbol_configs.create_indexes([
-            IndexModel([("symbol_id", ASCENDING)], unique=True),
-        ])
-        await db.service_heartbeats.create_indexes([
-            IndexModel([("service", ASCENDING), ("timestamp", DESCENDING)]),
-        ])
-        await db.backfill_requests.create_indexes([
-            IndexModel([("status", ASCENDING), ("requested_at", ASCENDING)]),
-            IndexModel([("symbol_id", ASCENDING), ("timeframe", ASCENDING)]),
-        ])
-        await db.cached_symbols.create_indexes([
-            IndexModel([("symbol_id", ASCENDING)], unique=True),
-            IndexModel([("name", ASCENDING)], unique=True),
-            IndexModel([("source", ASCENDING)]),
-        ])
-        logger.info("MongoDB indexes ensured")
-
-    # ── Symbol CRUD ──────────────────────────────────────────────────────────
-
-    async def add_symbol(self, info: SymbolInfo) -> None:
-        await self.db.symbols.update_one(
-            {"symbol_id": info.symbol_id},
-            {"$set": info.model_dump(mode="json")},
-            upsert=True,
-        )
-
-    async def remove_symbol(self, symbol_id: int) -> bool:
-        res = await self.db.symbols.delete_one({"symbol_id": symbol_id})
-        return res.deleted_count > 0
-
-    async def get_symbol(self, symbol_id: int) -> SymbolInfo | None:
-        doc = await self.db.symbols.find_one({"symbol_id": symbol_id})
-        return SymbolInfo(**doc) if doc else None
-
-    async def get_symbol_by_name(self, name: str) -> SymbolInfo | None:
-        doc = await self.db.symbols.find_one({"name": name})
-        return SymbolInfo(**doc) if doc else None
-
-    async def list_symbols(self, status: str | None = None) -> list[SymbolInfo]:
-        query: dict[str, Any] = {}
-        if status:
-            query["status"] = status
-        cursor = self.db.symbols.find(query).sort("name", 1)
-        return [SymbolInfo(**doc) async for doc in cursor]
-
-    async def update_symbol(self, symbol_id: int, **kwargs: Any) -> bool:
-        from datetime import datetime
-        kwargs["updated_at"] = datetime.now(UTC)
-        res = await self.db.symbols.update_one({"symbol_id": symbol_id}, {"$set": kwargs})
-        return res.modified_count > 0
-
-    # ── Tick storage ─────────────────────────────────────────────────────────
-
-    async def store_ticks(self, ticks: list[TickData]) -> int:
-        if not ticks:
-            return 0
-        docs = [t.model_dump(mode="json") for t in ticks]
-        result = await self.db.ticks.insert_many(docs, ordered=False)
-        return len(result.inserted_ids)
-
-    async def get_ticks(self, symbol_id: int, from_ms: int | None = None, to_ms: int | None = None, limit: int = 1000) -> list[TickData]:
-        query: dict[str, Any] = {"symbol_id": symbol_id}
-        if from_ms is not None or to_ms is not None:
-            query["timestamp_ms"] = {}
-            if from_ms is not None:
-                query["timestamp_ms"]["$gte"] = from_ms
-            if to_ms is not None:
-                query["timestamp_ms"]["$lte"] = to_ms
-        cursor = self.db.ticks.find(query).sort("timestamp_ms", -1).limit(limit)
-        return [TickData(**doc) async for doc in cursor]
-
-    async def get_latest_tick(self, symbol_id: int) -> TickData | None:
-        doc = await self.db.ticks.find_one({"symbol_id": symbol_id}, sort=[("timestamp_ms", -1)])
-        return TickData(**doc) if doc else None
-
-    async def count_ticks(self, symbol_id: int | None = None) -> int:
-        query = {"symbol_id": symbol_id} if symbol_id is not None else {}
-        return await self.db.ticks.count_documents(query)
-
-    # ── Bar storage ──────────────────────────────────────────────────────────
-
-    async def store_bars(self, bars: list[OHLCVBar]) -> int:
-        if not bars:
-            return 0
-        docs = [b.model_dump(mode="json") for b in bars]
-        result = await self.db.bars.insert_many(docs, ordered=False)
-        return len(result.inserted_ids)
-
-    async def get_bars(self, symbol_id: int, timeframe: TimeFrame, from_ms: int | None = None, to_ms: int | None = None, limit: int = 1000) -> list[OHLCVBar]:
-        query: dict[str, Any] = {"symbol_id": symbol_id, "timeframe": timeframe.value}
-        if from_ms is not None or to_ms is not None:
-            query["timestamp_ms"] = {}
-            if from_ms is not None:
-                query["timestamp_ms"]["$gte"] = from_ms
-            if to_ms is not None:
-                query["timestamp_ms"]["$lte"] = to_ms
-        cursor = self.db.bars.find(query).sort("timestamp_ms", -1).limit(limit)
-        return [OHLCVBar(**doc) async for doc in cursor]
-
-    async def get_latest_bar(self, symbol_id: int, timeframe: TimeFrame) -> OHLCVBar | None:
-        doc = await self.db.bars.find_one({"symbol_id": symbol_id, "timeframe": timeframe.value}, sort=[("timestamp_ms", -1)])
-        return OHLCVBar(**doc) if doc else None
-
-    async def bar_exists(self, symbol_id: int, timeframe: TimeFrame, timestamp_ms: int) -> bool:
-        count = await self.db.bars.count_documents({"symbol_id": symbol_id, "timeframe": timeframe.value, "timestamp_ms": timestamp_ms}, limit=1)
-        return count > 0
-
-    async def count_bars(self, symbol_id: int | None = None) -> int:
-        query = {"symbol_id": symbol_id} if symbol_id is not None else {}
-        return await self.db.bars.count_documents(query)
-
-    # ── Order book storage ───────────────────────────────────────────────────
-
-    async def store_orderbook(self, snapshot: OrderBookSnapshot) -> None:
-        await self.db.orderbook.insert_one(snapshot.model_dump(mode="json"))
-
-    async def get_latest_orderbook(self, symbol_id: int) -> OrderBookSnapshot | None:
-        doc = await self.db.orderbook.find_one({"symbol_id": symbol_id}, sort=[("timestamp_ms", -1)])
-        return OrderBookSnapshot(**doc) if doc else None
-
-    # ── Indicator storage ────────────────────────────────────────────────────
-
-    async def store_indicator(self, indicator: TechnicalIndicator) -> None:
-        await self.db.indicators.update_one(
-            {"symbol_id": indicator.symbol_id, "indicator": indicator.indicator, "timeframe": indicator.timeframe.value, "timestamp_ms": indicator.timestamp_ms},
-            {"$set": indicator.model_dump(mode="json")},
-            upsert=True,
-        )
-
-    async def get_latest_indicator(self, symbol_id: int, indicator: str, timeframe: TimeFrame) -> TechnicalIndicator | None:
-        doc = await self.db.indicators.find_one(
-            {"symbol_id": symbol_id, "indicator": indicator, "timeframe": timeframe.value},
-            sort=[("timestamp_ms", -1)])
-        return TechnicalIndicator(**doc) if doc else None
-
-    async def get_indicators(self, symbol_id: int | None = None, indicator_type: str | None = None, limit: int = 100) -> list[TechnicalIndicator]:
-        query: dict[str, Any] = {}
-        if symbol_id is not None:
-            query["symbol_id"] = symbol_id
-        if indicator_type is not None:
-            query["indicator"] = indicator_type
-        cursor = self.db.indicators.find(query).sort("timestamp_ms", -1).limit(limit)
-        return [TechnicalIndicator(**doc) async for doc in cursor]
-
-    # ── Signal storage ───────────────────────────────────────────────────────
-
-    async def store_signal(self, signal: TradingSignal) -> None:
-        await self.db.signals.insert_one(signal.model_dump(mode="json"))
-
-    async def get_signals(self, symbol_id: int | None = None, signal_type: str | None = None, limit: int = 100) -> list[TradingSignal]:
-        query: dict[str, Any] = {}
-        if symbol_id is not None:
-            query["symbol_id"] = symbol_id
-        if signal_type is not None:
-            query["direction"] = signal_type
-        cursor = self.db.signals.find(query).sort("timestamp_ms", -1).limit(limit)
-        return [TradingSignal(**doc) async for doc in cursor]
-
-    # ── Market structure storage ─────────────────────────────────────────────
-
-    async def store_market_structure(self, structure: Any) -> None:
-        await self.db.market_structure.update_one(
-            {"symbol_id": structure.symbol_id, "timeframe": structure.timeframe.value, "timestamp_ms": structure.timestamp_ms},
-            {"$set": structure.model_dump(mode="json")},
-            upsert=True,
-        )
-
-    # ── Data quality ─────────────────────────────────────────────────────────
-
-    async def store_quality_report(self, report: DataQualityReport) -> None:
-        await self.db.data_quality.insert_one(report.model_dump(mode="json"))
-
-    async def get_latest_quality_report(self, symbol_id: int | None = None) -> DataQualityReport | None:
-        query: dict[str, Any] = {}
-        if symbol_id is not None:
-            query["symbol_id"] = symbol_id
-        doc = await self.db.data_quality.find_one(query, sort=[("checked_at", -1)])
-        return DataQualityReport(**doc) if doc else None
-
-    # ── Symbol config ────────────────────────────────────────────────────────
-
-    async def upsert_symbol_config(self, config: SymbolConfig) -> None:
-        await self.db.symbol_configs.update_one(
-            {"symbol_id": config.symbol_id},
-            {"$set": config.model_dump(mode="json")},
-            upsert=True,
-        )
-
-    async def get_symbol_config(self, symbol_id: int) -> SymbolConfig | None:
-        doc = await self.db.symbol_configs.find_one({"symbol_id": symbol_id})
-        return SymbolConfig(**doc) if doc else None
-
-    async def list_symbol_configs(self) -> list[SymbolConfig]:
-        cursor = self.db.symbol_configs.find()
-        return [SymbolConfig(**doc) async for doc in cursor]
-
-    async def delete_symbol_config(self, symbol_id: int) -> bool:
-        res = await self.db.symbol_configs.delete_one({"symbol_id": symbol_id})
-        return res.deleted_count > 0
-
-    # ── Service heartbeats ───────────────────────────────────────────────────
-
-    async def insert_service_heartbeat(self, service: str, timestamp: datetime, data: dict[str, Any] | None = None) -> None:
-        doc = {"service": service, "timestamp": timestamp, **(data or {})}
-        await self.db.service_heartbeats.insert_one(doc)
-
-    async def get_latest_service_heartbeat(self, service: str) -> dict[str, Any] | None:
-        doc = await self.db.service_heartbeats.find_one({"service": service}, sort=[("timestamp", -1)])
-        return doc
-
-    # ── Backfill requests ────────────────────────────────────────────────────
-
-    async def insert_backfill_request(self, doc: dict[str, Any]) -> None:
-        await self.db.backfill_requests.insert_one(doc)
-
-    async def get_pending_backfill_request(self) -> dict[str, Any] | None:
-        doc = await self.db.backfill_requests.find_one_and_update(
-            {"status": "pending"},
-            {"$set": {"status": "running", "started_at": datetime.now(UTC)}},
-            sort=[("priority", -1), ("requested_at", 1)],
-        )
-        return doc
-
-    async def update_backfill_request(self, request_id: Any, updates: dict[str, Any]) -> bool:
-        res = await self.db.backfill_requests.update_one({"_id": request_id}, {"$set": updates})
-        return res.modified_count > 0
-
-    async def count_pending_backfills(self) -> int:
-        return await self.db.backfill_requests.count_documents({"status": "pending"})
-
-    # ── Service config ───────────────────────────────────────────────────────
-
-    async def get_service_config(self) -> dict[str, Any] | None:
-        doc = await self.db.service_config.find_one({"id": "service_config"})
-        return doc
-
-    async def update_service_config(self, updates: dict[str, Any]) -> bool:
-        res = await self.db.service_config.update_one(
-            {"id": "service_config"},
-            {"$set": updates, "$setOnInsert": {"id": "service_config"}},
-            upsert=True)
-        return res.modified_count > 0 or res.upserted_id is not None
-
-    # ── Cached symbol lookup ───────────────────────────────────────────────
-
-    async def cache_symbols(self, symbols: list[dict[str, Any]], source: str = "ctrader") -> int:
-        if not symbols:
-            return 0
-        now = datetime.now(UTC)
-        ops: list[dict[str, Any]] = []
-        for s in symbols:
-            doc = dict(s)
-            doc["source"] = source
-            doc["cached_at"] = now
-            ops.append(
-                {"updateOne": {"filter": {"symbol_id": doc["symbol_id"]}, "update": {"$set": doc}, "upsert": True}}
-            )
-        await self.db.cached_symbols.bulk_write(ops)
-        return len(symbols)
-
-    async def get_cached_symbols(
-        self, source: str | None = None, search: str | None = None
-    ) -> list[dict[str, Any]]:
-        query: dict[str, Any] = {}
-        if source is not None:
-            query["source"] = source
-        if search:
-            query["$or"] = [
-                {"name": {"$regex": search, "$options": "i"}},
-                {"description": {"$regex": search, "$options": "i"}},
-            ]
-        cursor = self.db.cached_symbols.find(query).sort("name", 1)
-        return [doc async for doc in cursor]
-
-    async def get_cached_symbol(self, symbol_id: int) -> dict[str, Any] | None:
-        return await self.db.cached_symbols.find_one({"symbol_id": symbol_id})
-
-    async def get_cached_symbol_by_name(self, name: str) -> dict[str, Any] | None:
-        return await self.db.cached_symbols.find_one({"name": name})
-
-    async def clear_cached_symbols(self, source: str | None = None) -> int:
-        query: dict[str, Any] = {"source": source} if source else {}
-        result = await self.db.cached_symbols.delete_many(query)
-        return result.deleted_count
-
-    # ── Stats ────────────────────────────────────────────────────────────────
-
-    async def get_storage_stats(self) -> dict[str, Any]:
-        stats = {}
-        for coll_name in ["ticks", "bars", "orderbook", "symbols", "signals", "indicators"]:
-            try:
-                stats[coll_name] = await self.db[coll_name].estimated_document_count()
-            except Exception:
-                stats[coll_name] = 0
-        return stats
-
-    # ── Maintenance ──────────────────────────────────────────────────────────
-
-    async def delete_old_records(self, collection: str, before_ms: int, symbol_ids: set[int] | None = None) -> int:
-        query: dict[str, Any] = {"timestamp_ms": {"$lt": before_ms}}
-        if symbol_ids is not None:
-            query["symbol_id"] = {"$nin": list(symbol_ids)}
-        result = await self.db[collection].delete_many(query)
-        return result.deleted_count
-
-    async def compact_collection(self, collection: str) -> None:
-        try:
-            await self.db.command({"compact": collection})
-        except Exception as e:
-            logger.warning("Compact failed for %s: %s", collection, e)
-
-
 # ── Helper functions ─────────────────────────────────────────────────────────
 
 def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
@@ -1506,14 +1168,7 @@ def create_db_manager() -> BaseDatabaseManager:
     settings = get_settings()
     backend = getattr(settings, "db_backend", "sqlite").lower()
 
-    if backend == "mongodb":
-        try:
-            return MongoDBDatabaseManager()
-        except ImportError as e:
-            logger.error("MongoDB backend requested but motor/pymongo not installed: %s", e)
-            logger.warning("Falling back to SQLite")
-            return SQLiteDatabaseManager()
-    elif backend == "appwrite":
+    if backend == "appwrite":
         try:
             from .appwrite_database import AppwriteDatabaseManager
 

@@ -26,8 +26,6 @@ ENV_MAP: dict[str, tuple[str, ...]] = {
         ("influxdb_database", "MARKET_DATA_INFLUXDB_DATABASE"),
         ("influxdb_retention_days", "MARKET_DATA_INFLUXDB_RETENTION_DAYS"),
         ("influxdb_sidecar_path", "MARKET_DATA_INFLUXDB_SIDECAR_PATH"),
-        ("mongodb_uri", "MARKET_DATA_MONGODB_URI"),
-        ("mongodb_database", "MARKET_DATA_MONGODB_DATABASE"),
         ("appwrite_endpoint", "MARKET_DATA_APPWRITE_ENDPOINT"),
         ("appwrite_project_id", "MARKET_DATA_APPWRITE_PROJECT_ID"),
         ("appwrite_database_id", "MARKET_DATA_APPWRITE_DATABASE_ID"),
@@ -63,8 +61,9 @@ def _require_appwrite() -> Any:
 
 def get_appwrite_ids() -> tuple[str, str, str]:
     """Return (database_id, table_id, row_id) for the service config row."""
+    settings = get_settings()
     return (
-        os.getenv("APPWRITE_DATABASE_ID", "market_data"),
+        os.getenv("APPWRITE_DATABASE_ID", settings.ctrader_auth_database_id or "ctrader_auth"),
         os.getenv("APPWRITE_CONFIG_TABLE_ID", "service_config"),
         os.getenv("APPWRITE_CONFIG_ROW_ID", "service_config"),
     )
@@ -147,8 +146,6 @@ def _migrate_legacy_config(legacy: dict[str, Any]) -> dict[str, dict[str, Any]]:
         "influxdb_write_burst_bytes",
         "influxdb_max_read_bytes_per_sec",
         "influxdb_sidecar_path",
-        "mongodb_uri",
-        "mongodb_database",
         "appwrite_endpoint",
         "appwrite_project_id",
         "appwrite_database_id",

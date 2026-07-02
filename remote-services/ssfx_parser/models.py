@@ -51,6 +51,12 @@ class TradeSignal(BaseModel):
     parser_used: str = "regex"
     llm_reasoning: str | None = None
 
+    # Signal experience scoring (living quality context)
+    quality_score: float | None = None
+    quality_factors: dict[str, Any] | None = None
+    experience_action: str | None = None  # allow / reduce / block
+    volume_multiplier: float = 1.0
+
     @property
     def has_entry(self) -> bool:
         return self.entry_price is not None

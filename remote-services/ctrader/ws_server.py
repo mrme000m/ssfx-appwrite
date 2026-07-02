@@ -15,13 +15,12 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
+from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
 
 from ctrader.account_hub import AccountHub
-from ctrader.config import CTRADERConfig
+from ctrader.account_hub_v2 import AccountHubV2
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +28,7 @@ logger = logging.getLogger(__name__)
 class AccountWebSocketServer:
     """FastAPI app that serves WebSocket and REST endpoints."""
 
-    def __init__(self, hub: AccountHub):
+    def __init__(self, hub: AccountHub | AccountHubV2):
         self._hub = hub
         self._app = FastAPI(title="Account WS Server")
         self._setup_routes()

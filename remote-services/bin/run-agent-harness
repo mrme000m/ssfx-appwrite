@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+set -euo pipefail
+exec python -c "from agent_harness.__main__ import main; main()" "$@"

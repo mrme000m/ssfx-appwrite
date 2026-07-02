@@ -11,6 +11,7 @@ services:
       - "9000:9000"   # dataservice control API
       - "9001:9001"   # dataservice MCP SSE server
       - "9002:9002"   # dataservice OpenPI REST API
+      - "9003:9003"   # AI agent harness
       - "9300:9300"   # ctrader unified service
       - "9301:9301"   # account hub WS server (persistent cTrader connections)
     environment:
@@ -25,7 +26,7 @@ services:
       # Persistent logs.
       - ./logs:/app/logs
     healthcheck:
-      test: ["CMD", "bash", "-c", "nc -z 127.0.0.1 9001 && nc -z 127.0.0.1 9002 && nc -z 127.0.0.1 9301"]
+      test: ["CMD", "bash", "-c", "nc -z 127.0.0.1 9001 && nc -z 127.0.0.1 9002 && nc -z 127.0.0.1 9003 && nc -z 127.0.0.1 9301"]
       interval: 30s
       timeout: 10s
       retries: 3

@@ -398,6 +398,62 @@ class InfluxDBDatabaseManager(BaseDatabaseManager):
         rows = self._table_to_rows(await self._query(query))
         return self._quality_report_from_row(rows[0]) if rows else None
 
+    # ── Gold Quant storage ─────────────────────────────────────────────────────
+
+    async def store_gold_quant_snapshot(self, snapshot: dict[str, Any]) -> None:
+        """Persist a gold quant snapshot to InfluxDB."""
+        fields: dict[str, Any] = {
+            "bid": snapshot.get("bid", 0.0),
+            "ask": snapshot.get("ask", 0.0),
+            "spread": snapshot.get("spread", 0.0),
+        }
+        mtf = snapshot.get("mtf", {})
+        fields["mtf_direction"] = mtf.get("overall_direction", "NEUTRAL")
+        fields["mtf_confidence"] = mtf.get("confidence", 0.0)
+        for r in mtf.get("readings", []):
+            tf = r.get("timeframe", "")
+            fields[f"mtf_{tf}_score"] = r.get("score", 0.0)
+
+        flow = snapshot.get("order_flow", {})
+        fields["tick_delta"] = flow.get("tick_delta", 0.0)
+        fields["cum_delta"] = flow.get("cumulative_delta", 0.0)
+        fields["delta_regime"] = flow.get("delta_regime", "neutral")
+        fields["delta_z_score"] = flow.get("delta_z_score", 0.0)
+        fields["book_imbalance"] = flow.get("book_imbalance", 0.0)
+        if flow.get("poc") is not None:
+            fields["poc"] = flow["poc"]
+        if flow.get("vah") is not None:
+            fields["vah"] = flow["vah"]
+        if flow.get("val") is not None:
+            fields["val"] = flow["val"]
+
+        decision = snapshot.get("decision", {})
+        fields["short_verdict"] = decision.get("short_entry", {}).get("verdict", "WAIT")
+        fields["short_confidence"] = decision.get("short_entry", {}).get("confidence", 0.0)
+        fields["long_verdict"] = decision.get("long_entry", {}).get("verdict", "WAIT")
+        fields["long_confidence"] = decision.get("long_entry", {}).get("confidence", 0.0)
+        fields["limit_verdict"] = decision.get("limit_order", {}).get("verdict", "WAIT")
+        fields["limit_confidence"] = decision.get("limit_order", {}).get("confidence", 0.0)
+
+        point = self._point(
+            "gold_quant_snapshot",
+            snapshot.get("symbol_id", 0),
+            snapshot.get("symbol", "XAUUSD"),
+            snapshot.get("timestamp_ms", 0),
+            fields,
+        )
+        await self._write_points([point])
+
+    async def get_latest_gold_quant_snapshot(
+        self, symbol_id: int
+    ) -> dict[str, Any] | None:
+        query = (
+            f"SELECT * FROM gold_quant_snapshot "
+            f"WHERE symbol_id = '{symbol_id}' ORDER BY time DESC LIMIT 1"
+        )
+        rows = self._table_to_rows(await self._query(query))
+        return rows[0] if rows else None
+
     # ── Symbol config (sidecar) ────────────────────────────────────────────────
 
     async def upsert_symbol_config(self, config: SymbolConfig) -> None:

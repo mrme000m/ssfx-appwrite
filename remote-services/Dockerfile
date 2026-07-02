@@ -57,7 +57,8 @@ COPY ssfx_trader/ /app/ssfx_trader/
 COPY ssfx_server/ /app/ssfx_server/
 COPY ctrader/ /app/ctrader/
 COPY market_data_service/ /app/market_data_service/
+COPY agent_harness/ /app/agent_harness/
 
-EXPOSE 8000 9000 9001 9002 9300 9301
+EXPOSE 8000 9000 9001 9002 9300 9301 9003
 
 CMD ["/usr/bin/supervisord", "-n", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

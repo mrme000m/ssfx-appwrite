@@ -202,10 +202,92 @@ TABLE_SCHEMAS: dict[str, dict[str, Any]] = {
             {"key": "updated_at", "type": "datetime", "required": False},
         ],
     },
+    "signal_experience_authors": {
+        "columns": [
+            {"key": "author", "type": "varchar", "size": 100, "required": True},
+            {"key": "total_signals", "type": "integer", "required": True},
+            {"key": "win_count", "type": "integer", "required": True},
+            {"key": "loss_count", "type": "integer", "required": True},
+            {"key": "win_rate", "type": "float", "required": True},
+            {"key": "avg_profit_pips", "type": "float", "required": False},
+            {"key": "avg_loss_pips", "type": "float", "required": False},
+            {"key": "profit_factor", "type": "float", "required": False},
+            {"key": "expectancy", "type": "float", "required": False},
+            {"key": "current_streak", "type": "integer", "required": False},
+            {"key": "max_drawdown_signals", "type": "integer", "required": False},
+            {"key": "avg_rr", "type": "float", "required": False},
+            {"key": "last_signal_at", "type": "datetime", "required": False},
+            {"key": "updated_at", "type": "datetime", "required": False},
+        ],
+    },
+    "signal_experience_sessions": {
+        "columns": [
+            {"key": "hour_utc", "type": "integer", "required": True},
+            {"key": "total_signals", "type": "integer", "required": True},
+            {"key": "win_count", "type": "integer", "required": True},
+            {"key": "loss_count", "type": "integer", "required": True},
+            {"key": "win_rate", "type": "float", "required": True},
+            {"key": "avg_rr", "type": "float", "required": False},
+            {"key": "avg_time_to_update_min", "type": "float", "required": False},
+            {"key": "noise_ratio", "type": "float", "required": False},
+            {"key": "updated_at", "type": "datetime", "required": False},
+        ],
+    },
+    "signal_experience_patterns": {
+        "columns": [
+            {"key": "pattern_key", "type": "varchar", "size": 100, "required": True},
+            {"key": "symbol", "type": "varchar", "size": 50, "required": True},
+            {"key": "direction", "type": "varchar", "size": 20, "required": True},
+            {"key": "order_type", "type": "varchar", "size": 20, "required": False},
+            {"key": "total_signals", "type": "integer", "required": True},
+            {"key": "win_count", "type": "integer", "required": True},
+            {"key": "loss_count", "type": "integer", "required": True},
+            {"key": "win_rate", "type": "float", "required": True},
+            {"key": "avg_sl_pips", "type": "float", "required": False},
+            {"key": "avg_tp_pips", "type": "float", "required": False},
+            {"key": "expectancy", "type": "float", "required": False},
+            {"key": "confidence_score", "type": "float", "required": False},
+            {"key": "updated_at", "type": "datetime", "required": False},
+        ],
+    },
+    "signal_experience_overall": {
+        "columns": [
+            {"key": "rolling_30d_win_rate", "type": "float", "required": False},
+            {"key": "signals_today", "type": "integer", "required": False},
+            {"key": "good_vs_bad_ratio", "type": "float", "required": False},
+            {"key": "last_signal_id", "type": "integer", "required": False},
+            {"key": "insights_json", "type": "text", "required": False},
+            {"key": "updated_at", "type": "datetime", "required": False},
+        ],
+    },
+    "signal_quality_log": {
+        "columns": [
+            {"key": "message_id", "type": "integer", "required": True},
+            {"key": "chat_id", "type": "varchar", "size": 100, "required": False},
+            {"key": "raw_text", "type": "text", "required": False},
+            {"key": "author", "type": "varchar", "size": 100, "required": False},
+            {"key": "quality_score", "type": "float", "required": False},
+            {"key": "factors_json", "type": "text", "required": False},
+            {"key": "decision", "type": "varchar", "size": 20, "required": False},
+            {"key": "outcome", "type": "varchar", "size": 50, "required": False},
+            {"key": "outcome_pips", "type": "float", "required": False},
+            {"key": "closed_at", "type": "datetime", "required": False},
+            {"key": "updated_at", "type": "datetime", "required": False},
+        ],
+    },
 }
 
-# Tables where symbol_id is the natural row key (use str(symbol_id) as $id)
-_NATURAL_KEY_TABLES = {"symbols", "symbol_configs", "cached_symbols"}
+# Tables where a business key is the natural row key (use str(value) as $id)
+_NATURAL_KEY_TABLES = {
+    "symbols",
+    "symbol_configs",
+    "cached_symbols",
+    "signal_experience_authors",
+    "signal_experience_sessions",
+    "signal_experience_patterns",
+    "signal_experience_overall",
+    "signal_quality_log",
+}
 
 
 def _strip_appwrite_meta(row: Any) -> dict[str, Any]:
@@ -1319,6 +1401,15 @@ class AppwriteDatabaseManager(BaseDatabaseManager):
             timestamp_ms=d["timestamp_ms"],
             timeframe=TimeFrame(d.get("timeframe", "1m")),
         )
+
+    async def store_gold_quant_snapshot(self, snapshot: dict[str, Any]) -> None:
+        """Persist a gold quant snapshot to Appwrite (table must exist)."""
+        logger.debug("store_gold_quant_snapshot not implemented for Appwrite: %s", snapshot.get("symbol"))
+
+    async def get_latest_gold_quant_snapshot(self, symbol_id: int) -> dict[str, Any] | None:
+        """Return the latest gold quant snapshot for a symbol (not implemented)."""
+        logger.debug("get_latest_gold_quant_snapshot not implemented for Appwrite: %s", symbol_id)
+        return None
 
     @staticmethod
     def _dq_from_row(row: dict[str, Any]) -> DataQualityReport:

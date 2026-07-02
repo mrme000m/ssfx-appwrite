@@ -4,6 +4,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+_DIAGNOSTIC_HEADER_PLAIN = "Price-augmented signal"
+_DIAGNOSTIC_HEADER_HTML = "<b>Price-augmented signal</b>"
+
 
 @dataclass
 class ChannelPost:
@@ -13,6 +16,15 @@ class ChannelPost:
     reply_to_message_id: int | None = None
     sender_chat_id: str | None = None
     date: int | None = None
+
+
+def is_price_augmented_snapshot(text: str) -> bool:
+    """Return True for alwaydata price-snapshot diagnostics (HTML or plain)."""
+    if not text:
+        return False
+    stripped = text.strip()
+    lower = stripped.lower()
+    return lower.startswith(_DIAGNOSTIC_HEADER_PLAIN.lower()) or _DIAGNOSTIC_HEADER_HTML.lower() in lower
 
 
 def parse_channel_post(update: dict[str, Any]) -> ChannelPost | None:
@@ -30,6 +42,9 @@ def parse_channel_post(update: dict[str, Any]) -> ChannelPost | None:
     if not text:
         caption = channel_post.get("caption", "")
         text = caption
+
+    if is_price_augmented_snapshot(text):
+        return None  # diagnostic snapshot, not a trade signal
 
     reply_to = channel_post.get("reply_to_message")
     reply_to_message_id = reply_to.get("message_id") if reply_to else None

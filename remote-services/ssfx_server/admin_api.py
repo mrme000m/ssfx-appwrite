@@ -8,13 +8,15 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import secrets
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
+from market_data_service.signal_experience.reporter import build_insights, build_llm_context
 from ssfx_parser import Direction, SignalStatus, SignalType, TradeSignal
 
 logger = logging.getLogger(__name__)
@@ -38,10 +40,13 @@ def _state() -> Any:
 
 def _require_admin_key(request: Request) -> None:
     cfg = _state().config
-    if cfg.admin_api_key:
-        key = request.headers.get("x-admin-key", "")
-        if key != cfg.admin_api_key:
-            raise HTTPException(status_code=401, detail="unauthorized")
+    if not cfg.admin_api_key:
+        raise HTTPException(status_code=503, detail="admin API key not configured")
+    header_key = request.headers.get("x-admin-key", "")
+    query_key = request.query_params.get("admin_key", "")
+    provided = header_key or query_key
+    if not secrets.compare_digest(provided, cfg.admin_api_key):
+        raise HTTPException(status_code=401, detail="unauthorized")
 
 
 def _now_ms() -> int:
@@ -70,6 +75,10 @@ def _serialize_signal(signal: TradeSignal) -> dict[str, Any]:
         "parse_confidence": signal.parse_confidence,
         "parser_used": signal.parser_used,
         "llm_reasoning": signal.llm_reasoning,
+        "quality_score": signal.quality_score,
+        "quality_factors": signal.quality_factors,
+        "experience_action": signal.experience_action,
+        "volume_multiplier": signal.volume_multiplier,
         "status": signal.status.value,
         "order_id": signal.order_id,
         "position_id": signal.position_id,
@@ -187,6 +196,31 @@ async def account_state(name: str, request: Request) -> JSONResponse:
             "recent_executions": [_serialize_execution(ex) for ex in recent],
         }
     )
+
+
+@router.patch("/accounts/{name}")
+async def update_account(name: str, request: Request) -> JSONResponse:
+    _require_admin_key(request)
+    state = _state()
+    existing = state.account_store.get_account(name)
+    if existing is None:
+        raise HTTPException(status_code=404, detail=f"account {name} not found")
+
+    patch = await request.json()
+
+    if "enabled" in patch:
+        existing["enabled"] = bool(patch["enabled"])
+
+    if "config" in patch:
+        cfg = patch["config"]
+        existing["ctrader"] = cfg.get("ctrader", existing.get("ctrader", {}))
+        existing["trading"] = cfg.get("trading", existing.get("trading", {}))
+        existing["symbols_filter"] = cfg.get(
+            "symbols_filter", existing.get("symbols_filter", [])
+        )
+
+    state.account_store.save_account(existing)
+    return JSONResponse({"ok": True, "name": name, "enabled": existing.get("enabled")})
 
 
 @router.get("/signals")
@@ -312,6 +346,25 @@ async def execution_stream(request: Request) -> StreamingResponse:
                 logger.warning("execution_stream error: %s", exc)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@router.get("/signal-experience")
+async def signal_experience(request: Request) -> JSONResponse:
+    _require_admin_key(request)
+    state = _state()
+    scorer = getattr(state, "experience_scorer", None)
+    if scorer is None:
+        raise HTTPException(status_code=503, detail="signal experience scoring is disabled")
+
+    insights = await asyncio.to_thread(build_insights, scorer.store)
+    llm_context = build_llm_context(insights)
+    return JSONResponse(
+        {
+            "ok": True,
+            "insights": insights,
+            "llm_context": llm_context,
+        }
+    )
 
 
 @router.get("/agent-logs")

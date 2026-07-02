@@ -235,12 +235,12 @@ def main() -> None:
             sys.exit(1)
         deploy_site(matches[0])
     else:
-        # Default: deploy the command center site if it exists.
-        matches = [s for s in sites if s["$id"] == "ctrader-command-center"]
+        # Default: deploy the consolidated SSFX HQ site.
+        matches = [s for s in sites if s["$id"] == "ssfx-hq"]
         if matches:
             deploy_site(matches[0])
         else:
-            log("Error: no site ID provided and ctrader-command-center not found")
+            log("Error: no site ID provided and ssfx-hq not found")
             log("Usage: ./dev.sh deploy-site [site-id] | ./dev.sh deploy-site --all")
             sys.exit(1)
 

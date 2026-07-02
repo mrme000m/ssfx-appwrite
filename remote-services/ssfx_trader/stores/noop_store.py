@@ -9,7 +9,7 @@ import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
-from ssfx_parser import FollowerExecution, RawMessage, TradeSignal
+from ssfx_parser import RawMessage, TradeSignal
 
 logger = logging.getLogger(__name__)
 

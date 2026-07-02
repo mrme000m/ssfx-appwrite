@@ -37,6 +37,17 @@ from .symbol_registry import SymbolRegistry
 
 logger = logging.getLogger(__name__)
 
+# Gold Quantitative Analysis (optional — gracefully degrades if not available)
+try:
+    from .gold_quant_engine import GoldQuantEngine
+    from .gold_quant_engine.context_builder import AgentContextBuilder
+    _GOLD_ENGINE: GoldQuantEngine | None = GoldQuantEngine()
+    _GOLD_BUILDER: AgentContextBuilder | None = AgentContextBuilder()
+except Exception as _gold_exc:
+    logger.warning("GoldQuantEngine not available: %s", _gold_exc)
+    _GOLD_ENGINE = None
+    _GOLD_BUILDER = None
+
 # ── Global state ─────────────────────────────────────────────────────────────
 
 symbol_registry = SymbolRegistry()
@@ -376,6 +387,22 @@ async def list_tools() -> list[Tool]:
             description="Get Data Service feed connection status",
             inputSchema={"type": "object", "properties": {}},
         ),
+        # Gold Quant
+        Tool(
+            name="get_gold_quant",
+            description="Get full XAUUSD quantitative snapshot (MTF + order flow + levels + decisions)",
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        Tool(
+            name="get_gold_decision",
+            description="Get XAUUSD short/long/limit decision matrix",
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        Tool(
+            name="get_gold_prompt",
+            description="Get LLM-ready prompt summarizing the current XAUUSD quant snapshot",
+            inputSchema={"type": "object", "properties": {}},
+        ),
     ]
 
 
@@ -647,6 +674,18 @@ async def _execute_tool(name: str, arguments: dict[str, Any] | None) -> dict[str
                 "db_connected": db_manager.is_connected,
                 "active_symbols": len(symbol_registry.list_active()),
             }
+
+    elif name in ("get_gold_quant", "get_gold_decision", "get_gold_prompt"):
+        if _GOLD_ENGINE is None or _GOLD_BUILDER is None:
+            result = {"error": "Gold Quant engine not available"}
+        else:
+            snapshot = await _GOLD_ENGINE.get_snapshot()
+            if name == "get_gold_quant":
+                result = _GOLD_BUILDER.build_compact_dict(snapshot)
+            elif name == "get_gold_decision":
+                result = _GOLD_BUILDER.build_decision_dict(snapshot)
+            else:
+                result = {"prompt": _GOLD_BUILDER.build_llm_prompt(snapshot)}
 
     else:
         result = {"error": f"Unknown tool: {name}"}

@@ -5,6 +5,7 @@
 
 const {
   makeAdminDb,
+  getServiceConfig,
   decrypt,
   encrypt,
   acquireGrantLock,
@@ -17,6 +18,25 @@ const {
 
 const DB_ID = process.env.CTRADER_AUTH_DATABASE_ID;
 const BUFFER_HOURS = parseFloat(process.env.REFRESH_BUFFER_HOURS || '48');
+
+async function getOAuthConfig() {
+  const db = makeAdminDb();
+  const svc = await getServiceConfig(db, 'ctrader_oauth', 'CTRADER_OAUTH_JSON');
+  if (svc && typeof svc === 'object' && svc.client_id) {
+    return {
+      clientId: svc.client_id,
+      clientSecret: svc.client_secret,
+      redirectUri: svc.redirect_uri,
+      environment: svc.environment,
+    };
+  }
+  return {
+    clientId: process.env.CTRADER_CLIENT_ID,
+    clientSecret: process.env.CTRADER_CLIENT_SECRET,
+    redirectUri: process.env.CTRADER_REDIRECT_URI,
+    environment: process.env.CTRADER_ENVIRONMENT || 'demo',
+  };
+}
 
 module.exports = async function main({ req, res, log, error }) {
   const preflight = handleOptions(req, res);
@@ -64,9 +84,10 @@ module.exports = async function main({ req, res, log, error }) {
     }
 
     log(`Found ${allExpiring.length} grants needing refresh`);
+    const oauth = await getOAuthConfig();
 
     for (const slave of allExpiring) {
-      const rotated = await rotateOne(db, slave, log, error);
+      const rotated = await rotateOne(db, slave, oauth, log, error);
       if (rotated === true) results.rotated++;
       else if (rotated === false) results.failed++;
       else results.skipped++;
@@ -129,7 +150,7 @@ module.exports = async function main({ req, res, log, error }) {
   }
 };
 
-async function rotateOne(db, slave, log, error) {
+async function rotateOne(db, slave, oauth, log, error) {
   const grantId = slave.grant_id;
 
   if (!slave.refresh_token_enc) {
@@ -145,7 +166,7 @@ async function rotateOne(db, slave, log, error) {
 
   try {
     const refreshToken = decrypt(slave.refresh_token_enc);
-    const tokenData = await refreshCtraderToken(refreshToken);
+    const tokenData = await refreshCtraderToken(refreshToken, oauth);
     const { access_token, refresh_token, expires_in } = tokenData;
     const newExpiresAt = new Date(Date.now() + (expires_in || 3600) * 1000).toISOString();
 

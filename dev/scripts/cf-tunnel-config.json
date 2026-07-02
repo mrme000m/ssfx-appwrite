@@ -1,9 +1,14 @@
 {
-  "comment": "Ingress rules for Cloudflare tunnel ssfx_azurue (mrme.tech).",
+  "comment": "Ingress rules for Cloudflare tunnel ssfx_azurue (mrme.tech) - canonical hostnames.",
   "ingress": [
     {
-      "hostname": "dataservice.mrme.tech",
-      "service": "http://localhost:9099",
+      "hostname": "ssfx-api.mrme.tech",
+      "service": "http://localhost:8000",
+      "originRequest": {}
+    },
+    {
+      "hostname": "ds-control.mrme.tech",
+      "service": "http://localhost:9000",
       "originRequest": {}
     },
     {
@@ -12,18 +17,28 @@
       "originRequest": {}
     },
     {
-      "hostname": "admin.mrme.tech",
-      "service": "http://ubuntu-server:8100",
+      "hostname": "dataservice.mrme.tech",
+      "service": "http://localhost:9002",
       "originRequest": {}
     },
     {
-      "hostname": "ssfx-api.mrme.tech",
-      "service": "http://ubuntu-server:8000",
+      "hostname": "agent.mrme.tech",
+      "service": "http://localhost:9003",
       "originRequest": {}
     },
     {
-      "hostname": "ssfx.mrme.tech",
+      "hostname": "ctrader.mrme.tech",
       "service": "http://localhost:9300",
+      "originRequest": {}
+    },
+    {
+      "hostname": "account-hub.mrme.tech",
+      "service": "http://localhost:9301",
+      "originRequest": {}
+    },
+    {
+      "hostname": "admin.mrme.tech",
+      "service": "http://localhost:8100",
       "originRequest": {}
     },
     {

@@ -142,6 +142,8 @@ class ExecutorWorker:
             tp1=request.tp1,
             tp2=request.tp2,
             tp3=request.tp3,
+            tp_hit_number=request.tp_hit_number,
+            close_percentage=request.close_percentage,
             status=SignalStatus.PENDING,
             parser_used="ctrader-trading",
         )

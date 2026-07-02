@@ -32,6 +32,7 @@ class AppwriteClient:
         self.accounts_table = config.appwrite_accounts_table
         self.presets_table = config.appwrite_presets_table
         self.executions_table = config.appwrite_executions_table
+        self.risk_state_table = config.appwrite_risk_state_table
 
     @classmethod
     def reset(cls) -> None:

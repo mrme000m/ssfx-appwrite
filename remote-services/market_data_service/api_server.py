@@ -23,8 +23,8 @@ from typing import Any
 
 import httpx
 from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException, Query, Request, status
-from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .api_models import (
@@ -65,6 +65,15 @@ from .models import (
 from .symbol_registry import SymbolRegistry
 
 logger = logging.getLogger(__name__)
+
+# Gold Quantitative Analysis (optional — gracefully degrades if not available)
+try:
+    from .gold_quant_engine import GoldQuantEngine
+    from .gold_quant_engine.context_builder import AgentContextBuilder
+    _GOLD_ENGINE: GoldQuantEngine | None = GoldQuantEngine()
+except Exception as _gold_exc:
+    logger.warning("GoldQuantEngine not available: %s", _gold_exc)
+    _GOLD_ENGINE = None
 
 # ── Global State ───────────────────────────────────────────────────────────────
 
@@ -1317,6 +1326,81 @@ async def trigger_config_reload_endpoint():
     except httpx.HTTPError as e:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"Data Service unreachable: {e}")
     return OperationResponse(success=True, message="Config reload triggered")
+
+
+# ── Gold Quantitative Analysis Endpoints ───────────────────────────────────────
+
+async def _fetch_gold_snapshot() -> dict[str, Any]:
+    """Fetch gold quant snapshot from the data service daemon, with local fallback."""
+    try:
+        return await _ds_get("/gold/quant")
+    except Exception as exc:
+        logger.debug("Could not fetch gold snapshot from data service daemon: %s", exc)
+    if _GOLD_ENGINE is None:
+        raise HTTPException(status_code=503, detail="Gold Quant Engine not available")
+    snapshot = await _GOLD_ENGINE.get_snapshot()
+    builder = AgentContextBuilder()
+    return builder.build_compact_dict(snapshot)
+
+
+@public_router.get("/gold/quant", tags=["Gold Quant"])
+async def get_gold_quant() -> dict[str, Any]:
+    """Full quantitative snapshot for XAUUSD (MTF + order flow + levels + decisions)."""
+    return await _fetch_gold_snapshot()
+
+
+@public_router.get("/gold/mtf", tags=["Gold Quant"])
+async def get_gold_mtf() -> dict[str, Any]:
+    """Multi-timeframe confluence only."""
+    snapshot = await _fetch_gold_snapshot()
+    return {
+        "symbol": snapshot.get("symbol"),
+        "timestamp_ms": snapshot.get("timestamp_ms"),
+        "multi_timeframe": snapshot.get("multi_timeframe", {}),
+    }
+
+
+@public_router.get("/gold/orderflow", tags=["Gold Quant"])
+async def get_gold_orderflow() -> dict[str, Any]:
+    """Tick volume and order flow metrics only."""
+    snapshot = await _fetch_gold_snapshot()
+    return {
+        "symbol": snapshot.get("symbol"),
+        "timestamp_ms": snapshot.get("timestamp_ms"),
+        "order_flow": snapshot.get("order_flow", {}),
+    }
+
+
+@public_router.get("/gold/levels", tags=["Gold Quant"])
+async def get_gold_levels() -> dict[str, Any]:
+    """Key structural levels only."""
+    snapshot = await _fetch_gold_snapshot()
+    return {
+        "symbol": snapshot.get("symbol"),
+        "timestamp_ms": snapshot.get("timestamp_ms"),
+        "key_levels": snapshot.get("key_levels", {}),
+    }
+
+
+@public_router.get("/gold/decision", tags=["Gold Quant"])
+async def get_gold_decision() -> dict[str, Any]:
+    """Agent decision matrix (short + long + limit)."""
+    snapshot = await _fetch_gold_snapshot()
+    return {
+        "symbol": snapshot.get("symbol"),
+        "timestamp_ms": snapshot.get("timestamp_ms"),
+        "short_entry": snapshot.get("decision", {}).get("short_entry", {}),
+        "long_entry": snapshot.get("decision", {}).get("long_entry", {}),
+        "limit_order": snapshot.get("decision", {}).get("limit_order", {}),
+        "phase_guidance": snapshot.get("decision", {}).get("phase_guidance", {}),
+    }
+
+
+@public_router.get("/gold/prompt", tags=["Gold Quant"])
+async def get_gold_prompt() -> dict[str, Any]:
+    """LLM-ready prompt text derived from the current gold quant snapshot."""
+    snapshot = await _fetch_gold_snapshot()
+    return {"symbol": snapshot.get("symbol"), "prompt": snapshot.get("agent_prompt", "")}
 
 
 # ── Router Inclusion & Static Site Mount ───────────────────────────────────────

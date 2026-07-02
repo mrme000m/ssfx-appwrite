@@ -49,6 +49,7 @@ class AccountFollower:
         self._config_reload_interval_sec = 60.0
         self._stale_check_interval_sec = 60.0
         self._reconcile_interval_sec = 120.0
+        self._autonomy_interval_sec = 60.0
 
     async def start(self) -> None:
         if not self._config.enabled:
@@ -98,6 +99,7 @@ class AccountFollower:
     async def _watch_loop(self) -> None:
         last_config_reload = 0.0
         last_reconcile = 0.0
+        last_autonomy = 0.0
         while not self._shutdown.is_set():
             try:
                 signal = await asyncio.wait_for(
@@ -132,6 +134,15 @@ class AccountFollower:
                     await self._executor.reconcile_positions()
                 except Exception as exc:
                     logger.warning("[%s] Position reconciliation failed: %s", self._config.name, exc)
+
+            if now - last_autonomy >= self._autonomy_interval_sec:
+                last_autonomy = now
+                try:
+                    autonomy_results = await self._executor.run_autonomy_cycle()
+                    if autonomy_results:
+                        _json_log("info", "autonomy_cycle", name=self._config.name, results=autonomy_results)
+                except Exception as exc:
+                    logger.warning("[%s] Autonomy cycle failed: %s", self._config.name, exc)
 
     def _reload_config(self) -> None:
         fc = self._config_provider()
@@ -169,6 +180,31 @@ class AccountFollower:
                 confidence=signal.parse_confidence,
             )
             return
+
+        if signal.experience_action == "block":
+            self._account_store.mark_skipped(
+                self._config.name, chat_id, message_id, f"experience block score={signal.quality_score:.2f}"
+            )
+            _json_log(
+                "info",
+                "signal_blocked",
+                name=self._config.name,
+                message_id=message_id,
+                quality_score=signal.quality_score,
+                factors=signal.quality_factors,
+            )
+            return
+
+        if signal.experience_action == "reduce":
+            signal.volume_multiplier = 0.5
+            _json_log(
+                "info",
+                "signal_reduced",
+                name=self._config.name,
+                message_id=message_id,
+                quality_score=signal.quality_score,
+                factors=signal.quality_factors,
+            )
 
         if signal.signal_type == SignalType.NEW:
             if not self._config.allows_symbol(signal.symbol):

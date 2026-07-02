@@ -30,9 +30,12 @@ from pathlib import Path
 # Hostnames we publish through the Cloudflare tunnel for this Docker stack.
 # The `service` value is what the cloudflared connector on the VM resolves.
 DEFAULT_INGRESS = [
-    {"hostname": "ssfx-api.mrme.tech", "service": "http://localhost:8000", "originRequest": {}},
+    {"hostname": "ssfx-api.mrme.tech",    "service": "http://localhost:8000", "originRequest": {}},
+    {"hostname": "ds-control.mrme.tech",  "service": "http://localhost:9000", "originRequest": {}},
+    {"hostname": "ds-sse.mrme.tech",      "service": "http://localhost:9001", "originRequest": {}},
     {"hostname": "dataservice.mrme.tech", "service": "http://localhost:9002", "originRequest": {}},
-    {"hostname": "ds-sse.mrme.tech", "service": "http://localhost:9001", "originRequest": {}},
+    {"hostname": "ctrader-api.mrme.tech", "service": "http://localhost:9300", "originRequest": {}},
+    {"hostname": "ctrader-ws.mrme.tech",  "service": "http://localhost:9301", "originRequest": {}},
 ]
 
 

@@ -31,10 +31,8 @@
   },
   "mcpServers": {
     "appwrite-api": {
-      "command": "/Users/m/.local/share/mise/shims/uvx",
-      "args": [
-        "mcp-server-appwrite"
-      ],
+      "command": "/Users/m/.local/bin/mcp-server-appwrite",
+      "args": [],
       "env": {
         "APPWRITE_PROJECT_ID": "$APPWRITE_PROJECT_ID",
         "APPWRITE_API_KEY": "$APPWRITE_API_KEY",

@@ -73,6 +73,35 @@ function makeAdminUsers() {
   return new Users(makeAdminClient());
 }
 
+// ─── Service config lookup ──────────────────────────────────────────
+
+async function getServiceConfig(db, key, fallbackEnv = null) {
+  try {
+    const result = await db.listRows({
+      databaseId: process.env.CTRADER_AUTH_DATABASE_ID,
+      tableId: 'service_config',
+      queries: [Query.equal('config_key', key)],
+    });
+    const rows = result.rows || result.documents || [];
+    if (rows.length > 0) {
+      const row = rows[0].data || rows[0];
+      const value = row.config_value || row.config_json;
+      if (typeof value === 'string' && value.trim()) {
+        return JSON.parse(value);
+      }
+      return value || null;
+    }
+  } catch (err) {
+    console.error(`[getServiceConfig] ${key} lookup failed:`, err.message);
+  }
+  if (fallbackEnv && process.env[fallbackEnv]) {
+    return typeof process.env[fallbackEnv] === 'string' && process.env[fallbackEnv].startsWith('{')
+      ? JSON.parse(process.env[fallbackEnv])
+      : process.env[fallbackEnv];
+  }
+  return null;
+}
+
 // ─── Grant locks (TablesDB row-level) ───────────────────────────────
 
 function grantLockRowId(grantId) {
@@ -156,13 +185,16 @@ async function releaseGrantLock(db, grantId) {
 
 // ─── cTrader token exchange ─────────────────────────────────────────
 
-async function exchangeCtraderCode(code) {
+async function exchangeCtraderCode(code, oauth = null) {
+  const clientId = oauth?.clientId || process.env.CTRADER_CLIENT_ID;
+  const clientSecret = oauth?.clientSecret || process.env.CTRADER_CLIENT_SECRET;
+  const redirectUri = oauth?.redirectUri || process.env.CTRADER_REDIRECT_URI;
   const params = new URLSearchParams({
     grant_type: 'authorization_code',
-    client_id: process.env.CTRADER_CLIENT_ID,
-    client_secret: process.env.CTRADER_CLIENT_SECRET,
+    client_id: clientId,
+    client_secret: clientSecret,
     code,
-    redirect_uri: process.env.CTRADER_REDIRECT_URI,
+    redirect_uri: redirectUri,
   });
 
   const res = await fetch(`https://openapi.ctrader.com/apps/token?${params}`, {
@@ -191,11 +223,13 @@ async function exchangeCtraderCode(code) {
   };
 }
 
-async function refreshCtraderToken(refreshToken) {
+async function refreshCtraderToken(refreshToken, oauth = null) {
+  const clientId = oauth?.clientId || process.env.CTRADER_CLIENT_ID;
+  const clientSecret = oauth?.clientSecret || process.env.CTRADER_CLIENT_SECRET;
   const params = new URLSearchParams({
     grant_type: 'refresh_token',
-    client_id: process.env.CTRADER_CLIENT_ID,
-    client_secret: process.env.CTRADER_CLIENT_SECRET,
+    client_id: clientId,
+    client_secret: clientSecret,
     refresh_token: refreshToken,
   });
 
@@ -298,6 +332,7 @@ module.exports = {
   makeAdminClient,
   makeAdminDb,
   makeAdminUsers,
+  getServiceConfig,
   acquireGrantLock,
   releaseGrantLock,
   exchangeCtraderCode,

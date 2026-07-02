@@ -3,13 +3,19 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="${SCRIPT_DIR}/../.."
 
-echo "[dev] Resolving Azure VM target..."
-read -r VM_NAME VM_IP < <("${SCRIPT_DIR}/_azure_vm.py")
-echo "[dev] Target VM: ${VM_NAME} (${VM_IP})"
+REMOTE_SERVICES_DIR="${PROJECT_ROOT}/remote-services"
+DEPLOY_SCRIPT="${REMOTE_SERVICES_DIR}/deploy-azure.sh"
 
-echo "[dev] Deploying to Azure VM ${VM_NAME} at ${VM_IP}..."
-# TODO: add deployment steps over SSH, e.g.:
-#   ssh "m@${VM_IP}" 'bash -s' < scripts/remote-deploy.sh
-# Values needed for the deployment should be read from Appwrite Database by the remote runtime.
-echo "[dev] Deployment to Azure VM ${VM_NAME} completed."
+echo "[dev] Starting deployment to Azure VM ..."
+
+if [[ ! -x "${DEPLOY_SCRIPT}" ]]; then
+    echo "ERROR: Deployment script not found or not executable: ${DEPLOY_SCRIPT}"
+    exit 1
+fi
+
+cd "${REMOTE_SERVICES_DIR}"
+bash "${DEPLOY_SCRIPT}"
+
+echo "[dev] Deployment completed successfully."

@@ -83,7 +83,7 @@
                     "type": "double",
                     "required": false,
                     "array": false,
-                    "default": 2.0,
+                    "default": 2,
                     "min": 0,
                     "max": 100
                 },
@@ -684,9 +684,65 @@
                     "required": false,
                     "array": false,
                     "default": false
+                },
+                {
+                    "key": "updated_at",
+                    "type": "datetime",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "format": ""
                 }
             ],
-            "indexes": []
+            "indexes": [
+                {
+                    "key": "idx_grant_id",
+                    "type": "key",
+                    "columns": [
+                        "grant_id"
+                    ],
+                    "status": "available",
+                    "orders": []
+                },
+                {
+                    "key": "idx_ctid_trader_account",
+                    "type": "key",
+                    "columns": [
+                        "ctidTraderAccountId"
+                    ],
+                    "status": "available",
+                    "orders": []
+                },
+                {
+                    "key": "idx_grant_id_ctid",
+                    "type": "unique",
+                    "columns": [
+                        "grant_id",
+                        "ctidTraderAccountId"
+                    ],
+                    "status": "available",
+                    "orders": []
+                },
+                {
+                    "key": "idx_is_live",
+                    "type": "key",
+                    "columns": [
+                        "isLive"
+                    ],
+                    "status": "available",
+                    "orders": []
+                },
+                {
+                    "key": "idx_grant_selected",
+                    "type": "key",
+                    "columns": [
+                        "grant_id",
+                        "selected"
+                    ],
+                    "status": "available",
+                    "orders": []
+                }
+            ]
         },
         {
             "$id": "account_events",
@@ -732,7 +788,7 @@
                 },
                 {
                     "key": "event_json",
-                    "type": "text",
+                    "type": "longtext",
                     "required": true,
                     "array": false,
                     "default": null,
@@ -756,7 +812,64 @@
                     "format": ""
                 }
             ],
-            "indexes": []
+            "indexes": [
+                {
+                    "key": "idx_grant_id",
+                    "type": "key",
+                    "columns": [
+                        "grant_id"
+                    ],
+                    "status": "available",
+                    "orders": []
+                },
+                {
+                    "key": "idx_ctid_trader_account_id",
+                    "type": "key",
+                    "columns": [
+                        "ctid_trader_account_id"
+                    ],
+                    "status": "available",
+                    "orders": []
+                },
+                {
+                    "key": "idx_grant_ctid_event",
+                    "type": "key",
+                    "columns": [
+                        "grant_id",
+                        "ctid_trader_account_id",
+                        "event_type"
+                    ],
+                    "status": "available",
+                    "orders": []
+                },
+                {
+                    "key": "idx_event_type",
+                    "type": "key",
+                    "columns": [
+                        "event_type"
+                    ],
+                    "status": "available",
+                    "orders": []
+                },
+                {
+                    "key": "idx_received_at",
+                    "type": "key",
+                    "columns": [
+                        "received_at"
+                    ],
+                    "status": "available",
+                    "orders": []
+                },
+                {
+                    "key": "idx_timestamp_ms",
+                    "type": "key",
+                    "columns": [
+                        "timestamp_ms"
+                    ],
+                    "status": "available",
+                    "orders": []
+                }
+            ]
         },
         {
             "$id": "ssfx_accounts",
@@ -807,6 +920,14 @@
                     "array": false,
                     "default": null,
                     "encrypt": false
+                },
+                {
+                    "key": "updated_at",
+                    "type": "datetime",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "format": ""
                 }
             ],
             "indexes": [
@@ -817,6 +938,43 @@
                     "columns": [
                         "name"
                     ],
+                    "orders": []
+                },
+                {
+                    "key": "idx_owner_id",
+                    "type": "key",
+                    "columns": [
+                        "owner_id"
+                    ],
+                    "status": "available",
+                    "orders": []
+                },
+                {
+                    "key": "idx_enabled",
+                    "type": "key",
+                    "columns": [
+                        "enabled"
+                    ],
+                    "status": "available",
+                    "orders": []
+                },
+                {
+                    "key": "idx_host_type",
+                    "type": "key",
+                    "columns": [
+                        "host_type"
+                    ],
+                    "status": "available",
+                    "orders": []
+                },
+                {
+                    "key": "idx_enabled_host_type",
+                    "type": "key",
+                    "columns": [
+                        "enabled",
+                        "host_type"
+                    ],
+                    "status": "available",
                     "orders": []
                 }
             ]
@@ -954,6 +1112,15 @@
                         "chat_id",
                         "message_id"
                     ],
+                    "orders": []
+                },
+                {
+                    "key": "idx_account_name",
+                    "type": "key",
+                    "columns": [
+                        "account_name"
+                    ],
+                    "status": "available",
                     "orders": []
                 }
             ]
@@ -1520,6 +1687,14 @@
                     "array": false,
                     "default": null,
                     "format": ""
+                },
+                {
+                    "key": "config_json",
+                    "type": "longtext",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
                 }
             ],
             "indexes": [
@@ -1531,6 +1706,162 @@
                         "config_key"
                     ],
                     "orders": []
+                }
+            ]
+        },
+        {
+            "$id": "ssfx_presets",
+            "$permissions": [],
+            "databaseId": "ctrader_auth",
+            "name": "SSFX Presets",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "name",
+                    "type": "varchar",
+                    "required": true,
+                    "array": false,
+                    "size": 64,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "description",
+                    "type": "text",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "config_json",
+                    "type": "longtext",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "owner_id",
+                    "type": "varchar",
+                    "required": false,
+                    "array": false,
+                    "size": 64,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "updated_at",
+                    "type": "datetime",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "idx_name",
+                    "type": "unique",
+                    "columns": [
+                        "name"
+                    ]
+                }
+            ]
+        },
+        {
+            "$id": "ssfx_risk_state",
+            "$permissions": [],
+            "databaseId": "ctrader_auth",
+            "name": "SSFX Risk State",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "account_name",
+                    "type": "varchar",
+                    "required": true,
+                    "array": false,
+                    "size": 64,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "date_str",
+                    "type": "varchar",
+                    "required": true,
+                    "array": false,
+                    "size": 16,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "daily_start_equity",
+                    "type": "double",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "daily_pnl",
+                    "type": "double",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "peak_equity",
+                    "type": "double",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "kill_switch_active",
+                    "type": "boolean",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "kill_switch_reason",
+                    "type": "varchar",
+                    "required": false,
+                    "array": false,
+                    "size": 64,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "state_json",
+                    "type": "text",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "updated_at",
+                    "type": "datetime",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "idx_account_date",
+                    "type": "unique",
+                    "columns": [
+                        "account_name",
+                        "date_str"
+                    ]
                 }
             ]
         }

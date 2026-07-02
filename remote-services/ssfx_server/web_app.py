@@ -110,6 +110,7 @@ state: AppState | None = None
 async def lifespan(app: FastAPI):
     global state
     config = load_config()
+    config.require_webhook_secret()
     logging.basicConfig(level=getattr(logging, config.log_level.upper(), logging.INFO))
     state = AppState(config)
     await state.start()
@@ -164,14 +165,14 @@ async def telegram_webhook(request: Request, background_tasks: BackgroundTasks) 
     if state is None:
         return JSONResponse({"ok": False, "error": "server not initialized"}, status_code=503)
 
-    # Verify Telegram webhook secret token
-    secret_token = state.config.telegram_webhook_secret_token
-    if secret_token:
+    # Verify Telegram webhook secret token (mandatory unless polling)
+    if not state.config.is_polling_mode:
+        secret_token = state.config.telegram_webhook_secret_token
         provided_token = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
         if not provided_token or not secrets.compare_digest(secret_token, provided_token):
             logger.warning(
-                "Telegram webhook signature verification failed. "
-                "Expected secret token but got: %s",
+                "Telegram webhook secret token verification failed for remote=%s: %s",
+                request.client.host if request.client else "unknown",
                 "<missing>" if not provided_token else "<mismatch>",
             )
             return JSONResponse({"ok": False, "error": "unauthorized"}, status_code=401)

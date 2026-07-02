@@ -47,10 +47,12 @@ class CTRADERConfig:
     # Account Hub (persistent cTrader connections)
     account_hub_port: int = 9301
     account_hub_enabled: bool = True
+    account_hub_environment_mode: bool = True
     account_hub_poll_interval: float = 30.0
     account_hub_reconnect_base: float = 5.0
     account_hub_reconnect_max: float = 60.0
     slave_accounts_table: str = "slave_accounts"
+    account_events_table: str = "account_events"
     ctrader_auth_database_id: str = ""
 
     # Trading defaults
@@ -82,10 +84,12 @@ class CTRADERConfig:
             data_poll_interval_ms=int(os.getenv("DATA_POLL_INTERVAL_MS", "250")),
             account_hub_port=int(os.getenv("ACCOUNT_HUB_PORT", "9301")),
             account_hub_enabled=os.getenv("ACCOUNT_HUB_ENABLED", "true").lower() == "true",
+            account_hub_environment_mode=os.getenv("ACCOUNT_HUB_ENVIRONMENT_MODE", "true").lower() == "true",
             account_hub_poll_interval=float(os.getenv("ACCOUNT_HUB_POLL_INTERVAL", "30.0")),
             account_hub_reconnect_base=float(os.getenv("ACCOUNT_HUB_RECONNECT_BASE", "5.0")),
             account_hub_reconnect_max=float(os.getenv("ACCOUNT_HUB_RECONNECT_MAX", "60.0")),
             slave_accounts_table=os.getenv("SLAVE_ACCOUNTS_TABLE", "slave_accounts"),
+            account_events_table=os.getenv("ACCOUNT_EVENTS_TABLE", "account_events"),
             ctrader_auth_database_id=os.getenv("CTRADER_AUTH_DATABASE_ID", ""),
             default_position_timeout_minutes=float(os.getenv("DEFAULT_POSITION_TIMEOUT_MINUTES", "5.0")),
             token_refresh_buffer_seconds=float(os.getenv("TOKEN_REFRESH_BUFFER_SECONDS", "300.0")),

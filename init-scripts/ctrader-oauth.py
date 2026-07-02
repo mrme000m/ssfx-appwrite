@@ -1,126 +1,115 @@
 #!/usr/bin/env python3
-"""init-scripts/ctrader-oauth.py — Persist cTrader OAuth config to Appwrite Database."""
+"""init-scripts/ctrader-oauth.py — Persist cTrader OAuth config to Appwrite TablesDB."""
+from __future__ import annotations
 
 import json
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
 from appwrite.client import Client
 from appwrite.id import ID
-from appwrite.services.tables_db import TablesDB
 from appwrite.query import Query
+from appwrite.services.tables_db import TablesDB
+
+from _env import load_env
+
+DB_ID = "ctrader_auth"
+SERVICE_CONFIG_KEY = "ctrader_oauth"
 
 
-def load_env():
-    root = Path(__file__).parent.parent
-    env_file = root / ".env"
-    if env_file.exists():
-        with open(env_file) as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith("#") and "=" in line:
-                    key, val = line.split("=", 1)
-                    os.environ.setdefault(key, val)
-
-
-def main():
-    load_env()
-
+def read_config() -> dict[str, str]:
     here = Path(__file__).parent
     config_file = here / "config.yml"
     if not config_file.exists():
         print(f"Error: {config_file} not found.", file=sys.stderr)
         sys.exit(1)
+    with open(config_file, encoding="utf-8") as f:
+        cfg = yaml.safe_load(f) or {}
+    return cfg.get("ctrader", {})
 
-    with open(config_file) as f:
-        cfg = yaml.safe_load(f)
 
-    ctrader = cfg.get("ctrader", {})
-    client_id = ctrader.get("client_id", "")
-    client_secret = ctrader.get("client_secret", "")
-    redirect_uri = ctrader.get("redirect_uri", "")
-    environment = ctrader.get("environment", "")
-
-    for key in ["client_id", "client_secret", "redirect_uri", "environment"]:
+def validate_config(ctrader: dict[str, str]) -> None:
+    for key in ("client_id", "client_secret", "redirect_uri", "environment"):
         if not ctrader.get(key):
-            print(f"Error: ctrader.{key} is missing in {config_file}", file=sys.stderr)
+            print(f"Error: ctrader.{key} is missing in config.yml", file=sys.stderr)
             sys.exit(1)
 
-    print("[init] Persisting cTrader OAuth config to Appwrite Database...")
 
+def build_tables_db() -> TablesDB:
     client = Client()
     client.set_endpoint(os.environ["APPWRITE_ENDPOINT"])
     client.set_project(os.environ["APPWRITE_PROJECT_ID"])
     client.set_key(os.environ["APPWRITE_API_KEY"])
+    return TablesDB(client)
 
-    db = TablesDB(client)
-    db_id = "ctrader_auth"
 
-    # Store OAuth config in service_config table
-    config_key = "ctrader_oauth"
+def find_existing(db: TablesDB) -> dict | None:
+    try:
+        result = db.list_rows(
+            database_id=DB_ID,
+            table_id="service_config",
+            queries=[Query.equal("config_key", SERVICE_CONFIG_KEY)],
+        )
+        rows = getattr(result, "documents", getattr(result, "rows", []))
+        if rows:
+            return rows[0]
+    except Exception as exc:
+        print(f"[init] Config lookup warning: {exc}")
+    return None
+
+
+def main() -> int:
+    load_env()
+
+    ctrader = read_config()
+    validate_config(ctrader)
+
+    print("[init] Persisting cTrader OAuth config to Appwrite TablesDB...")
+    db = build_tables_db()
+
     config_value = {
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "redirect_uri": redirect_uri,
-        "environment": environment,
+        "client_id": ctrader["client_id"],
+        "client_secret": ctrader["client_secret"],
+        "redirect_uri": ctrader["redirect_uri"],
+        "environment": ctrader["environment"],
     }
 
-    try:
-        # Check if config exists
-        existing = None
-        try:
-            rows = db.list_rows(
-                db_id,
-                "service_config",
-                [Query.equal("config_key", config_key)],
-            )
-            if rows.get("documents"):
-                existing = rows["documents"][0]
-        except Exception as e:
-            print(f"[init] Config lookup warning: {e}")
+    body = {
+        "config_key": SERVICE_CONFIG_KEY,
+        "config_value": json.dumps(config_value),
+        "description": "cTrader OAuth configuration",
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
 
-        import json
-        config_value_json = json.dumps(config_value)
-
-        if not existing:
-            db.create_row(
-                db_id,
-                "service_config",
-                ID.unique(),
-                {
-                    "config_key": config_key,
-                    "config_value": config_value_json,
-                    "description": "cTrader OAuth configuration",
-                    "updated_at": datetime.utcnow().isoformat(),
-                },
-            )
-            print(f"[init] Created OAuth config with key '{config_key}'")
-        else:
-            db.update_row(
-                db_id,
-                "service_config",
-                existing["$id"],
-                {
-                    "config_value": config_value_json,
-                    "description": "cTrader OAuth configuration",
-                    "updated_at": datetime.utcnow().isoformat(),
-                },
-            )
-            print(f"[init] Updated OAuth config with key '{config_key}'")
-    except Exception as e:
-        print(f"Error: Config persistence failed: {e}", file=sys.stderr)
-        sys.exit(1)
+    existing = find_existing(db)
+    if not existing:
+        db.create_row(
+            database_id=DB_ID,
+            table_id="service_config",
+            row_id=ID.unique(),
+            data=body,
+        )
+        print(f"[init] Created OAuth config row with key '{SERVICE_CONFIG_KEY}'")
+    else:
+        row_id = existing.get("$id", getattr(existing, "id", None))
+        db.update_row(
+            database_id=DB_ID,
+            table_id="service_config",
+            row_id=row_id,
+            data=body,
+        )
+        print(f"[init] Updated OAuth config row '{row_id}'")
 
     print()
     print("[init] cTrader OAuth config persisted in Appwrite Database.")
-    print(f"  client_id:    {client_id}")
-    print(f"  redirect_uri: {redirect_uri}")
-    print(f"  environment:  {environment}")
+    print(f"  client_id:    {ctrader['client_id']}")
+    print(f"  redirect_uri: {ctrader['redirect_uri']}")
+    print(f"  environment:  {ctrader['environment']}")
     print()
-    print("IMPORTANT: The client_secret must be set as a Function variable.")
+    print("IMPORTANT: The client_secret must be available to the Appwrite Functions.")
     print("Set the following environment variables and run ./dev.sh deploy-auth:")
     print("  CTRADER_CLIENT_SECRET=<secret>")
     print("  INTERNAL_API_KEY=<random>")
@@ -128,7 +117,8 @@ def main():
     print("  SESSION_HMAC_KEY=<random>")
     print()
     print("Then run:  ./dev.sh deploy-auth")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

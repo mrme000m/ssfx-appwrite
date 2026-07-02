@@ -30,6 +30,7 @@ class ServerConfig:
     appwrite_accounts_table: str
     appwrite_presets_table: str
     appwrite_executions_table: str
+    appwrite_risk_state_table: str
     dataservice_base_url: str
     dataservice_api_key: str
     agent_harness_base_url: str
@@ -47,6 +48,20 @@ class ServerConfig:
         host = self.webhook_host.rstrip("/")
         path = self.webhook_path if self.webhook_path.startswith("/") else f"/{self.webhook_path}"
         return f"{host}{path}"
+
+    @property
+    def is_polling_mode(self) -> bool:
+        return self.webhook_host.lower() == "polling"
+
+    def require_webhook_secret(self) -> None:
+        """Raise if webhook mode is enabled but no secret token is configured."""
+        if self.is_polling_mode:
+            return
+        if not self.telegram_webhook_secret_token:
+            raise ValueError(
+                "TELEGRAM_WEBHOOK_SECRET_TOKEN is required when WEBHOOK_HOST is not 'polling'. "
+                "Generate a random value (e.g. `openssl rand -hex 32`) and set it via setWebhook."
+            )
 
     def agent_config(self) -> AgentConfig:
         return AgentConfig(
@@ -95,7 +110,8 @@ def load_config(env_file: str | None = None) -> ServerConfig:
         appwrite_accounts_table=_env("APPWRITE_ACCOUNTS_TABLE", "ssfx_accounts"),
         appwrite_presets_table=_env("APPWRITE_PRESETS_TABLE", "ssfx_presets"),
         appwrite_executions_table=_env("APPWRITE_EXECUTIONS_TABLE", "ssfx_executions"),
-        dataservice_base_url=_env("DATA_SERVICE_URL", "http://127.0.0.1:9099"),
+        appwrite_risk_state_table=_env("APPWRITE_RISK_STATE_TABLE", "ssfx_risk_state"),
+        dataservice_base_url=_env("DATA_SERVICE_URL", "http://127.0.0.1:9002"),
         dataservice_api_key=_env("DATA_SERVICE_API_KEY"),
         agent_harness_base_url=_env("AGENT_HARNESS_URL", "http://127.0.0.1:9003"),
         agent_intent_enabled=_env("AGENT_INTENT_ENABLED", "true").lower() == "true",

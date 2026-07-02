@@ -46,6 +46,33 @@ def _extract_executed_price(response: Any) -> float | None:
     return None
 
 
+def _extract_realized_pnl(response: Any) -> float | None:
+    """Extract realized PnL (gross + swap + commission) from a close response, if present."""
+    position = getattr(response, "position", None)
+    if position is None:
+        return None
+    trade_data = getattr(position, "tradeData", None)
+    if trade_data is None:
+        # Fallback: try position-level fields directly
+        gross = getattr(position, "grossProfit", None)
+        swap = getattr(position, "swap", None) or getattr(position, "swapGross", None)
+        commission = getattr(position, "commission", None)
+    else:
+        gross = getattr(trade_data, "grossProfit", None)
+        swap = getattr(trade_data, "swap", None)
+        commission = getattr(trade_data, "commission", None)
+
+    values = []
+    for v in (gross, swap, commission):
+        if isinstance(v, bool):
+            continue
+        try:
+            values.append(float(v))
+        except (TypeError, ValueError):
+            pass
+    return sum(values) if values else None
+
+
 class CTraderBackend:
     """Real cTrader execution backend using the ctrader_client package."""
 
@@ -261,10 +288,14 @@ class CTraderBackend:
                 symbol_id=symbol_id,
                 volume_lots=volume_lots,
             )
-            await fut
+            response = await fut
             if volume_lots is None:
                 self._position_symbols.pop(position_id, None)
-            return {"accepted": True, "closed_volume": volume_lots}
+            return {
+                "accepted": True,
+                "closed_volume": volume_lots,
+                "realized_pnl": _extract_realized_pnl(response),
+            }
         except Exception as exc:
             logger.error("[%s] Close position failed: %s", self._account_name, exc)
             return {"accepted": False, "error": str(exc)}

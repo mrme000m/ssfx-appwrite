@@ -1,7 +1,12 @@
-# Environment variables  
+# Environment variables
 .env
 .env.local
 .env.*.local
+
+# Runtime secrets (example templates are committed)
+remote-services/config/v2.env
+remote-services/config/*.env
+!remote-services/config/*.env.example
 
 # Init scripts secrets
 init-scripts/config.yml

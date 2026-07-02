@@ -119,19 +119,6 @@ def set_gh_secret(name, value):
         sys.exit(1)
 
 
-def read_function_env(function_id):
-    """Read .env file from a function directory."""
-    fn_env = PROJECT_ROOT / "functions" / function_id / ".env"
-    if not fn_env.exists():
-        return {}
-    env = {}
-    with open(fn_env) as f:
-        for line in f:
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                key, val = line.split("=", 1)
-                env[key.strip()] = val.strip()
-    return env
 
 
 def main():
@@ -165,23 +152,39 @@ def main():
     set_gh_secret("CF_ACCOUNT_ID", CF_ACCOUNT_ID)
     set_gh_secret("CF_ZONE_ID", CF_ZONE_ID)
 
-    # Function-specific secrets from function .env files
-    fn_envs = {
-        "ctrader-auth": read_function_env("ctrader-auth"),
-        "ctrader-internal": read_function_env("ctrader-internal"),
-    }
-    fn_secret_keys = {
-        "ctrader-auth": ["CTRADER_CLIENT_ID", "CTRADER_CLIENT_SECRET",
-                         "TOKEN_ENCRYPTION_KEY", "SESSION_HMAC_KEY"],
-        "ctrader-internal": ["INTERNAL_API_KEY"],
-    }
-    for fn_id, keys in fn_secret_keys.items():
-        for key in keys:
-            val = fn_envs[fn_id].get(key)
-            if val:
-                set_gh_secret(key, val)
+    # Resend secrets for transactional email (PIN reset, alerts)
+    resend_api_key = env.get("RESEND_API_KEY")
+    resend_from_email = env.get("RESEND_FROM_EMAIL")
+    if resend_api_key:
+        set_gh_secret("RESEND_API_KEY", resend_api_key)
+    if resend_from_email:
+        set_gh_secret("RESEND_FROM_EMAIL", resend_from_email)
 
-    total = 6 + sum(len(v) for v in fn_secret_keys.values())
+    # Function-specific secrets from root .env (single source of truth)
+    fn_secret_keys = [
+        "CTRADER_CLIENT_ID",
+        "CTRADER_CLIENT_SECRET",
+        "TOKEN_ENCRYPTION_KEY",
+        "SESSION_HMAC_KEY",
+        "INTERNAL_API_KEY",
+    ]
+    for key in fn_secret_keys:
+        val = env.get(key)
+        if val:
+            set_gh_secret(key, val)
+        else:
+            print(f"[gh-secrets] Warning: {key} not found in .env", file=sys.stderr)
+
+    # Site admin API keys for the consolidated dashboard
+    site_secret_keys = ["V2_ADMIN_KEY", "DATA_SERVICE_API_KEY", "AGENT_HARNESS_BASE"]
+    for key in site_secret_keys:
+        val = env.get(key)
+        if val:
+            set_gh_secret(key, val)
+        else:
+            print(f"[gh-secrets] Warning: {key} not found in .env (admin dashboard features may be limited)", file=sys.stderr)
+
+    total = 6 + len(fn_secret_keys) + len(site_secret_keys) + (2 if env.get("RESEND_API_KEY") else 0)
     print(f"\n[gh-secrets] Done. {total} secrets set on {REPO}.")
     print("[gh-secrets] The GitHub Actions workflow can now deploy from develop branch.")
 

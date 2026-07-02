@@ -8,6 +8,7 @@ const {
   makeAdminClient,
   makeAdminDb,
   makeAdminUsers,
+  getServiceConfig,
   signState,
   verifyState,
   exchangeCtraderCode,
@@ -26,6 +27,26 @@ const {
 
 const PROJECT_ID = process.env.APPWRITE_PROJECT_ID;
 const DB_ID = process.env.CTRADER_AUTH_DATABASE_ID;
+
+// Load OAuth config from service_config when available, falling back to env vars.
+async function getOAuthConfig() {
+  const db = makeAdminDb();
+  const svc = await getServiceConfig(db, 'ctrader_oauth', 'CTRADER_OAUTH_JSON');
+  if (svc && typeof svc === 'object' && svc.client_id) {
+    return {
+      clientId: svc.client_id,
+      clientSecret: svc.client_secret,
+      redirectUri: svc.redirect_uri,
+      environment: svc.environment,
+    };
+  }
+  return {
+    clientId: process.env.CTRADER_CLIENT_ID,
+    clientSecret: process.env.CTRADER_CLIENT_SECRET,
+    redirectUri: process.env.CTRADER_REDIRECT_URI || `${process.env.SITES_URL}/callback`,
+    environment: process.env.CTRADER_ENVIRONMENT || 'demo',
+  };
+}
 
 function cookieName() {
   return `a_session_${PROJECT_ID}`;
@@ -52,6 +73,7 @@ module.exports = async function main({ req, res, log, error }) {
 
   const path = req.path;
   const method = req.method;
+  const origin = req.headers['origin'] || '';
 
   try {
     if (path === '/auth/ctrader/start' && method === 'GET') {
@@ -70,10 +92,10 @@ module.exports = async function main({ req, res, log, error }) {
       return await handleAdminSlaves(req, res, log, error);
     }
 
-    return res.json({ error: 'Not found' }, 404, corsHeaders());
+    return res.json({ error: 'Not found' }, 404, corsHeaders(origin));
   } catch (err) {
     error(String(err));
-    return res.json({ error: 'Internal error', detail: err.message }, 500, corsHeaders());
+    return res.json({ error: 'Internal error', detail: err.message }, 500, corsHeaders(origin));
   }
 };
 
@@ -82,7 +104,12 @@ module.exports = async function main({ req, res, log, error }) {
 async function handleStart(req, res, log) {
   const clientIp = req.headers['x-forwarded-for'] || 'unknown';
   if (!checkStartRate(clientIp)) {
-    return res.json({ error: 'Rate limited' }, 429, corsHeaders());
+    return res.json({ error: 'Rate limited' }, 429, corsHeaders(req.headers['origin'] || ''));
+  }
+
+  const oauth = await getOAuthConfig();
+  if (!oauth.clientId || !oauth.redirectUri) {
+    return res.json({ error: 'OAuth not configured' }, 503, corsHeaders(req.headers['origin'] || ''));
   }
 
   const userId = req.query.user_id || '';
@@ -99,7 +126,7 @@ async function handleStart(req, res, log) {
       kind: 'oauth_state',
       user_id: userId || null,
       payload: JSON.stringify({
-        redirect_uri: process.env.CTRADER_REDIRECT_URI,
+        redirect_uri: oauth.redirectUri,
         signed_state: signedState,
       }),
       expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
@@ -107,8 +134,8 @@ async function handleStart(req, res, log) {
   });
 
   const ctraderUrl = new URL('https://id.ctrader.com/my/settings/openapi/grantingaccess/');
-  ctraderUrl.searchParams.set('client_id', process.env.CTRADER_CLIENT_ID);
-  ctraderUrl.searchParams.set('redirect_uri', process.env.CTRADER_REDIRECT_URI);
+  ctraderUrl.searchParams.set('client_id', oauth.clientId);
+  ctraderUrl.searchParams.set('redirect_uri', oauth.redirectUri);
   ctraderUrl.searchParams.set('scope', 'trading');
   ctraderUrl.searchParams.set('product', 'web');
   ctraderUrl.searchParams.set('state', nonce);
@@ -166,9 +193,11 @@ async function handleCallback(req, res, log, error) {
     return res.redirect(`${sitesUrl}/#/onboarding?success=false&error=state_lookup_failed`);
   }
 
+  const oauth = await getOAuthConfig();
+
   let tokenData;
   try {
-    tokenData = await exchangeCtraderCode(code);
+    tokenData = await exchangeCtraderCode(code, oauth);
   } catch (err) {
     error(`Token exchange failed: ${err.message}`);
     return res.redirect(`${sitesUrl}/#/onboarding?success=false&error=token_exchange`);
@@ -292,7 +321,7 @@ async function handleSession(req, res, log) {
   const cookie = req.headers['cookie'] || '';
   const sessionMatch = cookie.match(new RegExp(`${cookieName()}=([^;]+)`));
   if (!sessionMatch) {
-    return res.json({ authenticated: false }, 200, corsHeaders());
+    return res.json({ authenticated: false }, 200, corsHeaders(req.headers['origin'] || ''));
   }
 
   const sessionCookieValue = sessionMatch[1];
@@ -306,7 +335,7 @@ async function handleSession(req, res, log) {
     });
 
     if (!accountRes.ok) {
-      return res.json({ authenticated: false }, 200, corsHeaders());
+      return res.json({ authenticated: false }, 200, corsHeaders(req.headers['origin'] || ''));
     }
 
     const user = await accountRes.json();
@@ -362,9 +391,9 @@ async function handleSession(req, res, log) {
       selected_account_id: slave ? slave.selected_account_id : '',
       last_heartbeat_at: slave ? slave.last_heartbeat_at : null,
       accounts,
-    }, 200, corsHeaders());
+    }, 200, corsHeaders(req.headers['origin'] || ''));
   } catch (err) {
-    return res.json({ authenticated: false }, 200, corsHeaders());
+    return res.json({ authenticated: false }, 200, corsHeaders(req.headers['origin'] || ''));
   }
 }
 
@@ -389,7 +418,7 @@ async function handleLogout(req, res, log) {
   }
 
   return res.json({ success: true }, 200, {
-    ...corsHeaders(),
+    ...corsHeaders(req.headers['origin'] || ''),
     'Set-Cookie': clearCookie(cookieName()),
   });
 }
@@ -420,7 +449,7 @@ async function getSessionUser(req) {
 async function handleAdminSlaves(req, res, log, error) {
   const user = await getSessionUser(req);
   if (!user) {
-    return res.json({ error: 'Unauthorized' }, 401, corsHeaders());
+    return res.json({ error: 'Unauthorized' }, 401, corsHeaders(req.headers['origin'] || ''));
   }
 
   const db = makeAdminDb();
@@ -433,7 +462,7 @@ async function handleAdminSlaves(req, res, log, error) {
   });
   const caller = callerList.rows[0] || null;
   if (!caller || caller.role !== 'master') {
-    return res.json({ error: 'Forbidden' }, 403, corsHeaders());
+    return res.json({ error: 'Forbidden' }, 403, corsHeaders(req.headers['origin'] || ''));
   }
 
   try {
@@ -454,9 +483,9 @@ async function handleAdminSlaves(req, res, log, error) {
       last_heartbeat_at: s.last_heartbeat_at || null,
     }));
 
-    return res.json({ success: true, slaves }, 200, corsHeaders());
+    return res.json({ success: true, slaves }, 200, corsHeaders(req.headers['origin'] || ''));
   } catch (err) {
     error(`Admin slaves query failed: ${err.message}`);
-    return res.json({ error: 'Failed to load slaves' }, 500, corsHeaders());
+    return res.json({ error: 'Failed to load slaves' }, 500, corsHeaders(req.headers['origin'] || ''));
   }
 }

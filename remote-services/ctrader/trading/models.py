@@ -21,6 +21,8 @@ class SignalRequest:
     raw_text: str = ""
     reply_to_message_id: int | None = None
     order_type: str = "MARKET"
+    tp_hit_number: int | None = None
+    close_percentage: float | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "SignalRequest":
@@ -39,6 +41,8 @@ class SignalRequest:
             raw_text=data.get("raw_text", ""),
             reply_to_message_id=int(v) if (v := data.get("reply_to_message_id")) is not None else None,
             order_type=data.get("order_type", "MARKET"),
+            tp_hit_number=int(v) if (v := data.get("tp_hit_number")) is not None else None,
+            close_percentage=float(v) if (v := data.get("close_percentage")) is not None else None,
         )
 
 

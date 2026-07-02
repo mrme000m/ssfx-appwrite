@@ -18,7 +18,7 @@ import logging
 import signal
 import sys
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -37,6 +37,15 @@ from .symbol_registry import SymbolRegistry
 
 logger = logging.getLogger(__name__)
 
+# Optional gold quant engine (gracefully degrades if import fails)
+try:
+    from .gold_quant_engine import GoldQuantEngine
+    from .gold_quant_engine.context_builder import AgentContextBuilder
+except Exception as _gold_exc:
+    logger.warning("GoldQuantEngine not available: %s", _gold_exc)
+    GoldQuantEngine = None  # type: ignore[misc,assignment]
+    AgentContextBuilder = None  # type: ignore[misc,assignment]
+
 
 class MarketDataService:
     """Standalone market data service with continuous operation."""
@@ -52,6 +61,15 @@ class MarketDataService:
         self._shutdown_event = asyncio.Event()
         self._config_reload_event = asyncio.Event()
         self._last_appwrite_updated_at: str | None = None
+
+        # Gold quant engine state
+        self._gold_engine: Any = None
+        self._gold_builder: Any = None
+        self._gold_tick_queue: asyncio.Queue | None = None
+        self._gold_bar_queue: asyncio.Queue | None = None
+        self._gold_depth_queue: asyncio.Queue | None = None
+        self._gold_config: dict[str, Any] = {}
+        self._agent_harness_config: dict[str, Any] = {}
 
     # ── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -76,12 +94,19 @@ class MarketDataService:
         self._feed.register_bar_callback(self._ingestion.get_bar_queue())
         self._feed.register_depth_callback(self._ingestion.get_depth_queue())
 
+        # Wire feed → gold quant engine
+        await self._init_gold_quant()
+
         # Background tasks
         self._tasks.append(asyncio.create_task(self._auto_connect_loop()))
         self._tasks.append(asyncio.create_task(self._analytics_loop()))
         self._tasks.append(asyncio.create_task(self._config_watch_loop()))
         self._tasks.append(asyncio.create_task(self._heartbeat_loop()))
         self._tasks.append(asyncio.create_task(self._backfill_loop()))
+        if self._gold_engine is not None:
+            self._tasks.append(asyncio.create_task(self._gold_quant_loop()))
+            self._tasks.append(asyncio.create_task(self._gold_tick_processor()))
+            self._tasks.append(asyncio.create_task(self._gold_depth_processor()))
 
         logger.info("Market Data Service started")
 
@@ -184,6 +209,9 @@ class MarketDataService:
                     await self._analytics.detect_market_structure(
                         sym.symbol_id, sym.name, tf, bars
                     )
+                    # Feed bars to gold quant engine for XAUUSD
+                    if self._gold_engine is not None and self._gold_symbol_matches(sym.name):
+                        self._gold_engine.set_bars(tf.value, [b.model_dump() for b in bars])
 
     async def _config_watch_loop(self) -> None:
         """Watch for config changes and apply them.
@@ -260,6 +288,12 @@ class MarketDataService:
             current = self._ingestion.depth_queue.maxsize
             if current != new_size:
                 logger.info("Config watch: depth_buffer_size %d → %d", current, new_size)
+
+        # Gold quant + agent harness config
+        if hasattr(config, "gold_quant"):
+            self._gold_config = config.gold_quant or {}
+        if hasattr(config, "agent_harness"):
+            self._agent_harness_config = config.agent_harness or {}
 
         logger.debug("Config watch: applied service config (updated_by=%s)", getattr(config, "updated_by", "?"))
 
@@ -355,6 +389,192 @@ class MarketDataService:
                 req["id"],
                 {"status": "failed", "error": str(exc), "completed_at": datetime.now(UTC).isoformat()},
             )
+
+    # ── Gold Quantitative Analysis Engine ─────────────────────────────────────
+
+    def _gold_symbol_matches(self, symbol_name: str) -> bool:
+        if not self._gold_config.get("enabled", True):
+            return False
+        target = self._gold_config.get("symbol", "XAUUSD")
+        aliases = {"GOLD", "XAUUSD", "XAU/USD"}
+        if target:
+            aliases.add(target.upper())
+        return symbol_name.upper() in aliases
+
+    async def _init_gold_quant(self) -> None:
+        if GoldQuantEngine is None:
+            logger.warning("GoldQuantEngine unavailable — gold quant disabled")
+            return
+        settings = get_settings()
+        if not settings.gold_quant_enabled:
+            logger.info("Gold quant engine disabled by config (GOLD_QUANT_ENABLED=false)")
+            return
+
+        symbol = settings.gold_quant_symbol
+        symbol_id = None
+        if symbol_id is None:
+            sym = self._registry.get_by_name(symbol)
+            symbol_id = sym.symbol_id if sym else 1
+
+        # Parse comma-separated timeframes into list
+        tfs_raw = settings.gold_quant_timeframes
+        timeframes = [t.strip().upper() for t in tfs_raw.split(",") if t.strip()]
+        if not timeframes:
+            timeframes = ["M15", "H1", "H4"]
+
+        # Build a flat dict for loop reference
+        self._gold_config = {
+            "enabled": settings.gold_quant_enabled,
+            "symbol": symbol,
+            "symbol_id": symbol_id,
+            "tick_window": settings.gold_quant_tick_window,
+            "timeframes": timeframes,
+            "min_confluence_tfs": settings.gold_quant_min_confluence_tfs,
+            "snapshot_interval_seconds": 5,
+        }
+
+        self._gold_engine = GoldQuantEngine(
+            symbol=symbol,
+            symbol_id=symbol_id,
+            tick_window_size=self._gold_config["tick_window"],
+            bar_lookback=200,
+            timeframes=timeframes,
+            min_confluence_tfs=self._gold_config["min_confluence_tfs"],
+        )
+        self._gold_builder = AgentContextBuilder()
+        self._gold_tick_queue = asyncio.Queue(maxsize=10000)
+        self._gold_depth_queue = asyncio.Queue(maxsize=1000)
+        self._feed.register_tick_callback(self._gold_tick_queue)
+        self._feed.register_depth_callback(self._gold_depth_queue)
+        logger.info("GoldQuantEngine initialized for %s (symbol_id=%s)", symbol, symbol_id)
+
+    async def _gold_tick_processor(self) -> None:
+        if self._gold_engine is None or self._gold_tick_queue is None:
+            return
+        while self._running:
+            try:
+                item = await asyncio.wait_for(self._gold_tick_queue.get(), timeout=1.0)
+                self._gold_tick_queue.task_done()
+                tick = self._normalize_gold_tick(item)
+                if tick:
+                    self._gold_engine.ingest_tick(tick)
+            except TimeoutError:
+                continue
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.warning("Gold tick processor error: %s", exc)
+
+    async def _gold_depth_processor(self) -> None:
+        if self._gold_engine is None or self._gold_depth_queue is None:
+            return
+        while self._running:
+            try:
+                item = await asyncio.wait_for(self._gold_depth_queue.get(), timeout=1.0)
+                self._gold_depth_queue.task_done()
+                depth = self._normalize_gold_depth(item)
+                if depth:
+                    self._gold_engine.ingest_depth(depth)
+            except TimeoutError:
+                continue
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.warning("Gold depth processor error: %s", exc)
+
+    async def _gold_quant_loop(self) -> None:
+        """Refresh gold quant snapshot periodically and persist decisions."""
+        if self._gold_engine is None:
+            return
+        while self._running:
+            try:
+                await asyncio.sleep(self._gold_config.get("snapshot_interval_seconds", 5))
+                if not self._running:
+                    break
+                await self._refresh_gold_snapshot()
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.warning("Gold quant loop error: %s", exc)
+
+    async def _refresh_gold_snapshot(self) -> None:
+        if self._gold_engine is None:
+            return
+        # Fetch latest orderbook to enrich order-flow metrics
+        symbol_id = self._gold_engine.symbol_id
+        try:
+            ob = await db_manager.get_latest_orderbook(symbol_id)
+        except Exception:
+            ob = None
+        if ob is not None:
+            self._gold_engine.flow_engine.on_depth({
+                "bids": [{"price": b.price, "volume": b.volume} for b in ob.bids],
+                "asks": [{"price": a.price, "volume": a.volume} for a in ob.asks],
+            })
+
+        # Refresh bars for configured timeframes
+        for tf in self._gold_engine.timeframes:
+            try:
+                tf_enum = TimeFrame.from_ctrader_period(tf.upper())
+                bars = await db_manager.get_bars(symbol_id, tf_enum, limit=200)
+                if len(bars) >= 50:
+                    self._gold_engine.set_bars(tf, [b.model_dump() for b in bars])
+            except Exception as exc:
+                logger.debug("Could not refresh gold bars for %s: %s", tf, exc)
+
+        # Compute snapshot
+        try:
+            snapshot = self._gold_engine.get_snapshot_sync()
+            compact = self._gold_builder.build_compact_dict(snapshot)
+            # Persist to database
+            with contextlib.suppress(Exception):
+                await db_manager.store_gold_quant_snapshot(compact)
+            logger.debug(
+                "Gold quant snapshot refreshed: mtf=%s confidence=%.2f",
+                compact.get("multi_timeframe", {}).get("overall_direction"),
+                compact.get("multi_timeframe", {}).get("confidence", 0),
+            )
+        except Exception as exc:
+            logger.warning("Failed to compute gold quant snapshot: %s", exc)
+
+    def _normalize_gold_tick(self, item: Any) -> dict[str, Any] | None:
+        from .models import TickData
+        if isinstance(item, TickData):
+            if not self._gold_symbol_matches(item.symbol_name):
+                return None
+            return {
+                "symbol_id": item.symbol_id,
+                "bid": item.bid,
+                "ask": item.ask,
+                "bid_volume": item.bid_volume,
+                "ask_volume": item.ask_volume,
+                "timestamp_ms": item.timestamp_ms,
+            }
+        if isinstance(item, dict):
+            return item
+        return None
+
+    def _normalize_gold_depth(self, item: Any) -> dict[str, Any] | None:
+        from .models import OrderBookSnapshot
+        if isinstance(item, OrderBookSnapshot):
+            return {
+                "bids": [{"price": b.price, "volume": b.volume} for b in item.bids],
+                "asks": [{"price": a.price, "volume": a.volume} for a in item.asks],
+            }
+        if isinstance(item, dict):
+            return item
+        return None
+
+    def get_gold_snapshot(self) -> dict[str, Any] | None:
+        """Return the latest gold quant snapshot (or None if disabled)."""
+        if self._gold_engine is None or self._gold_builder is None:
+            return None
+        try:
+            snapshot = self._gold_engine.get_snapshot_sync()
+            return cast(dict[str, Any], self._gold_builder.build_compact_dict(snapshot))
+        except Exception as exc:
+            logger.warning("Failed to build gold snapshot: %s", exc)
+            return None
 
     # ── Public API ───────────────────────────────────────────────────────────
 
@@ -457,6 +677,21 @@ def get_control_app() -> FastAPI:
             "feed_connected": service._feed.is_connected,
         }
 
+    @control_app.get("/gold/quant", tags=["Gold Quant"])
+    async def gold_quant() -> dict[str, Any]:
+        snapshot = service.get_gold_snapshot()
+        if snapshot is None:
+            raise HTTPException(status_code=503, detail="Gold quant engine unavailable")
+        return snapshot
+
+    @control_app.get("/gold/health", tags=["Gold Quant"])
+    async def gold_health() -> dict[str, Any]:
+        return {
+            "enabled": service._gold_engine is not None,
+            "symbol": service._gold_engine.symbol if service._gold_engine else None,
+            "timeframes": service._gold_engine.timeframes if service._gold_engine else None,
+        }
+
     @control_app.post("/gaps/fetch", tags=["Gaps"])
     async def fetch_historical(body: dict):
         symbol_id = body.get("symbol_id")
@@ -514,9 +749,9 @@ async def _run_service() -> None:
     # Start control API server on ds_control_port (9000)
     settings = get_settings()
     control_app = get_control_app()
-    config = uvicorn.Config(control_app, host="127.0.0.1", port=settings.ds_control_port, log_level="warning", access_log=False)
+    config = uvicorn.Config(control_app, host="0.0.0.0", port=settings.ds_control_port, log_level="warning", access_log=False)
     control_server = uvicorn.Server(config)
-    logger.info("Control API listening on 127.0.0.1:%d", settings.ds_control_port)
+    logger.info("Control API listening on 0.0.0.0:%d", settings.ds_control_port)
     # Run control server and main loop concurrently
     control_task = asyncio.create_task(control_server.serve())
     while service.is_running:

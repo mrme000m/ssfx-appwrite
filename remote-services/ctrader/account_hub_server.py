@@ -11,12 +11,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 
 import uvicorn
 from appwrite.client import Client
 
 from ctrader.account_hub import AccountHub
+from ctrader.account_hub_v2 import AccountHubV2
 from ctrader.config import CTRADERConfig
 from ctrader.ws_server import AccountWebSocketServer
 
@@ -40,18 +40,33 @@ async def main() -> None:
 
     database_id = config.ctrader_auth_database_id or "ctrader_auth"
 
-    hub = AccountHub(
-        appwrite_client=appwrite_client,
-        database_id=database_id,
-        slave_accounts_table=config.slave_accounts_table,
-        internal_url=config.ctrader_auth_broker_url,
-        internal_api_key=config.internal_api_key,
-        client_id=config.ctrader_client_id,
-        client_secret=config.ctrader_client_secret,
-        poll_interval=config.account_hub_poll_interval,
-        reconnect_base=config.account_hub_reconnect_base,
-        reconnect_max=config.account_hub_reconnect_max,
-    )
+    if config.account_hub_environment_mode:
+        hub: AccountHub | AccountHubV2 = AccountHubV2(
+            appwrite_client=appwrite_client,
+            database_id=database_id,
+            slave_accounts_table=config.slave_accounts_table,
+            internal_url=config.ctrader_auth_broker_url,
+            internal_api_key=config.internal_api_key,
+            client_id=config.ctrader_client_id,
+            client_secret=config.ctrader_client_secret,
+            account_events_table=config.account_events_table,
+            poll_interval=config.account_hub_poll_interval,
+            reconnect_base=config.account_hub_reconnect_base,
+            reconnect_max=config.account_hub_reconnect_max,
+        )
+    else:
+        hub = AccountHub(
+            appwrite_client=appwrite_client,
+            database_id=database_id,
+            slave_accounts_table=config.slave_accounts_table,
+            internal_url=config.ctrader_auth_broker_url,
+            internal_api_key=config.internal_api_key,
+            client_id=config.ctrader_client_id,
+            client_secret=config.ctrader_client_secret,
+            poll_interval=config.account_hub_poll_interval,
+            reconnect_base=config.account_hub_reconnect_base,
+            reconnect_max=config.account_hub_reconnect_max,
+        )
 
     await hub.start()
 

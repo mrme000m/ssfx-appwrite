@@ -9,6 +9,7 @@
 - Use `dev.sh <command>` for all development operations; do not run raw shell commands for start/stop/deploy/status.
 - When generating skills from repeated workflows, save them under `.qwen/skills/` and reference them in future sessions.
 - Use `/remember` to persist project conventions discovered during work so they survive across sessions.
+- Before modifying the cTrader account hub, data service, or InfluxDB persistence layer, read `docs/account-hub-and-dataservice.md`.
 
 ## Plugin: appwrite-ctrader
 

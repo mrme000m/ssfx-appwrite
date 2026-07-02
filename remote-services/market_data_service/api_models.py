@@ -123,6 +123,34 @@ class ServiceConfig(BaseModel):
         default="api",
         description="Source of last update (api, mcp, cli)",
     )
+    gold_quant: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "enabled": True,
+            "symbol": "XAUUSD",
+            "timeframes": ["M15", "H1", "H4"],
+            "tick_window": 1000,
+            "min_confluence_tfs": 3,
+            "snapshot_interval_seconds": 5,
+        },
+        description="Gold quantitative analysis engine configuration",
+    )
+    agent_harness: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "enabled": False,
+            "autonomy": {"entry_decisions": False, "lifecycle_planning": False, "direct_execution": False},
+            "models": {
+                "mistral": "mistralai/mistral-small-3.2-24b-instruct",
+                "hermes": "nousresearch/hermes-3-llama-3.1-405b",
+                "kimi": "moonshotai/kimi-k2.7-code",
+            },
+            "thresholds": {
+                "min_entry_confidence": 0.65,
+                "min_limit_confidence": 0.60,
+                "max_llm_latency_ms": 5000,
+            },
+        },
+        description="AI agent harness configuration",
+    )
 
     model_config = {"populate_by_name": True}
 

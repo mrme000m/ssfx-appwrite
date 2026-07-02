@@ -789,6 +789,11 @@
               databaseId: DB_ID, tableId: 'trade_configs',
               rowId: Appwrite.ID.unique(),
               data: { slave_user_id: state.user.$id, ...payload },
+              permissions: [
+                Appwrite.Permission.read(Appwrite.Role.user(state.user.$id)),
+                Appwrite.Permission.update(Appwrite.Role.user(state.user.$id)),
+                Appwrite.Permission.delete(Appwrite.Role.user(state.user.$id)),
+              ],
             });
           }
           showToast('success', 'Configuration saved');

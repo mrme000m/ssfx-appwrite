@@ -61,6 +61,10 @@ jobs:
       - name: Login
         run: appwrite client --endpoint "$APPWRITE_ENDPOINT" --project-id "$APPWRITE_PROJECT_ID" --key "$APPWRITE_API_KEY"
       - name: Deploy site
+        env:
+          V2_ADMIN_KEY: ${{ secrets.V2_ADMIN_KEY }}
+          DATA_SERVICE_API_KEY: ${{ secrets.DATA_SERVICE_API_KEY }}
+          AGENT_HARNESS_BASE: ${{ secrets.AGENT_HARNESS_BASE }}
         run: |
           python3 dev/scripts/deploy_auth.py \
             --site --no-tables --no-functions --no-domains --no-smoke \

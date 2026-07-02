@@ -9,6 +9,7 @@ const {
   makeAdminClient,
   makeAdminDb,
   makeAdminUsers,
+  getServiceConfig,
   generateToken,
   corsHeaders,
   handleOptions,

@@ -66,12 +66,14 @@ class AppwriteAccountStore:
         database_id: str | None = None,
         table_id: str | None = None,
         executions_table_id: str | None = None,
+        risk_state_table_id: str | None = None,
     ):
         client = AppwriteClient()
         self.tables_db = tables_db or client.tables_db
         self.database_id = database_id or client.database_id
         self.table_id = table_id or client.accounts_table
         self.executions_table_id = executions_table_id or client.executions_table
+        self.risk_state_table_id = risk_state_table_id or client.risk_state_table
 
     def list_accounts(self, owner_id: str | None = None) -> list[dict[str, Any]]:
         try:
@@ -321,3 +323,44 @@ class AppwriteAccountStore:
         except Exception as exc:
             logger.error("Failed to list recent executions for %s: %s", follower_id, exc)
             return []
+
+    def _risk_state_row_id(self, account_name: str, date_str: str) -> str:
+        return f"{account_name}:{date_str}"
+
+    def get_risk_state(self, account_name: str, date_str: str) -> dict[str, Any] | None:
+        try:
+            row = self.tables_db.get_row(
+                database_id=self.database_id,
+                table_id=self.risk_state_table_id,
+                row_id=self._risk_state_row_id(account_name, date_str),
+            )
+            data = getattr(row, "data", row)
+            return json.loads(data.get("state_json", "{}"))
+        except Exception as exc:
+            logger.warning("Failed to get risk state for %s:%s: %s", account_name, date_str, exc)
+            return None
+
+    def upsert_risk_state(self, account_name: str, state: dict[str, Any]) -> None:
+        date_str = state.get("date_str", "")
+        row_id = self._risk_state_row_id(account_name, date_str)
+        row = {
+            "account_name": account_name,
+            "date_str": date_str,
+            "daily_start_equity": state.get("daily_start_equity"),
+            "daily_pnl": state.get("daily_pnl"),
+            "peak_equity": state.get("peak_equity"),
+            "kill_switch_active": state.get("kill_switch_active"),
+            "kill_switch_reason": state.get("kill_switch_reason"),
+            "state_json": json.dumps(state, separators=(",", ":")),
+            "updated_at": _now_iso(),
+        }
+        try:
+            self.tables_db.upsert_row(
+                database_id=self.database_id,
+                table_id=self.risk_state_table_id,
+                row_id=row_id,
+                data=row,
+            )
+        except Exception as exc:
+            logger.error("Failed to upsert risk state for %s:%s: %s", account_name, date_str, exc)
+            raise

@@ -6,7 +6,7 @@ requires-python = ">=3.11"
 dependencies = [
     "aiohttp>=3.9",
     "aiosqlite>=0.20",
-    "appwrite>=8.0",
+    "appwrite>=21.0",
     "ctrader-open-api>=0.9",
     "fastapi>=0.115",
     "mcp>=1.6.0",
@@ -25,7 +25,7 @@ dependencies = [
 
 [project.optional-dependencies]
 mongodb = ["motor>=3.3", "pymongo>=4.6"]
-appwrite = ["appwrite>=7.0"]
+appwrite = ["appwrite>=21.0"]
 influxdb = ["influxdb3-python>=0.10.0", "influxdb-client>=1.38.0"]
 dev = [
     "pytest>=8",
@@ -46,6 +46,7 @@ market-data-service = "market_data_service.__main__:main"
 market-data-service-sse = "market_data_service.server_sse:main"
 market-data-service-daemon = "market_data_service.data_service:main"
 market-data-service-api = "market_data_service.api_server:main"
+agent-harness = "agent_harness.__main__:main"
 
 [tool.setuptools.packages.find]
 include = [
@@ -55,7 +56,8 @@ include = [
     "ssfx_parser",
     "ssfx_server",
     "ssfx_trader", "ssfx_trader.backends", "ssfx_trader.stores",
-    "market_data_service", "market_data_service.auth", "market_data_service.util",
+    "market_data_service", "market_data_service.*",
+    "agent_harness", "agent_harness.*",
 ]
 
 [tool.pytest.ini_options]

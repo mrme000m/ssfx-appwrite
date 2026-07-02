@@ -107,7 +107,8 @@ def appwrite_api(method, path, payload=None):
     req = urllib.request.Request(url, data=data, headers=APPWRITE_HEADERS, method=method)
     try:
         with urllib.request.urlopen(req) as resp:
-            return json.loads(resp.read().decode())
+            body = resp.read().decode()
+            return json.loads(body) if body else {}
     except urllib.error.HTTPError as e:
         body = e.read().decode()
         try:
@@ -124,6 +125,16 @@ def appwrite_api(method, path, payload=None):
 def list_proxy_rules():
     data = appwrite_api("GET", "/v1/proxy/rules")
     return data.get("rules", [])
+
+
+def get_site_generated_domain(site_id: str) -> str | None:
+    """Fetch the auto-generated domain for a site from the Appwrite sites API."""
+    try:
+        data = appwrite_api("GET", f"/v1/sites/{site_id}")
+        return data.get("domain", "")
+    except Exception as exc:
+        print(f"[domains] Could not fetch generated domain for site {site_id}: {exc}", file=sys.stderr)
+        return None
 
 
 def get_generated_domains():
@@ -272,8 +283,14 @@ def setup_domain(name, resource_id, resource_type, generated_domains):
             break
 
     if existing and existing.get("status") == "verified":
-        print(f"[domains] ✓ {name} -> {resource_id} already verified")
-        return True
+        existing_rid = existing.get("deploymentResourceId", "")
+        if existing_rid == resource_id:
+            print(f"[domains] ✓ {name} -> {resource_id} already verified")
+            return True
+        # Resource mismatch: delete stale rule and recreate.
+        print(f"[domains] ⟳ {name} points to {existing_rid}, remapping to {resource_id}...")
+        delete_rule(existing["$id"])
+        existing = None
 
     if existing and existing.get("status") != "verified":
         print(f"[domains] ⟳ {name} exists but unverified — retrying verification...")
@@ -289,14 +306,7 @@ def setup_domain(name, resource_id, resource_type, generated_domains):
         print(f"[domains] + Creating proxy rule: {name} -> {resource_id}")
         result = create_function_rule(name, resource_id)
     else:  # site
-        # Find site generated domain from proxy rules
-        site_domain = None
-        for r in rules:
-            if (r.get("deploymentResourceId") == resource_id
-                    and "appwrite.network" in r.get("domain", "")):
-                site_domain = r["domain"]
-                break
-        cname_target = site_domain
+        cname_target = get_site_generated_domain(resource_id)
         if not cname_target:
             print(f"[domains] ⚠ Could not find generated domain for site {resource_id}")
             return False

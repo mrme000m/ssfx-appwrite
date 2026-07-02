@@ -29,7 +29,11 @@ def cf_api_put(url: str, token: str, payload: dict) -> dict:
 
 def main() -> int:
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    config_file = sys.argv[1] if len(sys.argv) > 1 else os.path.join(script_dir, "cf-tunnel-config.json")
+    project_root = os.path.dirname(os.path.dirname(script_dir))
+    # Prefer remote-services/config/tunnel-ingress.json, fall back to dev/scripts/cf-tunnel-config.json
+    remote_config = os.path.join(project_root, "remote-services", "config", "tunnel-ingress.json")
+    default_config = os.path.join(script_dir, "cf-tunnel-config.json")
+    config_file = sys.argv[1] if len(sys.argv) > 1 else (remote_config if os.path.isfile(remote_config) else default_config)
 
     token = os.getenv("CF_API_TOKEN")
     if not token:

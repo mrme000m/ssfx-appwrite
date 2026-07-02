@@ -41,6 +41,18 @@ TABLES: dict[str, list[dict]] = {
         {"key": "owner_id", "type": "varchar", "required": False, "size": 64},
         {"key": "host_type", "type": "varchar", "required": False, "size": 16},
         {"key": "config_json", "type": "text", "required": False},
+        {"key": "updated_at", "type": "datetime", "required": False},
+    ],
+    "ssfx_risk_state": [
+        {"key": "account_name", "type": "varchar", "required": True, "size": 64},
+        {"key": "date_str", "type": "varchar", "required": True, "size": 16},
+        {"key": "daily_start_equity", "type": "double", "required": False},
+        {"key": "daily_pnl", "type": "double", "required": False},
+        {"key": "peak_equity", "type": "double", "required": False},
+        {"key": "kill_switch_active", "type": "boolean", "required": False},
+        {"key": "kill_switch_reason", "type": "varchar", "required": False, "size": 64},
+        {"key": "state_json", "type": "text", "required": False},
+        {"key": "updated_at", "type": "datetime", "required": False},
     ],
     "ssfx_executions": [
         {"key": "account_name", "type": "varchar", "required": True, "size": 64},
@@ -62,6 +74,13 @@ TABLES: dict[str, list[dict]] = {
 INDEXES: dict[str, list[dict]] = {
     "ssfx_accounts": [
         {"key": "idx_name", "type": "unique", "columns": ["name"]},
+        {"key": "idx_owner_id", "type": "key", "columns": ["owner_id"]},
+        {"key": "idx_enabled", "type": "key", "columns": ["enabled"]},
+        {"key": "idx_host_type", "type": "key", "columns": ["host_type"]},
+        {"key": "idx_enabled_host_type", "type": "key", "columns": ["enabled", "host_type"]},
+    ],
+    "ssfx_risk_state": [
+        {"key": "idx_account_date", "type": "unique", "columns": ["account_name", "date_str"]},
     ],
     "ssfx_executions": [
         {"key": "idx_account_msg", "type": "unique", "columns": ["account_name", "chat_id", "message_id"]},

@@ -12,6 +12,7 @@ import logging
 import os
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -24,7 +25,7 @@ DEFAULT_YAML_PATH = BASE_DIR / "config" / "dataservice-config.yml"
 DEFAULT_ENV_PATH = BASE_DIR / "config" / "dataservice.env"
 
 
-def _load_yaml_config(path: Path) -> dict[str, object]:
+def _load_yaml_config(path: Path) -> dict[str, str]:
     """Load workspace YAML config and return as flat env-style dict."""
     try:
         import yaml
@@ -45,10 +46,6 @@ def _load_yaml_config(path: Path) -> dict[str, object]:
         mapping["MARKET_DATA_DB_BACKEND"] = str(database["backend"])
     if database.get("sqlite_path"):
         mapping["MARKET_DATA_SQLITE_PATH"] = str(database["sqlite_path"])
-    if database.get("mongodb_uri"):
-        mapping["MARKET_DATA_MONGODB_URI"] = str(database["mongodb_uri"])
-    if database.get("mongodb_database"):
-        mapping["MARKET_DATA_MONGODB_DATABASE"] = str(database["mongodb_database"])
     if database.get("appwrite_endpoint"):
         mapping["MARKET_DATA_APPWRITE_ENDPOINT"] = str(database["appwrite_endpoint"])
     if database.get("appwrite_project_id"):
@@ -87,6 +84,14 @@ def _load_yaml_config(path: Path) -> dict[str, object]:
         mapping["INTERNAL_API_KEY"] = str(ctrader["internal_api_key"])
     if ctrader.get("use_appwrite_auth") is not None:
         mapping["CTRADER_USE_APPWRITE_AUTH"] = str(ctrader["use_appwrite_auth"])
+    if ctrader.get("appwrite_username"):
+        mapping["CTRADER_APPWRITE_USERNAME"] = str(ctrader["appwrite_username"])
+    if ctrader.get("auth_database_id"):
+        mapping["CTRADER_AUTH_DATABASE_ID"] = str(ctrader["auth_database_id"])
+    if ctrader.get("slave_accounts_table"):
+        mapping["SLAVE_ACCOUNTS_TABLE"] = str(ctrader["slave_accounts_table"])
+    if ctrader.get("account_events_table"):
+        mapping["ACCOUNT_EVENTS_TABLE"] = str(ctrader["account_events_table"])
     if ctrader.get("client_id"):
         mapping["CTRADER_CLIENT_ID"] = str(ctrader["client_id"])
     if ctrader.get("client_secret"):
@@ -184,7 +189,7 @@ def save_yaml_config(updates: dict[str, object], path: Path | None = None) -> No
         logger.warning("PyYAML not installed — cannot save YAML config")
         return
     target = path or DEFAULT_YAML_PATH
-    data: dict[str, object] = {}
+    data: dict[str, Any] = {}
     if target.exists():
         try:
             with target.open("r", encoding="utf-8") as f:
@@ -200,12 +205,14 @@ def save_yaml_config(updates: dict[str, object], path: Path | None = None) -> No
         "CTRADER_CLIENT_SECRET": ("ctrader", "client_secret"),
         "INTERNAL_API_KEY": ("ctrader", "internal_api_key"),
         "CTRADER_USE_APPWRITE_AUTH": ("ctrader", "use_appwrite_auth"),
+        "CTRADER_APPWRITE_USERNAME": ("ctrader", "appwrite_username"),
+        "CTRADER_AUTH_DATABASE_ID": ("ctrader", "auth_database_id"),
+        "SLAVE_ACCOUNTS_TABLE": ("ctrader", "slave_accounts_table"),
+        "ACCOUNT_EVENTS_TABLE": ("ctrader", "account_events_table"),
         "CTRADER_ACCOUNT_ID": ("ctrader", "account_id"),
         "CTRADER_HOST_TYPE": ("ctrader", "host_type"),
         "MARKET_DATA_DB_BACKEND": ("database", "backend"),
         "MARKET_DATA_SQLITE_PATH": ("database", "sqlite_path"),
-        "MARKET_DATA_MONGODB_URI": ("database", "mongodb_uri"),
-        "MARKET_DATA_MONGODB_DATABASE": ("database", "mongodb_database"),
         "MARKET_DATA_APPWRITE_ENDPOINT": ("database", "appwrite_endpoint"),
         "MARKET_DATA_APPWRITE_PROJECT_ID": ("database", "appwrite_project_id"),
         "MARKET_DATA_APPWRITE_DATABASE_ID": ("database", "appwrite_database_id"),
@@ -232,7 +239,7 @@ def save_yaml_config(updates: dict[str, object], path: Path | None = None) -> No
             section_dict = data.setdefault(section, {})
             if field_name == "account_id":
                 try:
-                    section_dict[field_name] = int(value)
+                    section_dict[field_name] = int(str(value))
                 except (ValueError, TypeError):
                     section_dict[field_name] = str(value)
             else:
@@ -250,7 +257,7 @@ class Settings(BaseSettings):
     """Application settings loaded from environment.
 
     Env vars follow the naming in the project's .env file:
-    - MARKET_DATA_* for service/MongoDB settings
+    - MARKET_DATA_* for service/InfluxDB settings
     - CTRADER_* for cTrader API credentials
     """
 
@@ -263,28 +270,14 @@ class Settings(BaseSettings):
 
     # Database backend
     db_backend: str = Field(
-        default="sqlite",
+        default="influxdb",
         alias="MARKET_DATA_DB_BACKEND",
-        description="Database backend: sqlite, mongodb, appwrite, or influxdb",
+        description="Database backend: sqlite, appwrite, or influxdb",
     )
     sqlite_path: str | None = Field(
         default=None,
         alias="MARKET_DATA_SQLITE_PATH",
         description="Path to SQLite database file (default: project_root/market_data.db)",
-    )
-
-    # MongoDB
-    mongodb_uri: str = Field(
-        default="mongodb://localhost:27017",
-        alias="MARKET_DATA_MONGODB_URI",
-    )
-    mongodb_db: str = Field(
-        default="market_data",
-        alias="MARKET_DATA_MONGODB_DATABASE",
-    )
-    mongodb_max_pool_size: int = Field(
-        default=50,
-        alias="MARKET_DATA_MONGODB_MAX_POOL_SIZE",
     )
 
     # Appwrite
@@ -392,6 +385,24 @@ class Settings(BaseSettings):
         alias="CTRADER_USE_APPWRITE_AUTH",
         description="Use Appwrite-based auth (AppwriteTokenManager) instead of legacy BrokerTokenManager",
     )
+    ctrader_appwrite_username: str | None = Field(
+        default=None,
+        alias="CTRADER_APPWRITE_USERNAME",
+        description="Preferred slave username for Appwrite-native data service mode",
+    )
+    ctrader_auth_database_id: str = Field(
+        default="ctrader_auth",
+        alias="CTRADER_AUTH_DATABASE_ID",
+        description="Appwrite database ID holding slave_accounts and account_events",
+    )
+    slave_accounts_table: str = Field(
+        default="slave_accounts",
+        alias="SLAVE_ACCOUNTS_TABLE",
+    )
+    account_events_table: str = Field(
+        default="account_events",
+        alias="ACCOUNT_EVENTS_TABLE",
+    )
 
     # Account info
     ctrader_account_id: int | None = Field(
@@ -461,6 +472,46 @@ class Settings(BaseSettings):
     )
     default_bar_capacity: int = 500
 
+    # Gold Quantitative Analysis
+    gold_quant_enabled: bool = Field(
+        default=True,
+        alias="GOLD_QUANT_ENABLED",
+        description="Enable the gold quantitative analysis engine",
+    )
+    gold_quant_symbol: str = Field(
+        default="XAUUSD",
+        alias="GOLD_QUANT_SYMBOL",
+    )
+    gold_quant_timeframes: str = Field(
+        default="M15,H1,H4",
+        alias="GOLD_QUANT_TIMEFRAMES",
+        description="Comma-separated timeframes for gold quant analysis",
+    )
+    gold_quant_tick_window: int = Field(
+        default=1000,
+        alias="GOLD_QUANT_TICK_WINDOW",
+    )
+    gold_quant_delta_std_threshold: float = Field(
+        default=2.0,
+        alias="GOLD_QUANT_DELTA_STD_THRESHOLD",
+    )
+    gold_quant_imbalance_threshold: float = Field(
+        default=0.30,
+        alias="GOLD_QUANT_IMBALANCE_THRESHOLD",
+    )
+    gold_quant_min_confluence_tfs: int = Field(
+        default=3,
+        alias="GOLD_QUANT_MIN_CONFLUENCE_TFS",
+    )
+    gold_quant_short_reject_threshold: float = Field(
+        default=0.30,
+        alias="GOLD_QUANT_SHORT_REJECT_THRESHOLD",
+    )
+    gold_quant_limit_min_confidence: float = Field(
+        default=0.60,
+        alias="GOLD_QUANT_LIMIT_MIN_CONFIDENCE",
+    )
+
     # Feed / Reconnect
     reconnect_delay: float = Field(
         default=5.0,
@@ -515,6 +566,16 @@ class Settings(BaseSettings):
     @property
     def has_ctrader_credentials(self) -> bool:
         """Check if cTrader credentials are available in either mode."""
+        # Appwrite-native mode discovers the account from Appwrite tables.
+        if self.ctrader_use_appwrite_auth:
+            return all(
+                [
+                    self.ctrader_client_id,
+                    self.ctrader_client_secret,
+                    self.ctrader_auth_broker_url,
+                    self.ctrader_internal_api_key,
+                ]
+            )
         if not self.ctrader_account_id:
             return False
         # Broker mode: needs auth broker URL, grant ID, and app credentials
@@ -533,9 +594,11 @@ class Settings(BaseSettings):
     @property
     def auth_mode(self) -> str:
         """Determine which auth mode is configured."""
-        if self.ctrader_auth_broker_url and self.ctrader_auth_grant_id:
-            if self.ctrader_use_appwrite_auth:
+        if self.ctrader_use_appwrite_auth:
+            if self.ctrader_auth_broker_url and self.ctrader_internal_api_key:
                 return "appwrite"
+            return "appwrite-incomplete"
+        if self.ctrader_auth_broker_url and self.ctrader_auth_grant_id:
             return "broker"
         if self.ctrader_client_id and self.ctrader_client_secret and self.ctrader_access_token:
             return "direct"
