@@ -12,8 +12,8 @@ at runtime.
 | `dataservice-sse` | `9001` | MCP SSE server (live prices/tools) | `ds-sse.mrme.tech` |
 | `dataservice-api` | `9002` | OpenPI REST API + admin UI | `dataservice.mrme.tech` |
 | `ssfx-server` | `8000` | Telegram webhook + cTrader follower admin | `ssfx-api.mrme.tech` |
-| `ctrader` | `9300` | Unified cTrader service (WS hub + trade exec) | — |
-| `account-hub` | `9301` | Persistent cTrader connections for all slave accounts | — |
+| `ctrader` | `9300` | Unified cTrader service (WS hub + trade exec) | `ctrader.mrme.tech` |
+| `account-hub` | `9301` | Persistent cTrader connections for all slave accounts | `account-hub.mrme.tech` |
 
 For the Appwrite-native account hub and data service architecture, see [`docs/account-hub-and-dataservice.md`](../docs/account-hub-and-dataservice.md).
 
@@ -68,6 +68,27 @@ After editing code in this directory:
 
 This rsyncs the changed source, rebuilds the image, and restarts the container.
 
+### Integration test (local Docker)
+
+```bash
+# Quick smoke test — builds image, starts stack, tests all endpoints
+./dev.sh integration-test
+
+# Force rebuild and keep container running after tests
+./dev.sh integration-test --build --keep
+```
+
+### Full VM deployment (clean + deploy + tunnel)
+
+```bash
+# Master script: cleans VM, updates CF tunnel, deploys fresh Docker stack
+./remote-services/deploy-master.sh
+
+# Or step by step:
+./dev.sh deploy-ctrader-remote    # Deploy to Azure VM
+./dev.sh setup-cf-tunnel          # Update Cloudflare tunnel ingress
+```
+
 ## Manual commands on the VM
 
 ```bash
@@ -103,9 +124,14 @@ When `account_id` is omitted, the CLI auto-discovers the only available account.
 |------|---------|
 | `Dockerfile` | Python 3.11 + supervisor image; installs deps from `pyproject.toml` |
 | `docker-compose.yml` | Mounts configs and exposes ports on the VM host |
+| `docker-compose.test.yml` | Test override with isolated ports (18000–19301) |
 | `supervisord.conf` | Runs six service processes inside one container |
 | `pyproject.toml` | Unified Python project with all dependencies |
 | `bin/run-*` | Thin wrappers that invoke each service |
+| `integration_test.py` | Full-stack integration test (health + API + WS checks) |
+| `deploy-master.sh` | Master deployment: VM cleanup → CF tunnel → fresh Docker deploy |
+| `cleanup-vm.sh` | Stops old services, removes old containers, archives old dirs |
+| `setup-cf-tunnel.sh` | Updates CF tunnel ingress and DNS records |
 | `init-tunnel.py` | Clears stale tunnel ingress, ensures DNS records, verifies public reachability |
 | `sync-and-restart.sh` | Manual rsync + restart helper |
 | `config/*.example` | Templates for runtime secrets and YAML config |
@@ -115,7 +141,9 @@ When `account_id` is omitted, the CLI auto-discovers the only available account.
 - The container exposes ports on `localhost` of the Azure VM; `cloudflared` on the
   VM forwards the public hostnames to those ports.
 - Source code is baked into the image at build time; configs and logs are mounted.
-- Market data persistence defaults to **InfluxDB Cloud Serverless** (`MARKET_DATA_DB_BACKEND=influxdb`);
-  set it to `sqlite` to use the legacy SQLite backend.
-- MongoDB and any other local dependencies are expected to run on the VM host and
-  be reachable via `host.docker.internal`.
+- Market data persistence defaults to **SQLite** (`MARKET_DATA_DB_BACKEND=sqlite`);
+  set it to `influxdb` to use InfluxDB Cloud Serverless.
+- **MongoDB is legacy** — all configuration and state now lives in Appwrite TablesDB.
+  The `ssfx-server` can run without MongoDB using the `NoOpSignalStore` fallback
+  (signal history is skipped; followers still process live signals via Appwrite).
+- All required Appwrite tables are managed by `dev/scripts/init-ctrader-tables.py`.

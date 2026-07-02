@@ -426,13 +426,20 @@ Replaces `cf-auth-broker` (Cloudflare Worker) with Appwrite Functions + TablesDB
 
 ### TablesDB Schema (database: `ctrader_auth`)
 
-| Table | Purpose |
-|-------|---------|
-| `slave_accounts` | Identity + encrypted tokens (merges grants + master/slave identity) |
-| `trade_configs` | Per-slave trade settings (lot size, multiplier, drawdown, symbols, copy_enabled) |
-| `master_signals` | Signal broadcast table (optional) |
-| `ephemeral_tokens` | Short-lived tokens: `oauth_state` and `pin_reset` |
-| `grant_locks` | Row-level distributed locks for token refresh (row $id = grant_id) |
+| Table | Purpose | Layer |
+|-------|---------|-------|
+| `slave_accounts` | Identity + encrypted tokens (merges grants + master/slave identity) | Auth |
+| `trade_configs` | Per-slave trade settings (lot size, multiplier, drawdown, symbols, copy_enabled) | Auth |
+| `accounts` | Discovered cTrader trading accounts (ctidTraderAccountId, isLive, brokerTitleShort, selected) — populated by Python account hub after first connect | Runtime |
+| `account_events` | Real-time account state: positions, orders, balance, equity, margin — written by account hub, read by dashboards | Runtime |
+| `ctrader_trading_events` | Trading operation event log (order filled, position closed, errors) — written by ctrader service | Runtime |
+| `master_signals` | Signal broadcast table for master-to-slave copy trading (optional) | Trading |
+| `ssfx_accounts` | Telegram signal FOLLOWER configuration (name, enabled, host_type, config_json with symbol filters, SL/TP, lot settings) | Trading |
+| `ssfx_executions` | Signal execution history per follower (account_name, chat_id, message_id, status, order_id, position_id, price, volume) | Trading |
+| `ephemeral_tokens` | Short-lived tokens: `oauth_state` and `pin_reset` | Auth |
+| `grant_locks` | Row-level distributed locks for token refresh (row $id = grant_id) | Auth |
+
+**Note on MongoDB**: MongoDB is **legacy** and no longer required. The system uses Appwrite TablesDB for all configuration and account state, and SQLite/InfluxDB for time-series market data. The `ssfx-server` will fall back to a no-op store if MongoDB is unavailable, but full functionality requires the `ssfx_accounts` table in Appwrite.
 
 ### Appwrite Functions
 

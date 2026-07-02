@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from telegram import Bot
 
 from ssfx_parser import RawMessage, SignalStatus
 from ssfx_trader.config import AccountConfig
@@ -16,6 +17,11 @@ from ssfx_trader.factory import create_follower, create_parser
 from ssfx_trader.follower import AccountFollower
 from ssfx_trader.stores.appwrite_account_store import AppwriteAccountStore
 from ssfx_trader.stores.mongo_store import MongoAccountStore, MongoSignalStore
+from ssfx_trader.stores.noop_store import NoOpSignalStore
+
+from market_data_service.signal_experience.classifier import extract_author
+from market_data_service.signal_experience.scorer import SignalExperienceScorer
+from market_data_service.signal_experience.store import SignalExperienceStore
 
 from .config_loader import ServerConfig, load_config
 from .telegram_webhook import parse_channel_post
@@ -27,20 +33,35 @@ logger = logging.getLogger(__name__)
 class AppState:
     def __init__(self, config: ServerConfig):
         self.config = config
-        self.signal_store = MongoSignalStore(config.mongo_uri, config.mongo_database)
+        # Try MongoDB for signal history; fall back to no-op if unavailable
+        try:
+            self.signal_store = MongoSignalStore(config.mongo_uri, config.mongo_database)
+        except Exception as exc:
+            logger.warning("MongoDB unavailable (%s); signal history disabled", exc)
+            self.signal_store = NoOpSignalStore()
         self.parser = create_parser(config.agent_config())
         self.followers: dict[str, AccountFollower] = {}
         self._follower_tasks: set[asyncio.Task] = set()
+        self.experience_scorer: SignalExperienceScorer | None = None
+        if config.signal_experience_enabled:
+            try:
+                exp_store = SignalExperienceStore(database_id=config.signal_experience_database_id)
+                self.experience_scorer = SignalExperienceScorer(
+                    exp_store,
+                    block_threshold=config.signal_experience_block_threshold,
+                    reduce_threshold=config.signal_experience_reduce_threshold,
+                )
+                logger.info("Signal experience scoring enabled")
+            except Exception as exc:
+                logger.warning("Failed to initialize signal experience scorer: %s", exc)
 
     async def start(self) -> None:
-        if self.config.appwrite_api_key:
-            self.account_store = AppwriteAccountStore()
-            source = "Appwrite"
-        else:
-            self.account_store = MongoAccountStore(
-                self.config.mongo_uri, self.config.mongo_database, "_system"
-            )
-            source = "MongoDB"
+        # Use Appwrite exclusively; never fall back to MongoDB
+        if not self.config.appwrite_api_key:
+            logger.error("APPWRITE_API_KEY is required. Set it in v2.env.")
+            return
+        self.account_store = AppwriteAccountStore()
+        source = "Appwrite"
         accounts = self.account_store.list_accounts()
         if not accounts:
             logger.warning("No accounts configured. Create one in the SSFX config UI.")
@@ -52,6 +73,7 @@ class AppState:
                     cfg,
                     self.config.mongo_uri,
                     self.config.mongo_database,
+                    signal_store=self.signal_store,
                     account_store=self.account_store,
                     data_service_base_url=self.config.dataservice_base_url,
                     data_service_api_key=self.config.dataservice_api_key,
@@ -87,7 +109,11 @@ async def lifespan(app: FastAPI):
     state = AppState(config)
     await state.start()
     admin_api.set_state(state)
-    logger.info("SSFX server ready on %s", config.webhook_url)
+    if state.config.webhook_host.lower() == "polling":
+        logger.info("Webhook host set to 'polling'; starting getUpdates fallback")
+        asyncio.create_task(_poll_updates(state))
+    else:
+        logger.info("Webhook mode: %s", config.webhook_url)
     yield
     await state.stop()
 
@@ -142,6 +168,14 @@ async def telegram_webhook(request: Request, background_tasks: BackgroundTasks) 
     post = parse_channel_post(update)
     if post is None:
         return JSONResponse({"ok": True, "ignored": "not a channel post"})
+
+    if post.chat_id != state.config.source_chat_id:
+        logger.info(
+            "Ignoring post from chat %s (expected source_chat_id %s)",
+            post.chat_id,
+            state.config.source_chat_id,
+        )
+        return JSONResponse({"ok": True, "ignored": "wrong chat"})
 
     logger.info(
         "Webhook from chat=%s message=%s reply_to=%s text=%r",
@@ -203,6 +237,16 @@ async def _process_channel_post(
         logger.info("No signal parsed from message %s", message_id)
         return
 
+    if app_state.experience_scorer is not None:
+        author = extract_author(text)
+        signal = app_state.experience_scorer.enrich(signal, author_name=author)
+        logger.info(
+            "Signal experience score for message %s: %.2f (%s)",
+            message_id,
+            signal.quality_score,
+            signal.experience_action,
+        )
+
     signal.status = SignalStatus.EMITTED
     app_state.signal_store.save_signal(signal)
     logger.info(
@@ -217,6 +261,45 @@ async def _process_channel_post(
 
     for follower in app_state.followers.values():
         await follower.on_signal(signal)
+
+
+async def _poll_updates(app_state: AppState) -> None:
+    """Long-polling fallback using Telegram Bot getUpdates."""
+    bot = Bot(token=app_state.config.telegram_bot_token)
+    offset = 0
+    try:
+        while True:
+            try:
+                updates = await bot.get_updates(
+                    offset=offset,
+                    limit=100,
+                    timeout=30,
+                    allowed_updates=["channel_post"],
+                )
+                for update in updates:
+                    offset = update.update_id + 1
+                    post = parse_channel_post(update.to_dict())
+                    if post is None:
+                        continue
+                    if post.chat_id != app_state.config.source_chat_id:
+                        logger.info(
+                            "Poll ignoring post from chat %s (expected %s)",
+                            post.chat_id,
+                            app_state.config.source_chat_id,
+                        )
+                        continue
+                    await _process_channel_post(
+                        app_state,
+                        post.chat_id,
+                        post.message_id,
+                        post.text,
+                        post.reply_to_message_id,
+                    )
+            except Exception as exc:
+                logger.exception("Poll error: %s", exc)
+                await asyncio.sleep(5)
+    finally:
+        await bot.session.close()
 
 
 def main() -> None:

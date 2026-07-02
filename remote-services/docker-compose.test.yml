@@ -1,0 +1,25 @@
+# ---------------------------------------------------------------------------
+# Docker Compose override for LOCAL integration testing.
+# This file is automatically picked up by docker compose when present.
+# It isolates the test container so it does not clash with a prod-like
+# container that might already be running on the same ports.
+# ---------------------------------------------------------------------------
+services:
+  ctrader-services:
+    container_name: ctrader-services-test
+    ports:
+      - "18000:8000"   # ssfx-server
+      - "19000:9000"   # dataservice control
+      - "19001:9001"   # dataservice MCP SSE
+      - "19002:9002"   # dataservice OpenPI REST API
+      - "19300:9300"   # ctrader unified service
+      - "19301:9301"   # account hub WS server
+    environment:
+      - SSFX_ENV_FILE=/app/config/v2.env
+      - INTEGRATION_TEST_MODE=true
+    healthcheck:
+      test: ["CMD", "bash", "-c", "nc -z 127.0.0.1 9001 && nc -z 127.0.0.1 9002 && nc -z 127.0.0.1 9301"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s

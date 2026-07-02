@@ -22,19 +22,28 @@ service:
   max_reconnect_delay: 60.0
 
 database:
-  backend: sqlite
+  backend: influxdb
   sqlite_path: /app/logs/market_data.db
+  influxdb_host: https://us-east-1-1.aws.cloud2.influxdata.com
+  influxdb_database: market_data
+  influxdb_retention_days: 30
 
 ctrader:
   host_type: demo
   transport_type: tcp
-  # broker_url and grant_id are written automatically by the auth flow.
-  # Set use_appwrite_auth: true to use the Appwrite-based auth (ctrader-internal)
-  # instead of the legacy Cloudflare auth broker.
+  # Set use_appwrite_auth: true to authenticate through the Appwrite auth layer.
+  # When enabled, the service discovers active slave accounts from Appwrite and
+  # opens one environment transport (live or demo) via ctrader-internal.
   use_appwrite_auth: false
+  # broker_url is the ctrader-internal Appwrite Function domain.
   # broker_url: https://internal.mrme.tech
-  # grant_id:
+  # internal_api_key:
   # client_id:
   # client_secret:
+  # Optional: prefer a specific slave username for market-data subscriptions.
+  # appwrite_username: mrme000m0
+  # auth_database_id: ctrader_auth
+  # slave_accounts_table: slave_accounts
+  # account_events_table: account_events
+  # Legacy single-account mode:
   # account_id:
-  # internal_api_key:
