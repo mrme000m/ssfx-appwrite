@@ -22,6 +22,10 @@ const {
 const PROJECT_ID = process.env.APPWRITE_PROJECT_ID;
 const DB_ID = process.env.CTRADER_AUTH_DATABASE_ID;
 
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'noreply@email.mrme.tech';
+const PIN_RESET_BASE_URL = process.env.PIN_RESET_BASE_URL || (process.env.SITES_URL || 'https://app.mrme.tech').split(',')[0].trim();
+
 function cookieName() {
   return `a_session_${PROJECT_ID}`;
 }
@@ -92,13 +96,18 @@ function isLocked(ip, username) {
 
 async function getCurrentUser(req) {
   const cookie = req.headers['cookie'] || '';
-  const match = cookie.match(new RegExp(`${cookieName()}=([^;]+)`));
-  if (!match) return null;
-  const client = makeAdminClient();
-  const account = new Account(client);
+  const sessionMatch = cookie.match(new RegExp(`${cookieName()}=([^;]+)`));
+  if (!sessionMatch) return null;
+
   try {
-    client.setSession(match[1]);
-    return await account.get();
+    const accountRes = await fetch(`${process.env.APPWRITE_ENDPOINT}/account`, {
+      headers: {
+        'x-appwrite-project': PROJECT_ID,
+        'Cookie': `${cookieName()}=${sessionMatch[1]}`,
+      },
+    });
+    if (!accountRes.ok) return null;
+    return await accountRes.json();
   } catch {
     return null;
   }
@@ -124,10 +133,10 @@ module.exports = async function main({ req, res, log, error }) {
     if (path === '/pin-reset/confirm' && method === 'POST') {
       return await handlePinResetConfirm(req, res, log, error);
     }
-    return res.json({ error: 'Not found' }, 404, corsHeaders());
+    return res.json({ error: 'Not found' }, 404, corsHeaders(req.headers['origin'] || ''));
   } catch (err) {
     error(String(err));
-    return res.json({ error: 'Internal error', detail: err.message }, 500, corsHeaders());
+    return res.json({ error: 'Internal error', detail: err.message }, 500, corsHeaders(req.headers['origin'] || ''));
   }
 };
 
@@ -140,11 +149,11 @@ async function handlePinLogin(req, res, log, error) {
   const ip = req.headers['x-forwarded-for'] || 'unknown';
 
   if (!username || !pin) {
-    return res.json({ error: 'Username and PIN required' }, 400, corsHeaders());
+    return res.json({ error: 'Username and PIN required' }, 400, corsHeaders(req.headers['origin'] || ''));
   }
 
   if (isLocked(ip, username)) {
-    return res.json({ error: 'Account locked due to too many failed attempts' }, 423, corsHeaders());
+    return res.json({ error: 'Account locked due to too many failed attempts' }, 423, corsHeaders(req.headers['origin'] || ''));
   }
 
   const db = makeAdminDb();
@@ -156,22 +165,22 @@ async function handlePinLogin(req, res, log, error) {
 
   if (list.rows.length === 0) {
     recordFailure(ip, username, db);
-    return res.json({ error: 'Invalid credentials' }, 401, corsHeaders());
+    return res.json({ error: 'Invalid credentials' }, 401, corsHeaders(req.headers['origin'] || ''));
   }
 
   const slave = list.rows[0];
 
   if (!slave.pin_hash) {
-    return res.json({ error: 'PIN not set. Please complete onboarding.' }, 403, corsHeaders());
+    return res.json({ error: 'PIN not set. Please complete onboarding.' }, 403, corsHeaders(req.headers['origin'] || ''));
   }
 
   if (!verifyPin(pin, slave.pin_hash)) {
     recordFailure(ip, username, db);
-    return res.json({ error: 'Invalid credentials' }, 401, corsHeaders());
+    return res.json({ error: 'Invalid credentials' }, 401, corsHeaders(req.headers['origin'] || ''));
   }
 
   if (!slave.active) {
-    return res.json({ error: 'Account inactive or locked' }, 403, corsHeaders());
+    return res.json({ error: 'Account inactive or locked' }, 403, corsHeaders(req.headers['origin'] || ''));
   }
 
   resetAttempts(ip, username);
@@ -197,7 +206,7 @@ async function handlePinLogin(req, res, log, error) {
   }), 200, {
     'Content-Type': 'application/json',
     'Set-Cookie': cookie,
-    ...corsHeaders(),
+    ...corsHeaders(req.headers['origin'] || ''),
   });
 }
 
@@ -206,7 +215,7 @@ async function handlePinLogin(req, res, log, error) {
 async function handleSetCredentials(req, res, log, error) {
   const user = await getCurrentUser(req);
   if (!user) {
-    return res.json({ error: 'Unauthorized' }, 401, corsHeaders());
+    return res.json({ error: 'Unauthorized' }, 401, corsHeaders(req.headers['origin'] || ''));
   }
 
   const body = req.bodyJson || {};
@@ -214,15 +223,15 @@ async function handleSetCredentials(req, res, log, error) {
   const pin = String(body.pin || '');
 
   if (!username || !pin) {
-    return res.json({ error: 'Username and PIN required' }, 400, corsHeaders());
+    return res.json({ error: 'Username and PIN required' }, 400, corsHeaders(req.headers['origin'] || ''));
   }
 
   if (username.length < 3 || username.length > 32) {
-    return res.json({ error: 'Username must be 3-32 characters' }, 400, corsHeaders());
+    return res.json({ error: 'Username must be 3-32 characters' }, 400, corsHeaders(req.headers['origin'] || ''));
   }
 
   if (!/^\d{4,6}$/.test(pin)) {
-    return res.json({ error: 'PIN must be 4-6 digits' }, 400, corsHeaders());
+    return res.json({ error: 'PIN must be 4-6 digits' }, 400, corsHeaders(req.headers['origin'] || ''));
   }
 
   const db = makeAdminDb();
@@ -235,7 +244,7 @@ async function handleSetCredentials(req, res, log, error) {
   if (existing.rows.length > 0) {
     const other = existing.rows[0];
     if (other.appwrite_user_id !== user.$id) {
-      return res.json({ error: 'Username already taken' }, 409, corsHeaders());
+      return res.json({ error: 'Username already taken' }, 409, corsHeaders(req.headers['origin'] || ''));
     }
   }
 
@@ -246,7 +255,7 @@ async function handleSetCredentials(req, res, log, error) {
   });
 
   if (ownList.rows.length === 0) {
-    return res.json({ error: 'Account record not found' }, 404, corsHeaders());
+    return res.json({ error: 'Account record not found' }, 404, corsHeaders(req.headers['origin'] || ''));
   }
 
   const row = ownList.rows[0];
@@ -269,7 +278,7 @@ async function handleSetCredentials(req, res, log, error) {
   }
 
   log(`Set credentials user=${user.$id} username=${username}`);
-  return res.json({ success: true, username }, 200, corsHeaders());
+  return res.json({ success: true, username }, 200, corsHeaders(req.headers['origin'] || ''));
 }
 
 // ─── POST /pin-reset/request ────────────────────────────────────────
@@ -279,7 +288,7 @@ async function handlePinResetRequest(req, res, log, error) {
   const email = String(body.email || '').trim().toLowerCase();
 
   if (!email) {
-    return res.json({ error: 'Email required' }, 400, corsHeaders());
+    return res.json({ error: 'Email required' }, 400, corsHeaders(req.headers['origin'] || ''));
   }
 
   const db = makeAdminDb();
@@ -290,7 +299,7 @@ async function handlePinResetRequest(req, res, log, error) {
   });
 
   if (list.rows.length === 0) {
-    return res.json({ success: true, message: 'If the email exists, a reset link has been sent.' }, 200, corsHeaders());
+    return res.json({ success: true, message: 'If the email exists, a reset link has been sent.' }, 200, corsHeaders(req.headers['origin'] || ''));
   }
 
   const slave = list.rows[0];
@@ -310,9 +319,46 @@ async function handlePinResetRequest(req, res, log, error) {
     },
   });
 
-  log(`PIN reset token for ${email}: ${resetToken} (expires ${expiresAt})`);
+  log(`PIN reset requested for ${email}`);
 
-  return res.json({ success: true, message: 'If the email exists, a reset link has been sent.' }, 200, corsHeaders());
+  if (RESEND_API_KEY) {
+    try {
+      await sendResetEmail(email, resetToken);
+      log(`PIN reset email sent to ${email}`);
+    } catch (err) {
+      error(`Failed to send PIN reset email to ${email}: ${err.message}`);
+      // Still return opaque success to avoid leaking whether the email exists.
+    }
+  } else {
+    log(`RESEND_API_KEY not configured; PIN reset email not sent to ${email}`);
+  }
+
+  return res.json({ success: true, message: 'If the email exists, a reset link has been sent.' }, 200, corsHeaders(req.headers['origin'] || ''));
+}
+
+// ─── Email helper ───────────────────────────────────────────────────
+
+async function sendResetEmail(email, resetToken) {
+  const resetUrl = `${PIN_RESET_BASE_URL}/#/pin-reset?token=${encodeURIComponent(resetToken)}`;
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${RESEND_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: `SSFX <${RESEND_FROM_EMAIL}>`,
+      to: email,
+      subject: 'Reset your SSFX PIN',
+      html: `<p>Click the link below to reset your SSFX PIN. This link expires in 1 hour.</p><p><a href="${resetUrl}">${resetUrl}</a></p><p>If you did not request this reset, you can ignore this email.</p>`,
+      text: `Reset your SSFX PIN: ${resetUrl}\n\nThis link expires in 1 hour. If you did not request this reset, you can ignore this email.`,
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Resend API error ${res.status}: ${text}`);
+  }
 }
 
 // ─── POST /pin-reset/confirm ────────────────────────────────────────
@@ -323,11 +369,11 @@ async function handlePinResetConfirm(req, res, log, error) {
   const newPin = String(body.new_pin || '');
 
   if (!token || !newPin) {
-    return res.json({ error: 'Token and new PIN required' }, 400, corsHeaders());
+    return res.json({ error: 'Token and new PIN required' }, 400, corsHeaders(req.headers['origin'] || ''));
   }
 
   if (!/^\d{4,6}$/.test(newPin)) {
-    return res.json({ error: 'PIN must be 4-6 digits' }, 400, corsHeaders());
+    return res.json({ error: 'PIN must be 4-6 digits' }, 400, corsHeaders(req.headers['origin'] || ''));
   }
 
   const db = makeAdminDb();
@@ -341,7 +387,7 @@ async function handlePinResetConfirm(req, res, log, error) {
   });
 
   if (list.rows.length === 0) {
-    return res.json({ error: 'Invalid or expired token' }, 400, corsHeaders());
+    return res.json({ error: 'Invalid or expired token' }, 400, corsHeaders(req.headers['origin'] || ''));
   }
 
   const et = list.rows[0];
@@ -352,7 +398,7 @@ async function handlePinResetConfirm(req, res, log, error) {
       tableId: 'ephemeral_tokens',
       rowId: et.$id,
     });
-    return res.json({ error: 'Token expired' }, 400, corsHeaders());
+    return res.json({ error: 'Token expired' }, 400, corsHeaders(req.headers['origin'] || ''));
   }
 
   await db.deleteRow({
@@ -368,7 +414,7 @@ async function handlePinResetConfirm(req, res, log, error) {
   });
 
   if (slaveList.rows.length === 0) {
-    return res.json({ error: 'User not found' }, 404, corsHeaders());
+    return res.json({ error: 'User not found' }, 404, corsHeaders(req.headers['origin'] || ''));
   }
 
   await db.updateRow({
@@ -382,5 +428,5 @@ async function handlePinResetConfirm(req, res, log, error) {
   });
 
   log(`PIN reset confirmed user=${et.user_id}`);
-  return res.json({ success: true }, 200, corsHeaders());
+  return res.json({ success: true }, 200, corsHeaders(req.headers['origin'] || ''));
 }

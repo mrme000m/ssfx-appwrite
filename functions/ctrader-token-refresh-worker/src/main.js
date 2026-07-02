@@ -35,38 +35,73 @@ module.exports = async function main({ req, res, log, error }) {
     const now = new Date();
     const expiryThreshold = new Date(now.getTime() + BUFFER_HOURS * 60 * 60 * 1000).toISOString();
 
-    // Find active grants expiring soon
-    const expiringList = await db.listRows({
-      databaseId: DB_ID,
-      tableId: 'slave_accounts',
-      queries: [
-        Query.equal('status', 'active'),
-        Query.lessThan('access_token_expires_at', expiryThreshold),
-        Query.limit(100),
-      ],
-    });
+    // Find active grants expiring soon (process in batches of 100)
+    let allExpiring = [];
+    let offset = 0;
+    const batchSize = 100;
+    
+    while (true) {
+      const batch = await db.listRows({
+        databaseId: DB_ID,
+        tableId: 'slave_accounts',
+        queries: [
+          Query.equal('status', 'active'),
+          Query.lessThan('access_token_expires_at', expiryThreshold),
+          Query.limit(batchSize),
+          Query.offset(offset),
+        ],
+      });
+      
+      if (batch.rows.length === 0) break;
+      allExpiring = allExpiring.concat(batch.rows);
+      offset += batchSize;
+      
+      // Stop if we've processed a reasonable number (1000 max)
+      if (offset >= 1000) {
+        log(`Warning: Reached max batch limit of ${offset} grants`);
+        break;
+      }
+    }
 
-    log(`Found ${expiringList.rows.length} grants needing refresh`);
+    log(`Found ${allExpiring.length} grants needing refresh`);
 
-    for (const slave of expiringList.rows) {
+    for (const slave of allExpiring) {
       const rotated = await rotateOne(db, slave, log, error);
       if (rotated === true) results.rotated++;
       else if (rotated === false) results.failed++;
       else results.skipped++;
     }
 
-    // Sweep old ephemeral tokens
+    // Sweep old ephemeral tokens (process in batches)
     const staleTokenCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
     try {
-      const staleList = await db.listRows({
-        databaseId: DB_ID,
-        tableId: 'ephemeral_tokens',
-        queries: [
-          Query.lessThan('expires_at', staleTokenCutoff),
-          Query.limit(100),
-        ],
-      });
-      for (const token of staleList.rows) {
+      let allStale = [];
+      let tokenOffset = 0;
+      const tokenBatchSize = 100;
+      
+      while (true) {
+        const batch = await db.listRows({
+          databaseId: DB_ID,
+          tableId: 'ephemeral_tokens',
+          queries: [
+            Query.lessThan('expires_at', staleTokenCutoff),
+            Query.limit(tokenBatchSize),
+            Query.offset(tokenOffset),
+          ],
+        });
+        
+        if (batch.rows.length === 0) break;
+        allStale = allStale.concat(batch.rows);
+        tokenOffset += tokenBatchSize;
+        
+        // Stop if we've processed a reasonable number (1000 max)
+        if (tokenOffset >= 1000) {
+          log(`Warning: Reached max token sweep limit of ${tokenOffset}`);
+          break;
+        }
+      }
+      
+      for (const token of allStale) {
         try {
           await db.deleteRow({
             databaseId: DB_ID,

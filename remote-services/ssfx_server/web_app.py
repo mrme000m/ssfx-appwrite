@@ -3,29 +3,31 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import secrets
 from contextlib import asynccontextmanager
 from typing import Any
 
+import httpx
 from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from telegram import Bot
 
+from market_data_service.signal_experience.classifier import extract_author
+from market_data_service.signal_experience.scorer import SignalExperienceScorer
+from market_data_service.signal_experience.store import SignalExperienceStore
+from market_data_service.signal_experience.updater import SignalExperienceUpdater
 from ssfx_parser import RawMessage, SignalStatus
 from ssfx_trader.config import AccountConfig
 from ssfx_trader.factory import create_follower, create_parser
 from ssfx_trader.follower import AccountFollower
 from ssfx_trader.stores.appwrite_account_store import AppwriteAccountStore
-from ssfx_trader.stores.mongo_store import MongoAccountStore, MongoSignalStore
+from ssfx_trader.stores.mongo_store import MongoSignalStore
 from ssfx_trader.stores.noop_store import NoOpSignalStore
 
-from market_data_service.signal_experience.classifier import extract_author
-from market_data_service.signal_experience.scorer import SignalExperienceScorer
-from market_data_service.signal_experience.store import SignalExperienceStore
-
+from . import admin_api
 from .config_loader import ServerConfig, load_config
 from .telegram_webhook import parse_channel_post
-from . import admin_api
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +45,7 @@ class AppState:
         self.followers: dict[str, AccountFollower] = {}
         self._follower_tasks: set[asyncio.Task] = set()
         self.experience_scorer: SignalExperienceScorer | None = None
+        self.experience_updater: SignalExperienceUpdater | None = None
         if config.signal_experience_enabled:
             try:
                 exp_store = SignalExperienceStore(database_id=config.signal_experience_database_id)
@@ -51,6 +54,7 @@ class AppState:
                     block_threshold=config.signal_experience_block_threshold,
                     reduce_threshold=config.signal_experience_reduce_threshold,
                 )
+                self.experience_updater = SignalExperienceUpdater(exp_store)
                 logger.info("Signal experience scoring enabled")
             except Exception as exc:
                 logger.warning("Failed to initialize signal experience scorer: %s", exc)
@@ -77,6 +81,7 @@ class AppState:
                     account_store=self.account_store,
                     data_service_base_url=self.config.dataservice_base_url,
                     data_service_api_key=self.config.dataservice_api_key,
+                    experience_updater=self.experience_updater,
                 )
                 await follower._executor._backend.connect()
                 task = asyncio.create_task(follower.start())
@@ -159,6 +164,18 @@ async def telegram_webhook(request: Request, background_tasks: BackgroundTasks) 
     if state is None:
         return JSONResponse({"ok": False, "error": "server not initialized"}, status_code=503)
 
+    # Verify Telegram webhook secret token
+    secret_token = state.config.telegram_webhook_secret_token
+    if secret_token:
+        provided_token = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
+        if not provided_token or not secrets.compare_digest(secret_token, provided_token):
+            logger.warning(
+                "Telegram webhook signature verification failed. "
+                "Expected secret token but got: %s",
+                "<missing>" if not provided_token else "<mismatch>",
+            )
+            return JSONResponse({"ok": False, "error": "unauthorized"}, status_code=401)
+
     try:
         update = await request.json()
     except Exception as exc:
@@ -197,6 +214,45 @@ async def telegram_webhook(request: Request, background_tasks: BackgroundTasks) 
     return JSONResponse({"ok": True})
 
 
+async def _call_signal_intent_agent(
+    app_state: AppState,
+    text: str,
+    message_id: int,
+    chat_id: str,
+    reply_to_message_id: int | None,
+    today_msgs: list[Any],
+) -> dict[str, Any] | None:
+    if not app_state.config.agent_intent_enabled:
+        return None
+    base = app_state.config.agent_harness_base_url.rstrip("/")
+    url = f"{base}/agent/v1/signal/intent"
+    recent = []
+    for msg in today_msgs:
+        if msg.message_id == message_id:
+            continue
+        recent.append({
+            "message_id": msg.message_id,
+            "reply_to_message_id": msg.reply_to_message_id,
+            "text": msg.text[:400],
+        })
+    payload = {
+        "raw_text": text,
+        "message_id": message_id,
+        "chat_id": chat_id,
+        "reply_to_message_id": reply_to_message_id,
+        "recent_messages": recent[-20:],
+        "open_positions": [],
+    }
+    try:
+        async with httpx.AsyncClient(timeout=2.5) as client:
+            resp = await client.post(url, json=payload)
+            resp.raise_for_status()
+            return resp.json()
+    except Exception as exc:
+        logger.warning("Signal intent agent call failed: %s", exc)
+        return None
+
+
 async def _process_channel_post(
     app_state: AppState,
     chat_id: str,
@@ -216,6 +272,25 @@ async def _process_channel_post(
     app_state.signal_store.save_raw_message(raw_msg)
 
     today_msgs = app_state.signal_store.get_today_messages(chat_id)
+
+    # Ask the agent harness to classify intent and link to prior messages
+    intent_result = await _call_signal_intent_agent(
+        app_state, text, message_id, chat_id, reply_to_message_id, today_msgs
+    )
+    if intent_result:
+        result = intent_result.get("result", {})
+        intent = result.get("intent", "unknown")
+        linked = result.get("linked_message_id")
+        if linked and reply_to_message_id is None:
+            reply_to_message_id = linked
+        logger.info(
+            "Signal intent for message %s: %s (linked=%s, conf=%.2f)",
+            message_id,
+            intent,
+            linked,
+            result.get("confidence", 0.0),
+        )
+
     context_lines: list[str] = []
     for msg in today_msgs:
         if msg.message_id == message_id:
@@ -223,6 +298,14 @@ async def _process_channel_post(
         reply_info = f" [reply to msg #{msg.reply_to_message_id}]" if msg.reply_to_message_id else ""
         snippet = msg.text[:500] if len(msg.text) > 500 else msg.text
         context_lines.append(f"[msg #{msg.message_id}]{reply_info}: {snippet}")
+
+    # Append agent intent guidance to parser context
+    if intent_result:
+        intent_note = f"Agent intent classification: {intent_result.get('result', {}).get('intent', 'unknown')}"
+        reasoning = intent_result.get("result", {}).get("reasoning", "")
+        if reasoning:
+            intent_note += f" — {reasoning}"
+        context_lines.append(intent_note)
 
     signal = await app_state.parser.parse(
         raw_text=text,

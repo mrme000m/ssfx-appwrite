@@ -96,9 +96,20 @@ Cross-agent rules for OpenCode, Claude Code, and Qwen Code working on the slwp p
 - Cookie name for sessions: `a_session_<PROJECT_ID>`.
 - Handle errors with `AppwriteException` catch blocks.
 
+## Security Requirements
+
+- **Never log sensitive data**: Tokens, passwords, PINs, API keys, or any credentials must never be logged in plaintext. Use redaction or omit from logs entirely.
+- **Row-level permissions**: When rowSecurity is enabled on a table, always set explicit row-level permissions using `Permission.read(Role.user(userId))`, `Permission.update(Role.user(userId))`, and `Permission.delete(Role.user(userId))` when creating rows.
+- **Avoid table-level create("any") or create("users")**: Use row-level permissions instead to prevent cross-user data access.
+- **Webhook signature verification**: All external webhooks (Telegram, etc.) must verify the signature/secret token before processing payloads.
+- **Session validation**: To validate user sessions, make HTTP requests to Appwrite's `/account` endpoint with the session cookie, not by calling `setSession()` on an admin client.
+- **Config storage**: Store third-party service credentials and configuration in dedicated config tables (e.g., `service_config`), not in user/data tables.
+- **OAuth config**: cTrader OAuth configuration must be stored in the `service_config` table, not in `slave_accounts`.
+
 ## Agent Collaboration
 
 - Read `AGENTS.md` in the project root for full project context, credentials, and conventions.
+- Read `docs/account-hub-and-dataservice.md` before modifying the cTrader account hub, data service, InfluxDB backend, or Appwrite-native cTrader auth paths.
 - Use agent skills in `.agents/skills/` (universal) and `.qwen/skills/` (Qwen Code). Available skills include the Appwrite SDK skills (TypeScript, Python, Go, PHP, CLI) and the appwrite-ctrader plugin skills (Functions, TablesDB, Sites, CI/CD, cTrader Auth, cTrader Trading).
 - Always use TablesDB for new database code.
 - Keep instructions in this file concise; move detailed project context to `AGENTS.md`.

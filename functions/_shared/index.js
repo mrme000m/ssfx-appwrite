@@ -82,13 +82,53 @@ function grantLockRowId(grantId) {
 
 async function acquireGrantLock(db, grantId, lockContext = 'refresh', timeoutMs = 30000) {
   const start = Date.now();
+  const lockRowId = grantLockRowId(grantId);
+  const lockTimeoutMs = 300000; // 5 minutes lock TTL
+  
+  // Check for and clear stale locks
+  try {
+    const existing = await db.listRows({
+      databaseId: process.env.CTRADER_AUTH_DATABASE_ID,
+      tableId: 'grant_locks',
+      queries: [Query.equal('$id', lockRowId)],
+    });
+    
+    if (existing.rows.length > 0) {
+      const lock = existing.rows[0];
+      const lockedAt = new Date(lock.locked_at).getTime();
+      const now = Date.now();
+      
+      // If lock is stale (older than 5 minutes), try to clear it
+      if (now - lockedAt > lockTimeoutMs) {
+        try {
+          await db.deleteRow({
+            databaseId: process.env.CTRADER_AUTH_DATABASE_ID,
+            tableId: 'grant_locks',
+            rowId: lockRowId,
+          });
+        } catch {
+          // Couldn't clear stale lock, continue with normal acquisition
+        }
+      }
+    }
+  } catch {
+    // Ignore errors checking for existing lock
+  }
+
   while (Date.now() - start < timeoutMs) {
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + lockTimeoutMs).toISOString();
+    
     try {
       await db.createRow({
         databaseId: process.env.CTRADER_AUTH_DATABASE_ID,
         tableId: 'grant_locks',
-        rowId: grantLockRowId(grantId),
-        data: { locked_at: new Date().toISOString(), locked_by: lockContext },
+        rowId: lockRowId,
+        data: {
+          locked_at: now.toISOString(),
+          locked_by: lockContext,
+          expires_at: expiresAt,
+        },
       });
       return true;
     } catch (e) {
@@ -213,12 +253,18 @@ function generateToken() {
 
 // ─── CORS + Cookie helpers ──────────────────────────────────────────
 
-const CORS_ORIGIN = process.env.SITE_URL || process.env.SITES_URL || 'https://app.mrme.tech';
+const CORS_ORIGINS = (process.env.SITE_URL || process.env.SITES_URL || 'https://app.mrme.tech')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
 const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN || '.mrme.tech';
 
-function corsHeaders() {
+function corsHeaders(origin) {
+  const allowed = origin && CORS_ORIGINS.includes(origin)
+    ? origin
+    : CORS_ORIGINS[0] || 'https://app.mrme.tech';
   return {
-    'Access-Control-Allow-Origin': CORS_ORIGIN,
+    'Access-Control-Allow-Origin': allowed,
     'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, x-internal-key',
@@ -228,7 +274,8 @@ function corsHeaders() {
 
 function handleOptions(req, res) {
   if (req.method === 'OPTIONS') {
-    return res.send('', 204, corsHeaders());
+    const origin = req.headers['origin'] || '';
+    return res.send('', 204, corsHeaders(origin));
   }
   return null;
 }
@@ -264,7 +311,7 @@ module.exports = {
   handleOptions,
   sessionCookie,
   clearCookie,
-  CORS_ORIGIN,
+  CORS_ORIGIN: CORS_ORIGINS[0] || 'https://app.mrme.tech',
   COOKIE_DOMAIN,
   ID,
   Query,

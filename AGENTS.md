@@ -73,6 +73,29 @@ Keep tool-agnostic rules in `.rules` and project-specific context in `AGENTS.md`
 - Cookie name for sessions: `a_session_<PROJECT_ID>`.
 - Handle errors with `AppwriteException` catch blocks.
 
+## Security Requirements
+
+### Critical Security Rules (Production Readiness)
+
+1. **No plaintext logging of sensitive data** - Tokens, passwords, PINs, API keys, or credentials must never be logged. Use redaction or omit from logs entirely.
+2. **Row-level permissions required** - When `rowSecurity: true` on a table, always set explicit row-level permissions when creating rows: `Permission.read(Role.user(userId))`, `Permission.update(Role.user(userId))`, `Permission.delete(Role.user(userId))`.
+3. **Avoid broad table permissions** - Do not use `create("any")` or `create("users")` at the table level. Use row-level permissions or admin-only creation via functions.
+4. **Webhook signature verification mandatory** - All external webhooks (Telegram, etc.) must verify the signature/secret token before processing payloads. Use `X-Telegram-Bot-Api-Secret-Token` header for Telegram.
+5. **Session validation via HTTP** - To validate user sessions, make HTTP requests to Appwrite's `/account` endpoint with the session cookie. Do not call `setSession()` on an admin client.
+6. **Proper config storage** - Store third-party service credentials and configuration in dedicated config tables (e.g., `service_config`), not in user/data tables like `slave_accounts`.
+
+### Fixed Issues (2026-07-02)
+
+All 8 critical production blockers have been resolved:
+- ✅ OAuth redirect target corrected to `https://app.mrme.tech`
+- ✅ PIN reset tokens no longer logged in plaintext
+- ✅ PIN reset emails now send via Resend API (when `RESEND_API_KEY` configured)
+- ✅ `trade_configs` table permissions fixed with row-level access
+- ✅ No function `.env` files with secrets in working tree
+- ✅ cTrader OAuth config moved from `slave_accounts` to `service_config` table
+- ✅ Telegram webhook signature verification implemented
+- ✅ Per-account risk kill-switches added to schema (`max_open_risk_pct`, `max_positions`, `trading_enabled`)
+
 ## Architecture: Appwrite Database as the Source of Truth
 
 - All **user-level** and **system-level** configuration lives in Appwrite Database tables.

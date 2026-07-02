@@ -12,6 +12,7 @@ from ssfx_parser import AgentConfig
 @dataclass
 class ServerConfig:
     telegram_bot_token: str
+    telegram_webhook_secret_token: str
     mongo_uri: str
     mongo_database: str
     source_chat_id: str
@@ -76,6 +77,7 @@ def load_config(env_file: str | None = None) -> ServerConfig:
 
     return ServerConfig(
         telegram_bot_token=_env("TELEGRAM_BOT_TOKEN"),
+        telegram_webhook_secret_token=_env("TELEGRAM_WEBHOOK_SECRET_TOKEN", ""),
         mongo_uri=_env("MONGODB_URI", "mongodb://localhost:27017"),
         mongo_database=_env("MONGODB_DATABASE", "ssfx_v2"),
         source_chat_id=_env("SOURCE_CHAT_ID", "-1001661400724"),
