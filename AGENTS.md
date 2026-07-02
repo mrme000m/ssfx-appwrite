@@ -561,6 +561,25 @@ For implementation details, connection model, configuration, and migration notes
 | Account Hub v2 | `account_hub_environment_mode=true` in `ctrader/config.py`, plus broker URL, internal API key, and cTrader app credentials |
 | CLI / single-account | `CTRADER_AUTH_BROKER_URL`, `CTRADER_AUTH_GRANT_ID`, `INTERNAL_API_KEY`, `CTRADER_CLIENT_ID`, `CTRADER_CLIENT_SECRET` |
 
+## Gold Quant + AI Agent Harness
+
+A new decision layer for XAUUSD now runs alongside the data service and trading pipeline:
+
+- **Gold Quant Engine** (`market_data_service/gold_quant_engine/`) — real-time tick-volume/order-flow analysis, multi-timeframe confluence (M15/H1/H4/D1), key levels (S/R, FVG, order blocks, POC/VAH/VAL), and short-entry/limit-order confidence scoring. It is fed by the Data Service daemon and exposed via `/api/v1/gold/*` REST endpoints and the Data Service control API.
+- **Agent Harness** (`remote-services/agent_harness/`, port `9003`) — multi-model AI decision service:
+  - `SignalIntentAgent` (Mistral Small 3.2) classifies Telegram messages as new signal, update, orphan, or noise.
+  - `EntryDecisionAgent` (Hermes 3) approves/rejects/modifies XAUUSD entries using the gold quant snapshot + signal experience.
+  - `LifecyclePlannerAgent` (Kimi K2.7) suggests in-trade actions (partial close, breakeven, full close, hold).
+- **Integration** — `ssfx_server` calls the intent agent before parsing; `ssfx_trader/executor.py` calls the entry agent for new XAUUSD signals and the lifecycle planner for follow-ups. All agent decisions are kill-switchable via `AGENT_*_ENABLED` environment variables and degrade to deterministic rules on LLM timeout/failure.
+
+Key env vars in `remote-services/config/v2.env.example`:
+- `LLM_API_KEY`, `LLM_BASE_URL` — generic OpenAI-compatible key (OpenRouter) for Hermes / Kimi
+- `MISTRALAI_API_KEY`, `MISTRALAI_BASE_URL` — native Mistral API key for the intent agent (overrides generic key)
+- `AGENT_HARNESS_URL`, `AGENT_INTENT_ENABLED`, `AGENT_ENTRY_ENABLED`, `AGENT_LIFECYCLE_ENABLED`, `AGENT_AUTONOMY_ENABLED`
+- `AGENT_MODEL_MISTRAL`, `AGENT_MODEL_HERMES`, `AGENT_MODEL_KIMI`
+
+Routing: local vLLM endpoint → provider-specific key → generic `LLM_API_KEY`. For Mistral, this means `MISTRALAI_API_KEY` is used when set; otherwise it falls through to `LLM_API_KEY`.
+
 ## Project Files
 
 | File | Purpose |

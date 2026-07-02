@@ -18,7 +18,7 @@ class ServerConfig:
     webhook_host: str
     webhook_port: int
     webhook_path: str
-    openrouter_api_key: str
+    llm_api_key: str
     llm_model: str
     llm_base_url: str
     log_level: str
@@ -31,9 +31,15 @@ class ServerConfig:
     appwrite_executions_table: str
     dataservice_base_url: str
     dataservice_api_key: str
+    agent_harness_base_url: str
+    agent_intent_enabled: bool
     ctrader_broker_url: str
     admin_site_origin: str
     admin_api_key: str
+    signal_experience_enabled: bool
+    signal_experience_database_id: str
+    signal_experience_block_threshold: float
+    signal_experience_reduce_threshold: float
 
     @property
     def webhook_url(self) -> str:
@@ -49,7 +55,7 @@ class ServerConfig:
             max_tokens=1000,
             timeout_seconds=30,
             min_confidence=0.75,
-            api_key=self.openrouter_api_key,
+            api_key=self.llm_api_key,
         )
 
 
@@ -76,7 +82,7 @@ def load_config(env_file: str | None = None) -> ServerConfig:
         webhook_host=_env("WEBHOOK_HOST", "https://example.com"),
         webhook_port=int(_env("SSFX_SERVER_PORT") or _env("PORT") or "8000"),
         webhook_path=_env("WEBHOOK_PATH", "/webhook"),
-        openrouter_api_key=_env("OPENROUTER_API_KEY"),
+        llm_api_key=_env("LLM_API_KEY"),
         llm_model=_env("LLM_MODEL", "nvidia/nemotron-3-super-120b-a12b:free"),
         llm_base_url=_env("LLM_BASE_URL", "https://openrouter.ai/api/v1"),
         log_level=_env("LOG_LEVEL", "INFO"),
@@ -89,7 +95,13 @@ def load_config(env_file: str | None = None) -> ServerConfig:
         appwrite_executions_table=_env("APPWRITE_EXECUTIONS_TABLE", "ssfx_executions"),
         dataservice_base_url=_env("DATA_SERVICE_URL", "http://127.0.0.1:9099"),
         dataservice_api_key=_env("DATA_SERVICE_API_KEY"),
+        agent_harness_base_url=_env("AGENT_HARNESS_URL", "http://127.0.0.1:9003"),
+        agent_intent_enabled=_env("AGENT_INTENT_ENABLED", "true").lower() == "true",
         ctrader_broker_url=_env("CTRADER_BROKER_URL", "https://auth-ctrader.mrme0.store"),
         admin_site_origin=_env("ADMIN_SITE_ORIGIN", "https://command.mrme.tech"),
         admin_api_key=_env("ADMIN_API_KEY", ""),
+        signal_experience_enabled=_env("SIGNAL_EXPERIENCE_ENABLED", "true").lower() == "true",
+        signal_experience_database_id=_env("SIGNAL_EXPERIENCE_DATABASE_ID", "market_data"),
+        signal_experience_block_threshold=float(_env("SIGNAL_EXPERIENCE_BLOCK_THRESHOLD", "0.50")),
+        signal_experience_reduce_threshold=float(_env("SIGNAL_EXPERIENCE_REDUCE_THRESHOLD", "0.75")),
     )
