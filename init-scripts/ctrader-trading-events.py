@@ -6,6 +6,7 @@ from pathlib import Path
 
 import yaml
 from appwrite.client import Client
+from appwrite.exception import AppwriteException
 from appwrite.services.tables_db import TablesDB
 
 
@@ -21,14 +22,32 @@ def load_env():
                     os.environ.setdefault(key, val)
 
 
+def _already_exists(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    return "already exists" in msg or "column keys must be unique" in msg
+
+
 def ensure_column(db: TablesDB, db_id: str, table_id: str, key: str, col_type: str, **kwargs):
     try:
         db.get_column(db_id, table_id, key)
         print(f"  column '{key}' exists")
+        return
+    except AppwriteException as exc:
+        if _already_exists(exc):
+            print(f"  column '{key}' exists")
+            return
     except Exception:
-        print(f"  creating column '{key}' ({col_type})")
-        factory = getattr(db, f"create_{col_type}_column")
+        pass
+
+    print(f"  creating column '{key}' ({col_type})")
+    factory = getattr(db, f"create_{col_type}_column")
+    try:
         factory(db_id, table_id, key, **kwargs)
+    except AppwriteException as exc:
+        if _already_exists(exc):
+            print(f"  column '{key}' exists")
+            return
+        raise
 
 
 def main():

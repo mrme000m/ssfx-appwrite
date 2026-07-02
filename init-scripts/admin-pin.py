@@ -42,9 +42,13 @@ def load_config() -> str:
 
 
 def hash_pin(pin: str) -> str:
-    """scrypt hash (same format as the Node PIN auth Function)."""
+    """scrypt hash compatible with the Node PIN auth Function.
+
+    The Node function passes the salt as a hex string to crypto.scryptSync,
+    so it hashes against the UTF-8 bytes of the hex string. Match that here.
+    """
     salt = secrets.token_hex(16)
-    h = hashlib.scrypt(pin.encode(), salt=salt.encode(), n=2**14, r=8, p=1, dklen=64)
+    h = hashlib.scrypt(pin.encode(), salt=salt.encode("utf-8"), n=2**14, r=8, p=1, dklen=64)
     return f"{salt}:{h.hex()}"
 
 

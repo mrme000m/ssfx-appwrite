@@ -39,6 +39,12 @@ def _row_id(row) -> str | None:
     return getattr(row, "$id", getattr(row, "id", None))
 
 
+def _get(row, key, default=None):
+    if hasattr(row, "get"):
+        return row.get(key, default)
+    return getattr(row, key, default)
+
+
 def main() -> int:
     load_env()
     db = build_db()
@@ -59,16 +65,16 @@ def main() -> int:
         return 0
 
     old = rows[0]
-    old_id = old.get("$id", getattr(old, "id", None))
+    old_id = _row_id(old)
     body = {
         "config_key": MASTER_AUTH_KEY,
         "config_value": json.dumps({
-            "appwrite_user_id": old.get("appwrite_user_id"),
-            "username": old.get("username", "admin"),
-            "email": old.get("email", ""),
-            "pin_hash": old.get("pin_hash", ""),
+            "appwrite_user_id": _get(old, "appwrite_user_id"),
+            "username": _get(old, "username", "admin"),
+            "email": _get(old, "email", ""),
+            "pin_hash": _get(old, "pin_hash", ""),
             "role": "master",
-            "active": old.get("active", True),
+            "active": _get(old, "active", True),
         }),
         "description": "Master admin authentication record",
         "updated_at": datetime.now(timezone.utc).isoformat(),
