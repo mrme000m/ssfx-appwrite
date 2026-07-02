@@ -20,5 +20,6 @@ The `appwrite-ctrader` plugin skills are symlinked from `~/.claude/plugins/appwr
 - `appwrite-cicd` — Hybrid GitHub Actions + Appwrite git deployment pipeline
 - `ctrader-auth` — OAuth flow, PIN login, grant_id token management
 - `ctrader-trading` — TG signal ingestion, copy trading, position monitoring
+- `pplx-agent` — Perplexity + TradingView gold market research and Space management
 
 Use `dev.sh` commands as equivalents to Claude Code slash commands (e.g., `./dev.sh deploy-auth` for `/deploy-auth`).

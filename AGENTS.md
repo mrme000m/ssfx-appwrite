@@ -387,10 +387,10 @@ A user-level plugin at `~/.claude/plugins/appwrite-ctrader/` provides skills, co
 | Agent | Mechanism |
 |-------|-----------|
 | **Claude Code** | `.claude/settings.json` enables the plugin via `plugins.user` + hooks from `hooks/hooks.json` |
-| **OpenCode** | 6 skills symlinked from plugin to `.agents/skills/` (auto-discovered) |
-| **Qwen Code** | 6 skills symlinked from plugin to `.qwen/skills/` and `~/.qwen/skills/` (auto-discovered) |
+| **OpenCode** | 7 skills symlinked from plugin to `.agents/skills/` (auto-discovered) |
+| **Qwen Code** | 7 skills symlinked from plugin to `.qwen/skills/` and `~/.qwen/skills/` (auto-discovered) |
 
-### Skills (6) — available to all agents
+### Skills (7) — available to all agents
 
 | Skill | Purpose |
 |-------|---------|
@@ -400,6 +400,7 @@ A user-level plugin at `~/.claude/plugins/appwrite-ctrader/` provides skills, co
 | `appwrite-cicd` | Hybrid GitHub Actions + Appwrite git deployment pipeline |
 | `ctrader-auth` | OAuth flow, PIN login, grant_id token management, encrypted storage |
 | `ctrader-trading` | TG signal ingestion, copy trading, position monitoring, master-slave execution |
+| `pplx-agent` | Perplexity + TradingView gold market research and Space management |
 
 ### Commands (7) — Claude Code slash commands
 
@@ -435,7 +436,7 @@ OpenCode and Qwen Code agents should use the equivalent `dev.sh` commands (e.g.,
 ```bash
 # Run from project root to re-link skills after plugin updates
 PLUGIN_SKILLS="$HOME/.claude/plugins/appwrite-ctrader/skills"
-for skill in appwrite-cicd appwrite-sites ctrader-trading appwrite-functions appwrite-tablesdb ctrader-auth; do
+for skill in appwrite-cicd appwrite-functions appwrite-sites appwrite-tablesdb ctrader-auth ctrader-trading pplx-agent; do
   ln -sfn "${PLUGIN_SKILLS}/${skill}" ".agents/skills/${skill}"
   ln -sfn "${PLUGIN_SKILLS}/${skill}" ".qwen/skills/${skill}"
   ln -sfn "${PLUGIN_SKILLS}/${skill}" "$HOME/.qwen/skills/${skill}"
@@ -608,6 +609,17 @@ Key env vars in `remote-services/config/v2.env.example`:
 
 Routing: local vLLM endpoint → provider-specific key → generic `LLM_API_KEY`. For Mistral, this means `MISTRALAI_API_KEY` is used when set; otherwise it falls through to `LLM_API_KEY`.
 
+## PPLX Agent — Gold Market Intelligence
+
+A dedicated long-term research service (port `9004`) maintains a persistent picture of the gold market in a Perplexity Space:
+
+- **Package**: `pplx-agent/pplx_agent/` — config, API, `GoldMarketAgent`, Space manager, TradingView scanner.
+- **Perplexity client**: Vendored from `remote-services/agent/pplx/pplx/` and kept in `pplx-agent/pplx/` so the image is self-contained.
+- **Integration**: `PplxResearchAgent` and `/agent/v1/research/pplx*` endpoints in `agent_harness` let the entry/lifecycle agents enrich decisions with long-term context.
+- **Deployment**: Built into the `ctrader-services` Docker image via a BuildKit `additional_contexts` named `pplx-agent`; publicly exposed as `pplx-agent.mrme.tech`.
+- **Config**: `service_config.config_key = pplx_agent` in Appwrite TablesDB (init via `init-scripts/pplx-agent.py`).
+- **Cookies**: Perplexity cookies are loaded from Bitwarden (secure note `perplexity.ai`) or `~/.config/perplexity/cookies.json` on the host and mounted read-only into the container.
+
 ## Project Files
 
 | File | Purpose |
@@ -621,6 +633,7 @@ Routing: local vLLM endpoint → provider-specific key → generic `LLM_API_KEY`
 | `.rules` | Cross-agent rules (Appwrite-as-config-source, dev.sh, init scripts) |
 | `dev.sh` | Dispatcher for development operations |
 | `docs/account-hub-and-dataservice.md` | Architecture guide for Appwrite-native account hub + data service |
+| `pplx-agent/` | Perplexity + TradingView gold market research agent (port 9004) |
 | `remote-services/ctrader_cli/` | cTrader Open API CLI (market data + trading, Appwrite-auth aware) |
 | `dev/scripts/` | Repeatable scripts for dev operations |
 | `init-scripts/` | Repeatable init scripts for third-party services |

@@ -9,7 +9,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from .agents import EntryDecisionAgent, LifecyclePlannerAgent, SignalIntentAgent
+from .agents import EntryDecisionAgent, LifecyclePlannerAgent, PplxResearchAgent, SignalIntentAgent
 from .config import get_settings
 from .models import (
     EntryDecisionRequest,
@@ -17,11 +17,14 @@ from .models import (
     HealthResponse,
     LifecyclePlanRequest,
     LifecyclePlanResponse,
+    PplxResearchRequest,
+    PplxResearchResponse,
     SignalIntentRequest,
     SignalIntentResponse,
 )
 from .providers import LlmProvider
 from .tools import AccountHubClient, DataServiceClient
+from .tools.pplx_agent import PplxAgentClient
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +33,7 @@ state: dict[str, Any] = {
     "intent_agent": None,
     "entry_agent": None,
     "lifecycle_agent": None,
+    "pplx_research_agent": None,
     "provider": None,
     "data_client": None,
     "hub_client": None,
@@ -71,12 +75,16 @@ async def lifespan(app: FastAPI):
         max_tokens=1024,
         temperature=0.2,
     )
+    state["pplx_research_agent"] = PplxResearchAgent(settings=settings)
 
     logger.info("Agent harness started")
     yield
     await provider.close()
     await data_client.close()
     await hub_client.close()
+    pplx_research: PplxResearchAgent | None = state.get("pplx_research_agent")
+    if pplx_research is not None:
+        await pplx_research.close()
     logger.info("Agent harness stopped")
 
 
@@ -99,6 +107,8 @@ async def health() -> HealthResponse:
         entry_enabled=settings.agent_entry_enabled,
         lifecycle_enabled=settings.agent_lifecycle_enabled,
         autonomy_enabled=settings.agent_autonomy_enabled,
+        pplx_agent_enabled=settings.pplx_agent_enabled,
+        pplx_agent_url=settings.pplx_agent_url,
         models={
             "mistral": settings.agent_model_mistral,
             "hermes": settings.agent_model_hermes,
@@ -192,3 +202,31 @@ async def lifecycle_plan(req: LifecyclePlanRequest) -> LifecyclePlanResponse:
     }
     result = await agent.plan(payload)
     return LifecyclePlanResponse(**result)
+
+
+@app.post("/agent/v1/research/pplx", response_model=PplxResearchResponse)
+async def pplx_research(req: PplxResearchRequest) -> PplxResearchResponse:
+    settings = get_settings()
+    if not settings.pplx_agent_enabled:
+        raise HTTPException(status_code=403, detail="PPLX Agent research is disabled")
+
+    agent: PplxResearchAgent | None = state.get("pplx_research_agent")
+    if agent is None:
+        raise HTTPException(status_code=503, detail="PPLX research agent not initialized")
+
+    result = await agent.run(question=req.question if req.include_custom else "")
+    return PplxResearchResponse(**result)
+
+
+@app.get("/agent/v1/research/pplx/health")
+async def pplx_research_health() -> dict[str, Any]:
+    """Check connectivity to the PPLX Agent service."""
+    settings = get_settings()
+    client = PplxAgentClient(settings)
+    try:
+        health = await client.health()
+        if health is None:
+            raise HTTPException(status_code=503, detail="PPLX Agent unreachable")
+        return {"pplx_agent_enabled": settings.pplx_agent_enabled, "health": health}
+    finally:
+        await client.close()

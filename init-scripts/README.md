@@ -24,8 +24,8 @@ cp init-scripts/config.example.yml init-scripts/config.yml
 
 ## Adding a New Init Script
 
-1. Create `init-scripts/<service>.sh`.
-2. Make it executable: `chmod +x init-scripts/<service>.sh`.
+1. Create `init-scripts/<service>.py` (preferred for structured config) or `init-scripts/<service>.sh`.
+2. Make it executable: `chmod +x init-scripts/<service>.*`.
 3. Read values from `init-scripts/config.yml`.
 4. Upsert rows into the appropriate Appwrite Database table.
 5. Ensure the script is idempotent and safe to rerun.

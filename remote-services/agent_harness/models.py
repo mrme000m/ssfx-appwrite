@@ -96,6 +96,25 @@ class LifecyclePlanResponse(BaseModel):
     metadata: AgentMetadata
 
 
+# ── PPLX Research ────────────────────────────────────────────────────────────
+
+
+class PplxResearchOutput(BaseModel):
+    enabled: bool = True
+    context: str = ""  # Long-term market picture summary
+    custom_answer: str = ""
+
+
+class PplxResearchRequest(BaseModel):
+    question: str = "What is the current long-term gold market picture and trend?"
+    include_custom: bool = True
+
+
+class PplxResearchResponse(BaseModel):
+    output: PplxResearchOutput
+    metadata: AgentMetadata
+
+
 # ── Health ───────────────────────────────────────────────────────────────────
 
 
@@ -104,4 +123,6 @@ class HealthResponse(BaseModel):
     entry_enabled: bool = False
     lifecycle_enabled: bool = False
     autonomy_enabled: bool = False
+    pplx_agent_enabled: bool = False
+    pplx_agent_url: str = ""
     models: dict[str, str] = Field(default_factory=dict)

@@ -8,10 +8,12 @@ at runtime.
 
 | Process | Port | Purpose | Public hostname |
 |---------|------|---------|-----------------|
-| `dataservice-daemon` | `9000` | Market-data ingestion / control API | — |
+| `dataservice-daemon` | `9000` | Market-data ingestion / control API | `ds-control.mrme.tech` |
 | `dataservice-sse` | `9001` | MCP SSE server (live prices/tools) | `ds-sse.mrme.tech` |
 | `dataservice-api` | `9002` | OpenPI REST API + admin UI | `dataservice.mrme.tech` |
 | `ssfx-server` | `8000` | Telegram webhook + cTrader follower admin | `ssfx-api.mrme.tech` |
+| `agent-harness` | `9003` | AI decision layer (intent, entry, lifecycle) | `agent.mrme.tech` |
+| `pplx-agent` | `9004` | Perplexity + TradingView gold market research | `pplx-agent.mrme.tech` |
 | `ctrader` | `9300` | Unified cTrader service (WS hub + trade exec) | `ctrader.mrme.tech` |
 | `account-hub` | `9301` | Persistent cTrader connections for all slave accounts | `account-hub.mrme.tech` |
 
@@ -28,6 +30,8 @@ remote-services/
 ├── ssfx_server/             Telegram webhook server (service)
 ├── ctrader/                 Unified cTrader service (service)
 ├── market_data_service/     Market data MCP + daemon + REST API (service)
+├── agent_harness/           AI decision layer for XAUUSD signals
+├── pplx-agent/              Perplexity gold-market research (mounted via compose)
 ├── bin/                     Process runner scripts
 ├── config/                  Runtime configs (mounted, not committed)
 └── logs/                    Persistent log output
@@ -125,7 +129,7 @@ When `account_id` is omitted, the CLI auto-discovers the only available account.
 | `Dockerfile` | Python 3.11 + supervisor image; installs deps from `pyproject.toml` |
 | `docker-compose.yml` | Mounts configs and exposes ports on the VM host |
 | `docker-compose.test.yml` | Test override with isolated ports (18000–19301) |
-| `supervisord.conf` | Runs six service processes inside one container |
+| `supervisord.conf` | Runs eight service processes inside one container |
 | `pyproject.toml` | Unified Python project with all dependencies |
 | `bin/run-*` | Thin wrappers that invoke each service |
 | `integration_test.py` | Full-stack integration test (health + API + WS checks) |

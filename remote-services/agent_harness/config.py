@@ -51,6 +51,10 @@ class AgentHarnessSettings(BaseSettings):
     account_hub_url: str = Field(default="http://localhost:9301", alias="ACCOUNT_HUB_URL")
     admin_api_key: str = Field(default="", alias="ADMIN_API_KEY")
 
+    # PPLX Agent (long-term gold market picture / space research)
+    pplx_agent_url: str = Field(default="http://localhost:9004", alias="PPLX_AGENT_URL")
+    pplx_agent_enabled: bool = Field(default=True, alias="PPLX_AGENT_ENABLED")
+
     # Kill switches / thresholds
     agent_entry_enabled: bool = Field(default=True, alias="AGENT_ENTRY_ENABLED")
     agent_lifecycle_enabled: bool = Field(default=True, alias="AGENT_LIFECYCLE_ENABLED")

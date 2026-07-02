@@ -21,6 +21,11 @@ init-scripts/config.yml
 # Logs
 *.log
 
+# PPLX Agent local runtime output
+pplx-agent/.cache/
+pplx-agent/logs/
+pplx-agent/reports/
+
 # Node modules
 node_modules/
 

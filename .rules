@@ -110,6 +110,6 @@ Cross-agent rules for OpenCode, Claude Code, and Qwen Code working on the slwp p
 
 - Read `AGENTS.md` in the project root for full project context, credentials, and conventions.
 - Read `docs/account-hub-and-dataservice.md` before modifying the cTrader account hub, data service, InfluxDB backend, or Appwrite-native cTrader auth paths.
-- Use agent skills in `.agents/skills/` (universal) and `.qwen/skills/` (Qwen Code). Available skills include the Appwrite SDK skills (TypeScript, Python, Go, PHP, CLI) and the appwrite-ctrader plugin skills (Functions, TablesDB, Sites, CI/CD, cTrader Auth, cTrader Trading).
+- Use agent skills in `.agents/skills/` (universal) and `.qwen/skills/` (Qwen Code). Available skills include the Appwrite SDK skills (TypeScript, Python, Go, PHP, CLI) and the appwrite-ctrader plugin skills (Functions, TablesDB, Sites, CI/CD, cTrader Auth, cTrader Trading, PPLX Agent).
 - Always use TablesDB for new database code.
 - Keep instructions in this file concise; move detailed project context to `AGENTS.md`.

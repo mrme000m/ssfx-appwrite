@@ -13,7 +13,7 @@
 ## Plugin: appwrite-ctrader
 
 The `appwrite-ctrader` plugin is loaded from `~/.claude/plugins/appwrite-ctrader/` via `.claude/settings.json`. It provides:
-- **6 skills**: appwrite-functions, appwrite-tablesdb, appwrite-sites, appwrite-cicd, ctrader-auth, ctrader-trading
+- **7 skills**: appwrite-functions, appwrite-tablesdb, appwrite-sites, appwrite-cicd, ctrader-auth, ctrader-trading, pplx-agent
 - **7 slash commands**: `/deploy-auth`, `/deploy-functions`, `/deploy-site`, `/deploy-all`, `/init-service`, `/status`, `/create-table`
 - **3 sub-agents**: appwrite-deployer, appwrite-reviewer, trade-system-architect
 - **2 hooks**: validate_appwrite_code (PreToolUse), post_deploy_check (PostToolUse)

@@ -8,6 +8,13 @@ ctrader:
   redirect_uri: "https://auth.mrme.tech/callback"
   environment: "demo" # or "live"
 
+pplx_agent:
+  mode: "pro"
+  model: "GPT-5.5"
+  thinking: true
+  # Set this after running `./dev.sh pplx-agent setup`:
+  # gold_market_space_uuid: ""
+
 master:
   email: "admin@example.com"
 

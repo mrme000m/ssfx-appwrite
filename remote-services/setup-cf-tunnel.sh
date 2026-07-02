@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Cloudflare tunnel ingress update for remote-services on Azure VM.
 # Fetches the current tunnel config, replaces with clean ingress rules for
-the Docker-based deployment, and pushes the updated config back to Cloudflare.
+# the Docker-based deployment, and pushes the updated config back to Cloudflare.
 #
 # Usage:
 #   cd /Volumes/ExMac/code/ssfx/appwrite-auth/remote-services
@@ -53,9 +53,12 @@ cf_api() {
 # ---------------------------------------------------------------------------
 read -r -d '' NEW_INGRESS_JSON <<'EOF' || true
 [
-  { "hostname": "dataservice.mrme.tech", "service": "http://localhost:9002" },
-  { "hostname": "ds-sse.mrme.tech",     "service": "http://localhost:9001" },
   { "hostname": "ssfx-api.mrme.tech",   "service": "http://localhost:8000" },
+  { "hostname": "ds-control.mrme.tech", "service": "http://localhost:9000" },
+  { "hostname": "ds-sse.mrme.tech",     "service": "http://localhost:9001" },
+  { "hostname": "dataservice.mrme.tech","service": "http://localhost:9002" },
+  { "hostname": "agent.mrme.tech",      "service": "http://localhost:9003" },
+  { "hostname": "pplx-agent.mrme.tech", "service": "http://localhost:9004" },
   { "hostname": "ctrader.mrme.tech",    "service": "http://localhost:9300" },
   { "hostname": "account-hub.mrme.tech","service": "http://localhost:9301" },
   { "hostname": "admin.mrme.tech",      "service": "http://ubuntu-server:8100" },
@@ -87,7 +90,7 @@ echo "[cf-tunnel] Tunnel config updated successfully."
 echo "[cf-tunnel] Ensuring DNS CNAME records ..."
 TUNNEL_CNAME="${TUNNEL_ID}.cfargotunnel.com"
 
-for host in dataservice ds-sse ssfx-api ctrader account-hub admin; do
+for host in ssfx-api ds-control ds-sse dataservice agent pplx-agent ctrader account-hub admin; do
   RECORD="${host}.mrme.tech"
   
   # Check if record exists
@@ -121,10 +124,13 @@ done
 echo "[cf-tunnel] Done. It may take 30-60s for changes to propagate."
 echo ""
 echo "Current tunnel ingress:"
-echo "  dataservice.mrme.tech  -> http://localhost:9002  (Market Data REST API)"
-echo "  ds-sse.mrme.tech       -> http://localhost:9001  (MCP SSE live prices)"
-echo "  ssfx-api.mrme.tech     -> http://localhost:8000  (Telegram webhook / admin)"
-echo "  ctrader.mrme.tech      -> http://localhost:9300  (cTrader unified service)"
-echo "  account-hub.mrme.tech  -> http://localhost:9301  (Account hub WebSocket)"
+echo "  ssfx-api.mrme.tech     -> http://localhost:8000   (Telegram webhook / admin)"
+echo "  ds-control.mrme.tech   -> http://localhost:9000   (Market data control API)"
+echo "  ds-sse.mrme.tech       -> http://localhost:9001   (MCP SSE live prices)"
+echo "  dataservice.mrme.tech  -> http://localhost:9002   (Market Data REST API)"
+echo "  agent.mrme.tech        -> http://localhost:9003   (AI agent harness)"
+echo "  pplx-agent.mrme.tech   -> http://localhost:9004   (PPLX research agent)"
+echo "  ctrader.mrme.tech      -> http://localhost:9300   (cTrader unified service)"
+echo "  account-hub.mrme.tech  -> http://localhost:9301   (Account hub WebSocket)"
 echo "  admin.mrme.tech        -> http://ubuntu-server:8100 (Admin panel)"
 echo "  catch-all              -> http_status:404"

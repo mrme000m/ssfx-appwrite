@@ -59,6 +59,15 @@ COPY ctrader/ /app/ctrader/
 COPY market_data_service/ /app/market_data_service/
 COPY agent_harness/ /app/agent_harness/
 
-EXPOSE 8000 9000 9001 9002 9300 9301 9003
+# PPLX Agent package lives outside remote-services/. It is supplied as an
+# additional BuildKit build context named "pplx-agent" via docker-compose.
+COPY --from=pplx-agent requirements.txt /tmp/pplx-agent-requirements.txt
+RUN pip install --no-cache-dir -r /tmp/pplx-agent-requirements.txt
+COPY --from=pplx-agent . /app/pplx-agent/
+
+# Ensure both remote-services and pplx-agent are importable.
+ENV PYTHONPATH=/app:/app/pplx-agent
+
+EXPOSE 8000 9000 9001 9002 9300 9301 9003 9004
 
 CMD ["/usr/bin/supervisord", "-n", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
