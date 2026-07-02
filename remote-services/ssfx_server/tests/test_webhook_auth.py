@@ -54,6 +54,7 @@ def _make_request(admin_key: str = "") -> Request:
         "method": "POST",
         "headers": [(b"x-admin-key", admin_key.encode())],
         "path": "/api/signals/inject",
+        "query_string": b"",
     }
     return Request(scope)
 
