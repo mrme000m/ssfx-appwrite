@@ -417,7 +417,7 @@ done
 
 ## cTrader + Appwrite Auth Layer
 
-Replaces `cf-auth-broker` (Cloudflare Worker) with Appwrite Functions + TablesDB-backed static site. The Python backends in `/Volumes/ExMac/code/ssfx/v2` and `/Volumes/ExMac/code/ssfx/dataservice` consume grant handles via `CTRADER_AUTH_BROKER_URL` exactly as before.
+Replaces `cf-auth-broker` (Cloudflare Worker) with Appwrite Functions + TablesDB-backed static site. The containerized Python services in `remote-services/` are self-contained and consume grant handles via `CTRADER_AUTH_BROKER_URL` using the bundled `ctrader_client/` library — no external dependency on `/Volumes/ExMac/code/ssfx/v2` or `/Volumes/ExMac/code/ssfx/dataservice`.
 
 ### Architecture
 
@@ -536,6 +536,24 @@ Variables are upserted by `dev/scripts/deploy_auth.py` from environment values (
 - Remove calls to old `/internal/ctrader/accounts` and `/internal/ctrader/account-balance`; use `ctrader-open-api` locally with the returned `access_token`
 - Call `POST /internal/grant/:grant_id/accounts` once after first refresh to persist account IDs
 
+## cTrader Runtime Services: Account Hub + Data Service
+
+The Python runtime services in `remote-services/` now support an Appwrite-native mode:
+
+- **Account Hub v2** maintains exactly two cTrader transports (live + demo), discovers active slave accounts from Appwrite TablesDB, persists account events to `account_events`, and fans out real-time state over WebSocket.
+- **Data service** can authenticate via the Appwrite auth layer (`CTRADER_USE_APPWRITE_AUTH=true`) and writes market data primarily to **InfluxDB Cloud Serverless** (`MARKET_DATA_DB_BACKEND=influxdb`), with SQLite as an explicit fallback.
+
+For implementation details, connection model, configuration, and migration notes, see [`docs/account-hub-and-dataservice.md`](docs/account-hub-and-dataservice.md).
+
+### Quick config checklist
+
+| Mode | Required settings |
+|------|-------------------|
+| Broker-backed data service | `CTRADER_AUTH_BROKER_URL`, `CTRADER_AUTH_GRANT_ID`, `INTERNAL_API_KEY`, `CTRADER_CLIENT_ID`, `CTRADER_CLIENT_SECRET` |
+| Appwrite-native data service | `CTRADER_USE_APPWRITE_AUTH=true`, `CTRADER_AUTH_BROKER_URL`, `INTERNAL_API_KEY`, `CTRADER_CLIENT_ID`, `CTRADER_CLIENT_SECRET` |
+| Account Hub v2 | `account_hub_environment_mode=true` in `ctrader/config.py`, plus broker URL, internal API key, and cTrader app credentials |
+| CLI / single-account | `CTRADER_AUTH_BROKER_URL`, `CTRADER_AUTH_GRANT_ID`, `INTERNAL_API_KEY`, `CTRADER_CLIENT_ID`, `CTRADER_CLIENT_SECRET` |
+
 ## Project Files
 
 | File | Purpose |
@@ -548,6 +566,8 @@ Variables are upserted by `dev/scripts/deploy_auth.py` from environment values (
 | `QWEN.md` | Qwen Code project instructions (imports AGENTS.md + .rules) |
 | `.rules` | Cross-agent rules (Appwrite-as-config-source, dev.sh, init scripts) |
 | `dev.sh` | Dispatcher for development operations |
+| `docs/account-hub-and-dataservice.md` | Architecture guide for Appwrite-native account hub + data service |
+| `remote-services/ctrader_cli/` | cTrader Open API CLI (market data + trading, Appwrite-auth aware) |
 | `dev/scripts/` | Repeatable scripts for dev operations |
 | `init-scripts/` | Repeatable init scripts for third-party services |
 | `resend` | Resend CLI (global) — email sending, configured with `.env` |

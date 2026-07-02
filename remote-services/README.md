@@ -13,6 +13,9 @@ at runtime.
 | `dataservice-api` | `9002` | OpenPI REST API + admin UI | `dataservice.mrme.tech` |
 | `ssfx-server` | `8000` | Telegram webhook + cTrader follower admin | `ssfx-api.mrme.tech` |
 | `ctrader` | `9300` | Unified cTrader service (WS hub + trade exec) | — |
+| `account-hub` | `9301` | Persistent cTrader connections for all slave accounts | — |
+
+For the Appwrite-native account hub and data service architecture, see [`docs/account-hub-and-dataservice.md`](../docs/account-hub-and-dataservice.md).
 
 ## Package layout
 
@@ -20,6 +23,7 @@ at runtime.
 remote-services/
 ├── ssfx_parser/             Signal parsing library (shared)
 ├── ctrader_client/          cTrader Open API client library (shared)
+├── ctrader_cli/             cTrader Open API CLI (market data + trading)
 ├── ssfx_trader/             Trade execution engine (shared)
 ├── ssfx_server/             Telegram webhook server (service)
 ├── ctrader/                 Unified cTrader service (service)
@@ -81,13 +85,25 @@ docker compose logs -f
 python3 init-tunnel.py
 ```
 
+## cTrader CLI
+
+The container includes `ctrader_cli` for manual trading and market-data queries:
+
+```bash
+docker exec ctrader-services bash -c "source /app/config/v2.env && python -m ctrader_cli --grant-id <grant_id> account info"
+docker exec ctrader-services bash -c "source /app/config/v2.env && python -m ctrader_cli --grant-id <grant_id> spot EURUSD"
+docker exec ctrader-services bash -c "source /app/config/v2.env && python -m ctrader_cli --grant-id <grant_id> order create --symbol EURUSD --side buy --type MARKET --volume 0.01"
+```
+
+When `account_id` is omitted, the CLI auto-discovers the only available account.
+
 ## Files
 
 | File | Purpose |
 |------|---------|
 | `Dockerfile` | Python 3.11 + supervisor image; installs deps from `pyproject.toml` |
 | `docker-compose.yml` | Mounts configs and exposes ports on the VM host |
-| `supervisord.conf` | Runs five service processes inside one container |
+| `supervisord.conf` | Runs six service processes inside one container |
 | `pyproject.toml` | Unified Python project with all dependencies |
 | `bin/run-*` | Thin wrappers that invoke each service |
 | `init-tunnel.py` | Clears stale tunnel ingress, ensures DNS records, verifies public reachability |
@@ -99,5 +115,7 @@ python3 init-tunnel.py
 - The container exposes ports on `localhost` of the Azure VM; `cloudflared` on the
   VM forwards the public hostnames to those ports.
 - Source code is baked into the image at build time; configs and logs are mounted.
+- Market data persistence defaults to **InfluxDB Cloud Serverless** (`MARKET_DATA_DB_BACKEND=influxdb`);
+  set it to `sqlite` to use the legacy SQLite backend.
 - MongoDB and any other local dependencies are expected to run on the VM host and
   be reachable via `host.docker.internal`.
