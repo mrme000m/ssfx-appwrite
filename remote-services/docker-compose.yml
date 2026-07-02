@@ -13,15 +13,19 @@ services:
       - "9002:9002"   # dataservice OpenPI REST API
       - "9300:9300"   # ctrader unified service
       - "9301:9301"   # account hub WS server (persistent cTrader connections)
+    environment:
+      - SSFX_ENV_FILE=/app/config/v2.env
     volumes:
       # Runtime configuration files.
       - ./config/dataservice.env:/app/config/dataservice.env:ro
       - ./config/dataservice-config.yml:/app/config/dataservice-config.yml:ro
       - ./config/v2.env:/app/config/v2.env:ro
+      # ctrader CLI (development — allow runtime iteration without rebuild)
+      - ./ctrader_cli:/app/ctrader_cli:ro
       # Persistent logs.
       - ./logs:/app/logs
     healthcheck:
-      test: ["CMD", "bash", "-c", "nc -z 127.0.0.1 8000 && nc -z 127.0.0.1 9001 && nc -z 127.0.0.1 9002 && nc -z 127.0.0.1 9301"]
+      test: ["CMD", "bash", "-c", "nc -z 127.0.0.1 9001 && nc -z 127.0.0.1 9002 && nc -z 127.0.0.1 9301"]
       interval: 30s
       timeout: 10s
       retries: 3

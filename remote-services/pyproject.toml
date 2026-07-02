@@ -41,6 +41,7 @@ ssfx-server = "ssfx_server.web_app:main"
 ssfx-set-webhook = "ssfx_server.cli:set_webhook"
 ssfx-account = "ssfx_trader.cli:main"
 ctrader = "ctrader.__main__:main"
+ctrader-cli = "ctrader_cli.cli:main"
 market-data-service = "market_data_service.__main__:main"
 market-data-service-sse = "market_data_service.server_sse:main"
 market-data-service-daemon = "market_data_service.data_service:main"
@@ -50,6 +51,7 @@ market-data-service-api = "market_data_service.api_server:main"
 include = [
     "ctrader_client",
     "ctrader", "ctrader.market", "ctrader.trading",
+    "ctrader_cli", "ctrader_cli.commands",
     "ssfx_parser",
     "ssfx_server",
     "ssfx_trader", "ssfx_trader.backends", "ssfx_trader.stores",
