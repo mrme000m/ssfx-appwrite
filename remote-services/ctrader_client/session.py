@@ -295,6 +295,12 @@ class CTraderSession:
                 return
 
             account_ids = {getattr(a, "ctidTraderAccountId", None) for a in list(accounts)}
+            if self.account_id == 0 and len(account_ids) == 1:
+                auto_id = next(iter(account_ids))
+                if auto_id is not None:
+                    self.account_id = auto_id
+                    logger.info("Auto-selected account_id %d from account list", self.account_id)
+                    return
             if self.account_id not in account_ids:
                 logger.warning(
                     "Configured account_id %s not present in account list %s",

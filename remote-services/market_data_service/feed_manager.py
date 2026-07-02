@@ -10,6 +10,7 @@ from typing import Any
 
 from .auth import AuthManager
 from .config import get_settings
+from .feed_manager_appwrite import AppwriteFeedManager
 from .models import FeedSource, TimeFrame
 from .symbol_registry import SymbolRegistry
 from .util import setup_ctrader_import_path
@@ -50,6 +51,7 @@ class FeedManager:
         self._registry = symbol_registry
         self._session: Any = None
         self._auth_mgr: AuthManager | None = None
+        self._appwrite_mgr: AppwriteFeedManager | None = None
         self._tasks: list[asyncio.Task] = []
         self._connected = False
         self._connecting = False
@@ -66,6 +68,8 @@ class FeedManager:
 
     @property
     def is_connected(self) -> bool:
+        if self._appwrite_mgr is not None:
+            return self._connected and self._appwrite_mgr.is_connected
         return self._connected and self._session is not None
 
     @property
@@ -95,21 +99,72 @@ class FeedManager:
             _gs.cache_clear()
 
         settings = get_settings()
+        if settings.auth_mode == "appwrite":
+            return await self._connect_appwrite()
         if not settings.has_ctrader_credentials:
             logger.warning("cTrader credentials not configured")
             return False
 
         self._connecting = True
-        self._connect_task = asyncio.create_task(self._do_connect())
+        self._connect_task = asyncio.create_task(self._do_connect_legacy())
         try:
             result = await self._connect_task
-            return result
+            return bool(result)
         except asyncio.CancelledError:
             logger.warning("Connection was cancelled")
             self._connecting = False
             return False
 
-    async def _do_connect(self) -> bool:
+    async def _connect_appwrite(self) -> bool:
+        """Appwrite-native connection path using one environment transport."""
+        if self._appwrite_mgr is not None:
+            result = await self._appwrite_mgr.connect()
+            if result:
+                self._connected = True
+                self._connecting = False
+                # Start a new watchdog only if the previous one has finished
+                if not any(
+                    not t.done()
+                    for t in self._tasks
+                ):
+                    self._tasks.append(
+                        asyncio.create_task(self._reconnect_watchdog_appwrite())
+                    )
+            else:
+                self._connecting = False
+                self._schedule_reconnect()
+            return result
+
+        self._appwrite_mgr = AppwriteFeedManager(
+            symbol_registry=self._registry,
+            on_tick=self._on_tick_event,
+            on_bar=self._on_bar_event,
+            on_depth=self._on_depth_event,
+        )
+        result = await self._appwrite_mgr.connect()
+        if result:
+            self._connected = True
+            self._connecting = False
+            self._tasks.append(
+                asyncio.create_task(self._reconnect_watchdog_appwrite())
+            )
+        else:
+            self._connecting = False
+            self._schedule_reconnect()
+        return result
+
+    async def _reconnect_watchdog_appwrite(self) -> None:
+        """Watch the Appwrite feed and reconnect if it drops."""
+        while self._connected and self._appwrite_mgr is not None:
+            await asyncio.sleep(5)
+            if self._appwrite_mgr is None or self._appwrite_mgr.is_connected:
+                continue
+            logger.warning("Appwrite feed connection lost; scheduling reconnect")
+            self._connected = False
+            self._schedule_reconnect()
+            return
+
+    async def _do_connect_legacy(self) -> bool:
         """Core connection logic — must be run inside a task."""
         settings = get_settings()
         try:
@@ -177,6 +232,10 @@ class FeedManager:
         if self._auth_mgr:
             await self._auth_mgr.stop_auto_refresh()
             self._auth_mgr = None
+        # Stop Appwrite feed manager if active
+        if self._appwrite_mgr:
+            await self._appwrite_mgr.disconnect()
+            self._appwrite_mgr = None
         # Unregister event handlers to avoid leaks across reconnects
         if self._event_handlers_registered and self._session:
             try:
@@ -321,6 +380,9 @@ class FeedManager:
     # ── Subscriptions ────────────────────────────────────────────────────────
 
     async def subscribe_spots(self, symbol_ids: list[int]) -> None:
+        if self._appwrite_mgr and self._connected:
+            await self._appwrite_mgr.subscribe_spots(symbol_ids)
+            return
         if not self._session or not self._connected:
             self._subscribed_spots.update(symbol_ids)
             return
@@ -336,6 +398,9 @@ class FeedManager:
                 logger.warning("Spot subscription failed: %s", exc)
 
     async def subscribe_bars(self, symbol_id: int, period: str) -> None:
+        if self._appwrite_mgr and self._connected:
+            await self._appwrite_mgr.subscribe_bars(symbol_id, period)
+            return
         if not self._session or not self._connected:
             self._subscribed_bars.setdefault(symbol_id, set()).add(period)
             return
@@ -356,6 +421,9 @@ class FeedManager:
                 logger.warning("Bar subscription failed: %s", exc)
 
     async def subscribe_depth(self, symbol_id: int) -> None:
+        if self._appwrite_mgr and self._connected:
+            await self._appwrite_mgr.subscribe_depth(symbol_id)
+            return
         if not self._session or not self._connected:
             self._subscribed_depth.add(symbol_id)
             return
@@ -370,6 +438,9 @@ class FeedManager:
                 logger.warning("Depth subscription failed: %s", exc)
 
     async def _replay_subscriptions(self) -> None:
+        if self._appwrite_mgr:
+            await self._appwrite_mgr.replay_subscriptions()
+            return
         if self._subscribed_spots:
             await self.subscribe_spots(list(self._subscribed_spots))
         for sid, periods in self._subscribed_bars.items():
@@ -432,6 +503,8 @@ class FeedManager:
     async def fetch_historical_bars(
         self, symbol_id: int, period: str, from_ms: int, to_ms: int
     ) -> list[BarClose]:
+        if self._appwrite_mgr:
+            return await self._appwrite_mgr.fetch_historical_bars(symbol_id, period, from_ms, to_ms)
         if not self._session or not self._connected:
             return []
         try:
@@ -483,6 +556,8 @@ class FeedManager:
     async def fetch_historical_ticks(
         self, symbol_id: int, from_ms: int, to_ms: int
     ) -> list[SpotTick]:
+        if self._appwrite_mgr:
+            return await self._appwrite_mgr.fetch_historical_ticks(symbol_id, from_ms, to_ms)
         if not self._session or not self._connected:
             return []
         try:
@@ -532,6 +607,8 @@ class FeedManager:
 
         Requires an active cTrader session. Returns empty list if not connected.
         """
+        if self._appwrite_mgr:
+            return await self._appwrite_mgr.get_available_symbols()
         if not self._session or not self._connected:
             return []
         try:
@@ -556,6 +633,8 @@ class FeedManager:
 
         Returns dict with symbol_id, name, digits, description, etc. or None.
         """
+        if self._appwrite_mgr:
+            return await self._appwrite_mgr.resolve_symbol_by_name(name)
         if not self._session or not self._connected:
             return None
         try:

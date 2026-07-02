@@ -39,9 +39,11 @@ class CliConfig:
 
     @property
     def is_valid(self) -> bool:
-        if not self.client_id or self.account_id == 0:
+        if not self.client_id:
             return False
-        return self.is_appwrite_mode
+        if self.is_appwrite_mode:
+            return True
+        return self.account_id != 0
 
 
 def _env(key: str, default: str = "") -> str:
