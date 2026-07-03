@@ -1,11 +1,8 @@
 """Unit tests for Telegram webhook and admin API authentication."""
 from __future__ import annotations
 
-import os
-
 import pytest
 from fastapi import HTTPException, Request
-from starlette.datastructures import Headers
 
 from ssfx_server import admin_api
 from ssfx_server.config_loader import ServerConfig
@@ -45,7 +42,13 @@ class _FakeState:
             signal_experience_database_id="",
             signal_experience_block_threshold=0.5,
             signal_experience_reduce_threshold=0.75,
+            agent_autonomy_enabled=False,
+            gold_quant_signal_enabled=False,
+            gold_quant_signal_interval_sec=60.0,
+            gold_quant_min_confidence=0.75,
+            gold_quant_agent_min_confidence=0.65,
         )
+        self.followers = {}
 
 
 def _make_request(admin_key: str = "") -> Request:

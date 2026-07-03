@@ -30,7 +30,7 @@ class SimulatedBackend:
         return {"balance": self._balance, "equity": self._equity}
 
     async def open_position(
-        self, signal: TradeSignal, volume_lots: float
+        self, signal: TradeSignal, volume_lots: float, force_sltp_attachment: bool = True
     ) -> dict[str, Any]:
         order_id = self._next_order_id
         self._next_order_id += 1

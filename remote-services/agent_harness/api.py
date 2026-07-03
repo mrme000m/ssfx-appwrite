@@ -90,9 +90,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Agent Harness", version="0.1.0", lifespan=lifespan)
 
+settings = get_settings()
+_allowed_origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

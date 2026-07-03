@@ -89,6 +89,11 @@ class CTraderBackend:
         self._connected = False
         self._position_symbols: dict[int, int] = {}
 
+    @property
+    def session(self) -> CTraderSession | None:
+        """Expose the underlying cTrader session for volume/market-data lookups."""
+        return self._session
+
     async def connect(self) -> None:
         if self._connected:
             return
@@ -163,7 +168,10 @@ class CTraderBackend:
         return {"balance": _normalize(raw_balance), "equity": _normalize(raw_equity)}
 
     async def open_position(
-        self, signal: TradeSignal, volume_lots: float
+        self,
+        signal: TradeSignal,
+        volume_lots: float,
+        force_sltp_attachment: bool = True,
     ) -> dict[str, Any]:
         if self._session is None:
             return {"accepted": False, "error": "not connected"}
@@ -223,12 +231,27 @@ class CTraderBackend:
             try:
                 await self._amend_position_sltp_with_retry(position_id, sl, tp)
             except Exception as exc:
-                logger.warning(
+                logger.error(
                     "[%s] Could not attach SL/TP to market position %d: %s",
                     self._account_name,
                     position_id,
                     exc,
                 )
+                if force_sltp_attachment:
+                    # Close the unprotected position so we do not leave a live trade without stops.
+                    try:
+                        await self.close_position(position_id, volume_lots=None)
+                    except Exception as close_exc:
+                        logger.error(
+                            "[%s] Also failed to close unprotected position %d: %s",
+                            self._account_name,
+                            position_id,
+                            close_exc,
+                        )
+                    return {
+                        "accepted": False,
+                        "error": f"could not attach SL/TP to market position and it was closed: {exc}",
+                    }
 
         return {
             "accepted": True,
@@ -273,6 +296,23 @@ class CTraderBackend:
         if last_exc:
             raise last_exc
 
+    async def _resolve_symbol_id_for_position(self, position_id: int) -> int | None:
+        """Look up symbol_id from the broker if our local map is missing."""
+        if self._session is None:
+            return None
+        try:
+            rec = await self._session.protocol.reconcile(self._session.account_id)
+            for pos in getattr(rec, "position", []):
+                if getattr(pos, "positionId", None) == position_id:
+                    trade_data = getattr(pos, "tradeData", None)
+                    symbol_id = getattr(trade_data, "symbolId", None)
+                    if symbol_id is not None:
+                        self._position_symbols[position_id] = symbol_id
+                        return symbol_id
+        except Exception as exc:
+            logger.warning("[%s] Failed to reconcile position %d: %s", self._account_name, position_id, exc)
+        return None
+
     async def close_position(
         self, position_id: int, volume_lots: float | None
     ) -> dict[str, Any]:
@@ -280,7 +320,9 @@ class CTraderBackend:
             return {"accepted": False, "error": "not connected"}
         symbol_id = self._position_symbols.get(position_id)
         if symbol_id is None:
-            return {"accepted": False, "error": "symbol_id unknown for position"}
+            symbol_id = await self._resolve_symbol_id_for_position(position_id)
+            if symbol_id is None:
+                return {"accepted": False, "error": "symbol_id unknown for position"}
         try:
             fut = await self._session.execution.close_position(
                 self._session.account_id,

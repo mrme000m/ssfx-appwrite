@@ -52,7 +52,21 @@ window.TerminalComponent = (function () {
 
     // Fetch recent executions first
     window.API.V2API.listExecutions(50).then((trades) => {
-      (trades || []).reverse().forEach((t) => appendLine(renderLine(t)));
+      if (trades && trades.length > 0) {
+        (trades || []).reverse().forEach((t) => appendLine(renderLine(t)));
+      } else {
+        appendLine(`<div class="terminal-line">
+          <span class="terminal-time">${window.UI.formatTime(new Date().toISOString())}</span>
+          <span class="terminal-tag skipped">info</span>
+          <span class="terminal-message">No recent executions found</span>
+        </div>`);
+      }
+    }).catch((err) => {
+      appendLine(`<div class="terminal-line">
+        <span class="terminal-time">${window.UI.formatTime(new Date().toISOString())}</span>
+        <span class="terminal-tag error">fetch</span>
+        <span class="terminal-message">Failed to load recent executions: ${window.UI.esc(err.message)}</span>
+      </div>`);
     });
 
     // Open SSE
@@ -66,6 +80,11 @@ window.TerminalComponent = (function () {
       eventSource.onopen = () => {
         status.className = 'badge badge-teal';
         status.textContent = 'live';
+        appendLine(`<div class="terminal-line">
+          <span class="terminal-time">${window.UI.formatTime(new Date().toISOString())}</span>
+          <span class="terminal-tag executed">sse</span>
+          <span class="terminal-message">Connected to execution stream</span>
+        </div>`);
       };
       eventSource.onmessage = (ev) => {
         try {
@@ -75,13 +94,18 @@ window.TerminalComponent = (function () {
           appendLine(`<div class="terminal-line">
             <span class="terminal-time">${window.UI.formatTime(new Date().toISOString())}</span>
             <span class="terminal-tag error">parse</span>
-            <span class="terminal-message">Failed to parse SSE payload</span>
+            <span class="terminal-message">Failed to parse SSE payload: ${window.UI.esc(err.message)}</span>
           </div>`);
         }
       };
       eventSource.onerror = () => {
         status.className = 'badge badge-red';
         status.textContent = 'error';
+        appendLine(`<div class="terminal-line">
+          <span class="terminal-time">${window.UI.formatTime(new Date().toISOString())}</span>
+          <span class="terminal-tag error">sse</span>
+          <span class="terminal-message">SSE connection error</span>
+        </div>`);
       };
     } catch (err) {
       status.className = 'badge badge-red';
@@ -89,7 +113,7 @@ window.TerminalComponent = (function () {
       appendLine(`<div class="terminal-line">
         <span class="terminal-time">${window.UI.formatTime(new Date().toISOString())}</span>
         <span class="terminal-tag error">ssse</span>
-        <span class="terminal-message">${window.UI.esc(err.message)}</span>
+        <span class="terminal-message">SSE setup failed: ${window.UI.esc(err.message)}</span>
       </div>`);
     }
 

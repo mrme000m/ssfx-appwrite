@@ -37,12 +37,14 @@ class AccountFollower:
         account_store: AccountStore,
         executor: TradeExecutor,
         config_provider: Callable[[], AccountConfig],
+        autonomy_enabled: bool = False,
     ):
         self._config = config
         self._signal_store = signal_store
         self._account_store = account_store
         self._executor = executor
         self._config_provider = config_provider
+        self._autonomy_enabled = autonomy_enabled
         self._shutdown = asyncio.Event()
         self._watch_task: asyncio.Task | None = None
         self._signal_queue: asyncio.Queue[TradeSignal] = asyncio.Queue()
@@ -148,6 +150,7 @@ class AccountFollower:
         fc = self._config_provider()
         self._config = fc
         self._executor.update_config(fc.trading)
+        self._executor.set_autonomy_enabled(self._autonomy_enabled)
         _json_log(
             "info",
             "config_reloaded",

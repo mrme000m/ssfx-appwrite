@@ -42,6 +42,11 @@ class ServerConfig:
     signal_experience_database_id: str
     signal_experience_block_threshold: float
     signal_experience_reduce_threshold: float
+    agent_autonomy_enabled: bool
+    gold_quant_signal_enabled: bool
+    gold_quant_signal_interval_sec: float
+    gold_quant_min_confidence: float
+    gold_quant_agent_min_confidence: float
 
     @property
     def webhook_url(self) -> str:
@@ -122,4 +127,9 @@ def load_config(env_file: str | None = None) -> ServerConfig:
         signal_experience_database_id=_env("SIGNAL_EXPERIENCE_DATABASE_ID", "market_data"),
         signal_experience_block_threshold=float(_env("SIGNAL_EXPERIENCE_BLOCK_THRESHOLD", "0.50")),
         signal_experience_reduce_threshold=float(_env("SIGNAL_EXPERIENCE_REDUCE_THRESHOLD", "0.75")),
+        agent_autonomy_enabled=_env("AGENT_AUTONOMY_ENABLED", "false").lower() == "true",
+        gold_quant_signal_enabled=_env("GOLD_QUANT_SIGNAL_ENABLED", "false").lower() == "true",
+        gold_quant_signal_interval_sec=float(_env("GOLD_QUANT_SIGNAL_INTERVAL_SEC", "60")),
+        gold_quant_min_confidence=float(_env("GOLD_QUANT_MIN_CONFIDENCE", "0.75")),
+        gold_quant_agent_min_confidence=float(_env("GOLD_QUANT_AGENT_MIN_CONFIDENCE", "0.65")),
     )

@@ -38,7 +38,7 @@ services:
       # Persistent logs.
       - ./logs:/app/logs
     healthcheck:
-      test: ["CMD", "bash", "-c", "nc -z 127.0.0.1 9001 && nc -z 127.0.0.1 9002 && nc -z 127.0.0.1 9003 && nc -z 127.0.0.1 9004 && nc -z 127.0.0.1 9301"]
+      test: ["CMD", "bash", "-c", "nc -z 127.0.0.1 8000 && nc -z 127.0.0.1 9001 && nc -z 127.0.0.1 9002 && nc -z 127.0.0.1 9003 && nc -z 127.0.0.1 9004 && nc -z 127.0.0.1 9301"]
       interval: 30s
       timeout: 10s
       retries: 3

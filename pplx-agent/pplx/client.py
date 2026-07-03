@@ -208,6 +208,7 @@ class PerplexityClient:
             label = item.get("label")
             non_reasoning = item.get("non_reasoning_model")
             reasoning = item.get("reasoning_model")
+            tier = item.get("subscription_tier")
 
             if non_reasoning and label not in self._valid_models["pro"]:
                 self._valid_models["pro"].append(label)
@@ -375,6 +376,7 @@ class PerplexityClient:
             timeout=120,
         )
         resp.raise_for_status()
+        chunks = []
 
         def _parse(content):
             prefix = "event: message\r\ndata: "

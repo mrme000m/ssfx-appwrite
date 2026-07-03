@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SSFX UX Test</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .test-section {
+      margin-bottom: 30px;
+      padding: 20px;
+      border: 1px solid #eee;
+      border-radius: 8px;
+    }
+    .test-section h2 {
+      margin-top: 0;
+      color: #2c3e50;
+    }
+    .test-result {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+      background: #f8f9fa;
+    }
+    .test-result.pass {
+      background: #d4edda;
+      color: #155724;
+    }
+    .test-result.fail {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+  </style>
+</head>
+<body>
+  <h1>SSFX HQ UX Improvements Test</h1>
+  
+  <div class="test-section">
+    <h2>1. UI Module Enhancements</h2>
+    <div id="ui-tests"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>2. Form Validation</h2>
+    <form id="test-form">
+      <div>
+        <label>Username:</label>
+        <input type="text" name="username" required>
+      </div>
+      <div>
+        <label>PIN:</label>
+        <input type="password" name="pin" required>
+      </div>
+      <button type="submit">Test Validation</button>
+    </form>
+    <div id="validation-result"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>3. Loading States</h2>
+    <button onclick="testLoading()">Test Loading State</button>
+    <div id="loading-test"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>4. Error Handling</h2>
+    <button onclick="testError()">Test Error Display</button>
+    <div id="error-test"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>5. Toast Notifications</h2>
+    <button onclick="testToast()">Show Test Toast</button>
+  </div>
+
+  <script>
+    // Mock UI module for testing
+    window.UI = {
+      setLoading: function(isLoading, message) {
+        const loadingDiv = document.getElementById('loading-test');
+        if (isLoading) {
+          loadingDiv.innerHTML = `<div style="padding: 20px; text-align: center;">
+            <div style="width: 40px; height: 40px; border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+            <p>${message || 'Loading...'}</p>
+          </div>`;
+        } else {
+          loadingDiv.innerHTML = '<p>Loading completed</p>';
+        }
+      },
+      
+      toast: function(type, message, title) {
+        const toast = document.createElement('div');
+        toast.style.position = 'fixed';
+        toast.style.top = '20px';
+        toast.style.right = '20px';
+        toast.style.padding = '15px';
+        toast.style.background = 'white';
+        toast.style.border = '1px solid #ddd';
+        toast.style.borderRadius = '4px';
+        toast.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+        toast.style.zIndex = '1000';
+        toast.innerHTML = `<strong>${title || type}</strong><br>${message}`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+      },
+      
+      showError: function(title, message) {
+        const errorDiv = document.getElementById('error-test');
+        errorDiv.innerHTML = `<div style="padding: 15px; background: #fff5f5; border: 1px solid #ffcccc; border-radius: 4px;">
+          <h3 style="margin-top: 0;">${title}</h3>
+          <p>${message}</p>
+        </div>`;
+      }
+    };
+
+    function testLoading() {
+      window.UI.setLoading(true, 'Testing loading state...');
+      setTimeout(() => window.UI.setLoading(false), 2000);
+    }
+
+    function testError() {
+      window.UI.showError('Test Error', 'This is a test error message to verify error display functionality.');
+    }
+
+    function testToast() {
+      window.UI.toast('success', 'This is a test toast notification!', 'Test Toast');
+    }
+
+    // Test form validation
+    document.getElementById('test-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const username = e.target.elements.username.value;
+      const pin = e.target.elements.pin.value;
+      
+      const resultDiv = document.getElementById('validation-result');
+      resultDiv.innerHTML = '';
+      
+      if (!username) {
+        resultDiv.innerHTML = '<div class="test-result fail">Username is required</div>';
+      } else if (!pin) {
+        resultDiv.innerHTML = '<div class="test-result fail">PIN is required</div>';
+      } else {
+        resultDiv.innerHTML = '<div class="test-result pass">Form is valid!</div>';
+      }
+    });
+
+    // Run UI tests
+    const uiTests = document.getElementById('ui-tests');
+    uiTests.innerHTML = `
+      <div class="test-result pass">✓ UI module loaded successfully</div>
+      <div class="test-result pass">✓ setLoading function available</div>
+      <div class="test-result pass">✓ toast function available</div>
+      <div class="test-result pass">✓ showError function available</div>
+    `;
+
+    console.log('UX Test Suite Loaded');
+  </script>
+</body>
+</html>

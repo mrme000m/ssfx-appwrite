@@ -91,6 +91,49 @@ module.exports = async function main({ req, res, log, error }) {
     if (path === '/admin/slaves' && method === 'GET') {
       return await handleAdminSlaves(req, res, log, error);
     }
+    if (path === '/echo' && method === 'GET') {
+      return res.json({ cookie: req.headers['cookie'] || '', origin: req.headers['origin'] || '' }, 200, corsHeaders(origin));
+    }
+    if (path === '/session-debug' && method === 'GET') {
+      const cookie = req.headers['cookie'] || '';
+      const sessionMatch = cookie.match(new RegExp(`${cookieName()}=([^;]+)`));
+      if (!sessionMatch) {
+        return res.json({ hasCookie: false, cookieLen: cookie.length }, 200, corsHeaders(origin));
+      }
+      const sessionCookieValue = sessionMatch[1];
+      const accountRes = await fetch(`${process.env.APPWRITE_ENDPOINT}/account`, {
+        headers: {
+          'x-appwrite-project': PROJECT_ID,
+          'Cookie': `${cookieName()}=${sessionCookieValue}`,
+        },
+      });
+      const body = await accountRes.text().catch(() => '');
+      if (!accountRes.ok) {
+        return res.json({ status: accountRes.status, ok: accountRes.ok, bodyPreview: body.slice(0, 200) }, 200, corsHeaders(origin));
+      }
+      const user = JSON.parse(body);
+      const db = makeAdminDb();
+      try {
+        const slaveList = await db.listRows({
+          databaseId: DB_ID,
+          tableId: 'slave_accounts',
+          queries: [Query.equal('appwrite_user_id', user.$id)],
+        });
+        const slave = slaveList.rows[0] || null;
+        let accounts = [];
+        if (slave && slave.grant_id) {
+          const accountList = await db.listRows({
+            databaseId: DB_ID,
+            tableId: 'accounts',
+            queries: [Query.equal('grant_id', slave.grant_id)],
+          });
+          accounts = accountList.rows || [];
+        }
+        return res.json({ ok: true, user_id: user.$id, slave_found: !!slave, accounts_count: accounts.length }, 200, corsHeaders(origin));
+      } catch (err) {
+        return res.json({ ok: false, account_ok: true, error: err.message }, 200, corsHeaders(origin));
+      }
+    }
 
     return res.json({ error: 'Not found' }, 404, corsHeaders(origin));
   } catch (err) {
@@ -242,6 +285,7 @@ async function handleCallback(req, res, log, error) {
 
   let grantId;
   let role = 'slave';
+  let hasCredentials = false;
   try {
     const existingList = await db.listRows({
       databaseId: DB_ID,
@@ -252,6 +296,7 @@ async function handleCallback(req, res, log, error) {
       const existing = existingList.rows[0];
       grantId = existing.grant_id || generateGrantId();
       role = existing.role || 'slave';
+      hasCredentials = !!(existing.username && existing.pin_hash);
       await db.updateRow({
         databaseId: DB_ID,
         tableId: 'slave_accounts',
@@ -261,8 +306,6 @@ async function handleCallback(req, res, log, error) {
           access_token_enc: encrypt(access_token),
           refresh_token_enc: encrypt(refresh_token),
           access_token_expires_at: expiresAt,
-          ctrader_account_ids: '',
-          selected_account_id: '',
           status: 'active',
         },
       });
@@ -306,9 +349,16 @@ async function handleCallback(req, res, log, error) {
   const session = await account.createSession({ userId: appwriteUserId, secret: token.secret });
 
   const cookie = sessionCookie(cookieName(), session.secret);
-  log(`OAuth success user=${appwriteUserId} grant=${grantId} role=${role}`);
+  log(`OAuth success user=${appwriteUserId} grant=${grantId} role=${role} hasCredentials=${hasCredentials}`);
 
-  const redirectPath = role === 'master' ? '/master' : '/onboarding';
+  // Masters and users that already set a PIN go straight to the dashboard.
+  // New slaves without credentials land on onboarding to choose username+PIN.
+  let redirectPath;
+  if (role === 'master' || hasCredentials) {
+    redirectPath = role === 'master' ? '/master' : '/dashboard';
+  } else {
+    redirectPath = '/onboarding';
+  }
   return res.send('', 302, {
     'Location': `${sitesUrl}/#${redirectPath}?success=true&grant_id=${grantId}`,
     'Set-Cookie': cookie,
@@ -320,8 +370,9 @@ async function handleCallback(req, res, log, error) {
 async function handleSession(req, res, log) {
   const cookie = req.headers['cookie'] || '';
   const sessionMatch = cookie.match(new RegExp(`${cookieName()}=([^;]+)`));
+  const debug = req.query?.debug === '1' || req.headers['x-debug'] === '1';
   if (!sessionMatch) {
-    return res.json({ authenticated: false }, 200, corsHeaders(req.headers['origin'] || ''));
+    return res.json({ authenticated: false, reason: 'no_session_cookie' }, 200, corsHeaders(req.headers['origin'] || ''));
   }
 
   const sessionCookieValue = sessionMatch[1];
@@ -335,6 +386,10 @@ async function handleSession(req, res, log) {
     });
 
     if (!accountRes.ok) {
+      const body = await accountRes.text().catch(() => '');
+      if (debug) {
+        return res.json({ authenticated: false, reason: 'account_lookup_failed', status: accountRes.status, bodyPreview: body.slice(0, 200) }, 200, corsHeaders(req.headers['origin'] || ''));
+      }
       return res.json({ authenticated: false }, 200, corsHeaders(req.headers['origin'] || ''));
     }
 
@@ -348,6 +403,32 @@ async function handleSession(req, res, log) {
     });
 
     const slave = slaveList.rows[0] || null;
+    
+    // Check if user is master/admin via service_config table
+    let role = slave ? slave.role : 'slave';
+    let isMaster = false;
+    
+    if (!slave || role !== 'master') {
+      try {
+        const masterConfigList = await db.listRows({
+          databaseId: DB_ID,
+          tableId: 'service_config',
+          queries: [Query.equal('config_key', 'master_auth')],
+        });
+        const masterConfig = masterConfigList.rows[0] || null;
+        if (masterConfig && masterConfig.config_value) {
+          const config = JSON.parse(masterConfig.config_value);
+          if (config.appwrite_user_id === user.$id) {
+            role = config.role || 'master';
+            isMaster = true;
+          }
+        }
+      } catch (err) {
+        error(`Master config lookup failed: ${err.message}`);
+      }
+    } else {
+      isMaster = true;
+    }
 
     let accounts = [];
     if (slave && slave.grant_id) {
@@ -378,21 +459,35 @@ async function handleSession(req, res, log) {
       }
     }
 
+    // Use slave data if available, but override role if user is master/admin
+    const responseSlave = slave || {
+      grant_id: '',
+      username: '',
+      status: '',
+      active: false,
+      ctrader_account_ids: '',
+      selected_account_id: '',
+      last_heartbeat_at: null,
+    };
+    
     return res.json({
       authenticated: true,
       user_id: user.$id,
-      grant_id: slave ? slave.grant_id : '',
-      role: slave ? slave.role : 'slave',
+      grant_id: responseSlave.grant_id,
+      role: role,  // Use the determined role (slave, master, or admin)
       name: user.name,
-      username: slave ? slave.username : '',
-      status: slave ? slave.status : '',
-      active: slave ? slave.active : false,
-      ctrader_account_ids: slave ? slave.ctrader_account_ids : '',
-      selected_account_id: slave ? slave.selected_account_id : '',
-      last_heartbeat_at: slave ? slave.last_heartbeat_at : null,
+      username: responseSlave.username,
+      status: responseSlave.status,
+      active: responseSlave.active,
+      ctrader_account_ids: responseSlave.ctrader_account_ids,
+      selected_account_id: responseSlave.selected_account_id,
+      last_heartbeat_at: responseSlave.last_heartbeat_at,
       accounts,
     }, 200, corsHeaders(req.headers['origin'] || ''));
   } catch (err) {
+    if (debug) {
+      return res.json({ authenticated: false, reason: 'exception', error: err.message }, 200, corsHeaders(req.headers['origin'] || ''));
+    }
     return res.json({ authenticated: false }, 200, corsHeaders(req.headers['origin'] || ''));
   }
 }

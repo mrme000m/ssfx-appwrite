@@ -177,6 +177,7 @@ class AgentContextBuilder:
                 for r in mtf.readings
             ],
             "factors": mtf.factors,
+            "reasons": mtf.reasons,
         }
 
     def _flow_to_dict(self, flow: OrderFlowMetrics) -> dict[str, Any]:

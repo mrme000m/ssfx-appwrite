@@ -125,7 +125,7 @@ class RiskMonitor:
 
     def check_new_signal(self, equity: float, open_risk_pct: float | None = None) -> tuple[bool, str]:
         """Return (allowed, reason). Must be called before opening a NEW position.
-        
+
         Args:
             equity: Current account equity
             open_risk_pct: Estimated % of equity at risk for the new position (optional).

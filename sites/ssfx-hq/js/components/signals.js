@@ -50,6 +50,11 @@ window.SignalsComponent = (function () {
           <div class="empty-state" style="border:none;padding:var(--sp-10)">
             <div class="empty-title">No signals yet</div>
             <p class="empty-desc">Signals will appear once the Telegram webhook or manual injector receives a message.</p>
+            <div class="mt-4">
+              <button class="btn btn-sm btn-primary" onclick="window.location.hash='#/inject'">
+                Inject Test Signal
+              </button>
+            </div>
           </div>
         </td></tr>`;
         return;

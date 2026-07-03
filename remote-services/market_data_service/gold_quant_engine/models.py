@@ -4,12 +4,9 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
-
-from market_data_service.models import TimeFrame
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +71,7 @@ class MultiTimeframeConfluence(BaseModel):
     bear_count: int = 0
     neutral_count: int = 0
     factors: dict[str, float] = Field(default_factory=dict)
+    reasons: list[str] = Field(default_factory=list)
 
     @property
     def is_strongly_bullish(self) -> bool:
@@ -307,7 +305,7 @@ class TickWindowState:
         if not self.volume_profile:
             return None, None
         sorted_levels = sorted(self.volume_profile.values(), key=lambda x: x.price)
-        total = sum(l.total_volume for l in sorted_levels)
+        total = sum(level.total_volume for level in sorted_levels)
         target = total * percentile
         # Expand outward from POC
         poc_idx = max(range(len(sorted_levels)), key=lambda i: sorted_levels[i].total_volume)

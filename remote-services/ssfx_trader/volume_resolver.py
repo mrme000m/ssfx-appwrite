@@ -74,9 +74,24 @@ class VolumeResolver:
             return VolumeMode(chosen)
         return chosen
 
+    def _get_session(self):
+        """Return the actual CTraderSession, unwrapping a backend if necessary."""
+        session = self._session
+        if session is None:
+            return None
+        if hasattr(session, "protocol") and hasattr(session, "account_id"):
+            return session
+        if hasattr(session, "session"):
+            return session.session
+        return None
+
     async def _get_account_summary(self) -> dict[str, float]:
+        session = self._get_session()
+        if session is None:
+            logger.warning("No cTrader session available for account summary")
+            return {"balance": 0.0, "equity": 0.0}
         try:
-            trader = await self._session.protocol.get_trader(self._session.account_id)
+            trader = await session.protocol.get_trader(session.account_id)
             return account_value_from_trader(trader)
         except Exception as exc:
             logger.warning("Failed to fetch account summary: %s", exc)
@@ -97,9 +112,10 @@ class VolumeResolver:
         return risk_to_lots(risk_amount, signal.entry_price, signal.sl_float, lot_size)
 
     async def _get_price(self, symbol: str, signal: TradeSignal) -> float:
+        session = self._get_session()
         symbol_id = self._resolver.get_symbol_id(symbol)
-        if symbol_id is not None and hasattr(self._session, "market_data"):
-            price = self._session.market_data.get_last_price(symbol_id)
+        if symbol_id is not None and session is not None and hasattr(session, "market_data"):
+            price = session.market_data.get_last_price(symbol_id)
             if price is not None and price > 0:
                 return price
         if signal.entry_price is not None and signal.entry_price > 0:

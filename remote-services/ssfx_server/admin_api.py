@@ -6,6 +6,7 @@ application state (followers, signal_store, account_store, parser).
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import logging
 import secrets
@@ -18,6 +19,7 @@ from pydantic import BaseModel
 
 from market_data_service.signal_experience.reporter import build_insights, build_llm_context
 from ssfx_parser import Direction, SignalStatus, SignalType, TradeSignal
+from ssfx_trader.config import AccountConfig as TraderAccountConfig
 
 logger = logging.getLogger(__name__)
 
@@ -42,9 +44,7 @@ def _require_admin_key(request: Request) -> None:
     cfg = _state().config
     if not cfg.admin_api_key:
         raise HTTPException(status_code=503, detail="admin API key not configured")
-    header_key = request.headers.get("x-admin-key", "")
-    query_key = request.query_params.get("admin_key", "")
-    provided = header_key or query_key
+    provided = request.headers.get("x-admin-key", "")
     if not secrets.compare_digest(provided, cfg.admin_api_key):
         raise HTTPException(status_code=401, detail="unauthorized")
 
@@ -140,7 +140,12 @@ async def list_accounts(request: Request) -> JSONResponse:
             backend = getattr(follower._executor, "_backend", None)
             runtime["connected"] = getattr(backend, "_connected", True)
             runtime["active_positions"] = follower._executor.active_position_count
-        results.append({"name": name, "enabled": doc.get("enabled", True), "host_type": doc.get("ctrader", {}).get("host_type", "demo"), "runtime": runtime, "config": doc})
+        config = copy.deepcopy(doc)
+        ctrader = config.get("ctrader", {})
+        if isinstance(ctrader, dict):
+            ctrader["client_secret"] = "***"
+            ctrader["client_id"] = "***"
+        results.append({"name": name, "enabled": doc.get("enabled", True), "host_type": doc.get("ctrader", {}).get("host_type", "demo"), "runtime": runtime, "config": config})
     return JSONResponse(results)
 
 
@@ -212,12 +217,21 @@ async def update_account(name: str, request: Request) -> JSONResponse:
         existing["enabled"] = bool(patch["enabled"])
 
     if "config" in patch:
-        cfg = patch["config"]
-        existing["ctrader"] = cfg.get("ctrader", existing.get("ctrader", {}))
-        existing["trading"] = cfg.get("trading", existing.get("trading", {}))
-        existing["symbols_filter"] = cfg.get(
-            "symbols_filter", existing.get("symbols_filter", [])
-        )
+        # Merge the patch on top of the existing document and validate through
+        # the real AccountConfig dataclass, then re-serialize it for storage.
+        merged = {**existing, **patch["config"]}
+        merged.pop("_id", None)
+        try:
+            validated_config = TraderAccountConfig.from_mongo(merged)
+            serialized = validated_config.to_mongo()
+        except (ValueError, TypeError) as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid account config: {e}",
+            ) from e
+        existing["ctrader"] = serialized["ctrader"]
+        existing["trading"] = serialized["trading"]
+        existing["symbols_filter"] = serialized["symbols_filter"]
 
     state.account_store.save_account(existing)
     return JSONResponse({"ok": True, "name": name, "enabled": existing.get("enabled")})
@@ -287,12 +301,11 @@ async def inject_signal(payload: InjectSignalRequest, request: Request) -> JSONR
     state.signal_store.save_signal(signal)
 
     logger.info(
-        "Manual signal injected: %s %s %s entry=%s by %s",
+        "Manual signal injected: %s %s %s entry=%s by admin",
         signal.signal_type.value,
         signal.direction.value,
         signal.symbol,
         signal.entry_price,
-        request.headers.get("x-admin-key", "unknown"),
     )
 
     for follower in state.followers.values():

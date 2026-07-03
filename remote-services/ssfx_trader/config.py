@@ -4,6 +4,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+
+def _enum_value(value):
+    """Return the value of an enum, or the value itself for plain strings/scalars."""
+    return getattr(value, "value", value)
+
 from ssfx_parser import (
     EntryUpdateAction,
     ExecutionMode,
@@ -47,6 +52,12 @@ class UpdateActionConfig:
     second_update_action: SecondUpdateAction = SecondUpdateAction.FULL_CLOSE
     entry_update_action: EntryUpdateAction = EntryUpdateAction.IGNORE
 
+    def __post_init__(self) -> None:
+        if isinstance(self.second_update_action, str):
+            self.second_update_action = SecondUpdateAction(self.second_update_action)
+        if isinstance(self.entry_update_action, str):
+            self.entry_update_action = EntryUpdateAction(self.entry_update_action)
+
 
 @dataclass(slots=True)
 class SymbolOverride:
@@ -58,6 +69,16 @@ class SymbolOverride:
     tp_strategy: TpStrategy | None = None
     sl_strategy: SlStrategy | None = None
     partial_close: PartialCloseConfig | None = None
+
+    def __post_init__(self) -> None:
+        if isinstance(self.volume_mode, str):
+            self.volume_mode = VolumeMode(self.volume_mode)
+        if isinstance(self.tp_strategy, str):
+            self.tp_strategy = TpStrategy(self.tp_strategy)
+        if isinstance(self.sl_strategy, str):
+            self.sl_strategy = SlStrategy(self.sl_strategy)
+        if isinstance(self.partial_close, dict):
+            self.partial_close = PartialCloseConfig(**self.partial_close)
 
 
 @dataclass(slots=True)
@@ -115,8 +136,11 @@ class PerAccountTradingConfig:
             self.update_actions = UpdateActionConfig(**self.update_actions)
         if isinstance(self.partial_close, dict):
             self.partial_close = PartialCloseConfig(**self.partial_close)
-        if self.symbol_overrides and isinstance(self.symbol_overrides[0], dict):
-            self.symbol_overrides = [SymbolOverride(**ov) for ov in self.symbol_overrides]
+        if self.symbol_overrides:
+            self.symbol_overrides = [
+                SymbolOverride(**ov) if isinstance(ov, dict) else ov
+                for ov in self.symbol_overrides
+            ]
 
     @property
     def use_live(self) -> bool:
@@ -217,11 +241,18 @@ class AccountConfig:
                     {
                         "symbol": ov.symbol,
                         "enabled": ov.enabled,
-                        "volume_mode": ov.volume_mode.value if ov.volume_mode else None,
+                        "volume_mode": _enum_value(ov.volume_mode) if ov.volume_mode else None,
                         "volume_value": ov.volume_value,
                         "max_positions": ov.max_positions,
-                        "tp_strategy": ov.tp_strategy.value if ov.tp_strategy else None,
-                        "sl_strategy": ov.sl_strategy.value if ov.sl_strategy else None,
+                        "tp_strategy": _enum_value(ov.tp_strategy) if ov.tp_strategy else None,
+                        "sl_strategy": _enum_value(ov.sl_strategy) if ov.sl_strategy else None,
+                        "partial_close": {
+                            "on_tp1_pct": ov.partial_close.on_tp1_pct,
+                            "on_tp2_pct": ov.partial_close.on_tp2_pct,
+                            "on_tp3_pct": ov.partial_close.on_tp3_pct,
+                            "on_close_half_pct": ov.partial_close.on_close_half_pct,
+                            "on_second_update_pct": ov.partial_close.on_second_update_pct,
+                        } if ov.partial_close else None,
                     }
                     for ov in self.trading.symbol_overrides
                 ],

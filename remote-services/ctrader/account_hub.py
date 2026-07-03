@@ -1,4 +1,7 @@
-"""Account Hub — persistent cTrader connections for ALL authenticated slave accounts.
+"""Account Hub v1 — DEPRECATED persistent cTrader connections implementation.
+
+DEPRECATED: This v1 implementation is deprecated and will be removed in a future version.
+Use AccountHubV2 from account_hub_v2.py instead.
 
 On startup, reads all active slave_accounts from Appwrite TablesDB and creates
 persistent cTrader TCP/WS connections for each (both demo and live). Subscribes
@@ -15,6 +18,8 @@ Architecture:
     Event bus (asyncio.Queue per subscription)
           |
     WebSocket clients (dashboard, command center, dataservice)
+
+MIGRATION: Set ACCOUNT_HUB_ENVIRONMENT_MODE=true (default) to use AccountHubV2.
 """
 
 from __future__ import annotations
@@ -73,7 +78,11 @@ class AccountConnection:
 
 
 class AccountHub:
-    """Manages persistent cTrader connections and fans out events."""
+    """Manages persistent cTrader connections and fans out events.
+    
+    DEPRECATED: This v1 implementation is deprecated and will be removed in a future version.
+    Use AccountHubV2 from account_hub_v2.py instead.
+    """
 
     def __init__(
         self,
@@ -88,6 +97,19 @@ class AccountHub:
         reconnect_base: float = 5.0,
         reconnect_max: float = 60.0,
     ):
+        import warnings
+        warnings.warn(
+            "AccountHub v1 is deprecated and will be removed. "
+            "Use AccountHubV2 from ctrader.account_hub_v2 instead. "
+            "Set ACCOUNT_HUB_ENVIRONMENT_MODE=false to continue using v1 temporarily.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        logger.warning(
+            "Using legacy AccountHub v1 implementation. "
+            "This is deprecated and will be removed. "
+            "Migrate to AccountHubV2 by ensuring ACCOUNT_HUB_ENVIRONMENT_MODE=true (default)."
+        )
         self._appwrite = appwrite_client
         self._tables = TablesDB(appwrite_client)
         self._database_id = database_id

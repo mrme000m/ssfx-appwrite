@@ -27,6 +27,7 @@ from ssfx_trader.stores.noop_store import NoOpSignalStore
 
 from . import admin_api
 from .config_loader import ServerConfig, load_config
+from .signal_generator import GoldQuantGeneratorConfig, GoldQuantSignalGenerator
 from .telegram_webhook import parse_channel_post
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,7 @@ logger = logging.getLogger(__name__)
 class AppState:
     def __init__(self, config: ServerConfig):
         self.config = config
+        self.trading_enabled = False
         # Try MongoDB for signal history; fall back to no-op if unavailable
         try:
             self.signal_store = MongoSignalStore(config.mongo_uri, config.mongo_database)
@@ -46,6 +48,7 @@ class AppState:
         self._follower_tasks: set[asyncio.Task] = set()
         self.experience_scorer: SignalExperienceScorer | None = None
         self.experience_updater: SignalExperienceUpdater | None = None
+        self._signal_generator: GoldQuantSignalGenerator | None = None
         if config.signal_experience_enabled:
             try:
                 exp_store = SignalExperienceStore(database_id=config.signal_experience_database_id)
@@ -63,13 +66,26 @@ class AppState:
         # Use Appwrite exclusively; never fall back to MongoDB
         if not self.config.appwrite_api_key:
             logger.error("APPWRITE_API_KEY is required. Set it in v2.env.")
+            self.trading_enabled = False
             return
+
+        # Fail-closed: without a real signal store we cannot safely recover
+        # state after restart, so do not start followers.
+        if isinstance(self.signal_store, NoOpSignalStore):
+            logger.error(
+                "MongoDB signal store is unavailable. Refusing to start followers "
+                "to avoid duplicate/missed trades after restart."
+            )
+            self.trading_enabled = False
+            return
+
         self.account_store = AppwriteAccountStore()
         source = "Appwrite"
         accounts = self.account_store.list_accounts()
         if not accounts:
             logger.warning("No accounts configured. Create one in the SSFX config UI.")
 
+        self.trading_enabled = True
         for doc in accounts:
             try:
                 cfg = AccountConfig.from_mongo(doc)
@@ -82,6 +98,7 @@ class AppState:
                     data_service_base_url=self.config.dataservice_base_url,
                     data_service_api_key=self.config.dataservice_api_key,
                     experience_updater=self.experience_updater,
+                    autonomy_enabled=self.config.agent_autonomy_enabled,
                 )
                 await follower._executor._backend.connect()
                 task = asyncio.create_task(follower.start())
@@ -92,7 +109,23 @@ class AppState:
             except Exception as exc:
                 logger.error("Failed to start follower for %s: %s", doc.get("_id"), exc)
 
+        self._signal_generator = GoldQuantSignalGenerator(
+            config=GoldQuantGeneratorConfig(
+                enabled=self.config.gold_quant_signal_enabled,
+                interval_sec=self.config.gold_quant_signal_interval_sec,
+                min_quant_confidence=self.config.gold_quant_min_confidence,
+                min_agent_confidence=self.config.gold_quant_agent_min_confidence,
+            ),
+            data_service_base_url=self.config.dataservice_base_url,
+            data_service_api_key=self.config.dataservice_api_key,
+            agent_harness_base_url=self.config.agent_harness_base_url,
+            followers=self.followers,
+        )
+        self._signal_generator.start()
+
     async def stop(self) -> None:
+        if self._signal_generator is not None:
+            await self._signal_generator.stop()
         for follower in self.followers.values():
             follower.stop()
         if self._follower_tasks:
@@ -115,6 +148,12 @@ async def lifespan(app: FastAPI):
     state = AppState(config)
     await state.start()
     admin_api.set_state(state)
+
+    # Register the webhook route at runtime so WEBHOOK_PATH is honored.
+    webhook_path = config.webhook_path if config.webhook_path.startswith("/") else f"/{config.webhook_path}"
+    app.add_api_route(webhook_path, telegram_webhook, methods=["POST"], name="telegram_webhook")
+    logger.info("Registered Telegram webhook route: %s", webhook_path)
+
     if state.config.webhook_host.lower() == "polling":
         logger.info("Webhook host set to 'polling'; starting getUpdates fallback")
         asyncio.create_task(_poll_updates(state))
@@ -152,6 +191,7 @@ app.include_router(admin_api.router)
 async def health() -> dict[str, Any]:
     return {
         "status": "ok",
+        "trading_enabled": state.trading_enabled if state else False,
         "accounts": list(state.followers.keys()) if state else [],
         "active_positions": {
             name: follower._executor.active_position_count
@@ -160,7 +200,6 @@ async def health() -> dict[str, Any]:
     }
 
 
-@app.post(state.config.webhook_path if state else "/webhook")
 async def telegram_webhook(request: Request, background_tasks: BackgroundTasks) -> JSONResponse:
     if state is None:
         return JSONResponse({"ok": False, "error": "server not initialized"}, status_code=503)
@@ -281,6 +320,7 @@ async def _process_channel_post(
     if intent_result:
         result = intent_result.get("result", {})
         intent = result.get("intent", "unknown")
+        intent_confidence = float(result.get("confidence", 0.0))
         linked = result.get("linked_message_id")
         if linked and reply_to_message_id is None:
             reply_to_message_id = linked
@@ -289,8 +329,11 @@ async def _process_channel_post(
             message_id,
             intent,
             linked,
-            result.get("confidence", 0.0),
+            intent_confidence,
         )
+        if intent == "noise":
+            logger.info("Dropping message %s classified as noise", message_id)
+            return
 
     context_lines: list[str] = []
     for msg in today_msgs:

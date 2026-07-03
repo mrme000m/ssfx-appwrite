@@ -16,7 +16,9 @@ window.TradeConfigComponent = (function () {
       const rows = result.rows || [];
       if (rows.length === 0) return null;
       const data = rows[0].data || rows[0];
-      return { $id: data.$id || data._id, ...data };
+      const cfg = { $id: data.$id || data._id, ...data };
+      window.appState.tradeConfig = cfg;
+      return cfg;
     } catch (err) {
       window.UI.toast('error', `Failed to load trade config: ${err.message}`);
       return null;
@@ -43,7 +45,7 @@ window.TradeConfigComponent = (function () {
           data: row,
         });
       } else {
-        await db.createRow({
+        const created = await db.createRow({
           databaseId: window.API.CFG.databaseId,
           tableId: TABLE_ID,
           data: row,
@@ -53,7 +55,9 @@ window.TradeConfigComponent = (function () {
             window.Appwrite.Permission.delete(window.Appwrite.Role.user(userId)),
           ],
         });
+        existing = { $id: created.$id };
       }
+      window.appState.tradeConfig = { ...existing, ...row };
       window.UI.toast('success', 'Trade config saved.');
     } catch (err) {
       window.UI.toast('error', `Save failed: ${err.message}`);
@@ -110,7 +114,10 @@ window.TradeConfigComponent = (function () {
       form.elements.lot_size.value = cfg?.lot_size ?? 0.01;
       form.elements.lot_multiplier.value = cfg?.lot_multiplier ?? 1.0;
       form.elements.max_daily_drawdown_pct.value = cfg?.max_daily_drawdown_pct ?? 5.0;
-      form.elements.allowed_symbols.value = (cfg?.allowed_symbols || []).join(', ');
+      const syms = Array.isArray(cfg?.allowed_symbols)
+        ? cfg.allowed_symbols
+        : (cfg?.allowed_symbols || '').toString().split(',').map((s) => s.trim()).filter(Boolean);
+      form.elements.allowed_symbols.value = syms.join(', ');
       form.elements.copy_enabled.checked = cfg?.copy_enabled ?? true;
 
       form.addEventListener('submit', (ev) => {
@@ -118,7 +125,37 @@ window.TradeConfigComponent = (function () {
         const fd = new FormData(ev.target);
         const values = Object.fromEntries(fd.entries());
         values.copy_enabled = fd.get('copy_enabled');
-        saveConfig(db, cfg, values);
+        
+        // Validate required fields
+        let isValid = true;
+        const lotSize = form.elements.lot_size;
+        const lotMultiplier = form.elements.lot_multiplier;
+        const maxDrawdown = form.elements.max_daily_drawdown_pct;
+        
+        window.UI.clearInlineError(lotSize);
+        window.UI.clearInlineError(lotMultiplier);
+        window.UI.clearInlineError(maxDrawdown);
+        
+        if (!lotSize.value || Number(lotSize.value) <= 0) {
+          window.UI.showInlineError(lotSize, 'Lot size must be greater than 0');
+          isValid = false;
+        }
+        if (!lotMultiplier.value || Number(lotMultiplier.value) <= 0) {
+          window.UI.showInlineError(lotMultiplier, 'Multiplier must be greater than 0');
+          isValid = false;
+        }
+        if (!maxDrawdown.value || Number(maxDrawdown.value) <= 0) {
+          window.UI.showInlineError(maxDrawdown, 'Max drawdown must be greater than 0');
+          isValid = false;
+        }
+        
+        if (!isValid) {
+          return;
+        }
+        
+        saveConfig(db, cfg, values).then(() => {
+          window.commandBus.dispatchEvent(new CustomEvent('accounts'));
+        });
       });
     });
   }

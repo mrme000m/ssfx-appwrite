@@ -86,11 +86,22 @@ window.AgentPipelineComponent = (function () {
     function render() {
       const logs = window.appState.agentLogs || [];
       const out = section.querySelector('#agent-logs');
+      
+      if (!window.appState.initialized) {
+        out.innerHTML = `<div class="skeleton" style="height:120px;border-radius:var(--radius-lg)"></div>`;
+        return;
+      }
+      
       if (logs.length === 0) {
         out.innerHTML = `
           <div class="empty-state">
             <div class="empty-title">No agent logs yet</div>
             <p class="empty-desc">Agent pipeline logs are synthesized from recent signals and executions.</p>
+            <div class="mt-4">
+              <button class="btn btn-sm btn-primary" onclick="window.location.hash='#/inject'">
+                Inject Test Signal
+              </button>
+            </div>
           </div>`;
         return;
       }

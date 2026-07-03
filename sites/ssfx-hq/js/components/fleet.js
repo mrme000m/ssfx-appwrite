@@ -60,6 +60,11 @@ window.FleetComponent = (function () {
           <div class="empty-state">
             <div class="empty-title">No accounts configured</div>
             <p class="empty-desc">Accounts are managed in the SSFX server config and stored in Appwrite TablesDB.</p>
+            <div class="mt-4">
+              <button class="btn btn-sm btn-primary" onclick="window.location.hash='#/inject'">
+                Create Test Account
+              </button>
+            </div>
           </div>`;
         return;
       }

@@ -25,7 +25,8 @@ window.LoginComponent = (function () {
               <input type="password" inputmode="numeric" maxlength="1" class="pin-digit" />
             </div>
             <input type="hidden" name="pin" id="pin-field" />
-            <button type="submit" class="btn btn-primary w-full" style="margin-top:16px">Unlock</button>
+            <div id="login-error" class="alert alert-error" style="display:none;margin-top:16px"></div>
+            <button type="submit" class="btn btn-primary w-full" id="login-submit" style="margin-top:16px">Unlock</button>
           </form>
           <div class="text-center mt-4">
             <a href="#/reset" class="text-sm text-dim">Forgot PIN?</a>
@@ -36,6 +37,18 @@ window.LoginComponent = (function () {
 
     const digits = container.querySelectorAll('.pin-digit');
     const pinField = container.querySelector('#pin-field');
+    const submitBtn = container.querySelector('#login-submit');
+    const errorBox = container.querySelector('#login-error');
+
+    function showError(msg) {
+      errorBox.textContent = msg;
+      errorBox.style.display = 'block';
+    }
+
+    function clearError() {
+      errorBox.style.display = 'none';
+      errorBox.textContent = '';
+    }
 
     digits.forEach((input, idx) => {
       input.addEventListener('input', (ev) => {
@@ -47,7 +60,10 @@ window.LoginComponent = (function () {
           digits[idx + 1].focus();
         }
         if (pin.length === digits.length) {
-          container.querySelector('#login-form').dispatchEvent(new Event('submit'));
+          const username = container.querySelector('[name="username"]').value.trim();
+          if (username) {
+            container.querySelector('#login-form').requestSubmit();
+          }
         }
       });
       input.addEventListener('keydown', (ev) => {
@@ -62,19 +78,43 @@ window.LoginComponent = (function () {
       const fd = new FormData(ev.target);
       const username = fd.get('username');
       const pin = fd.get('pin');
-      if (!username || pin.length !== 6) {
-        window.UI.toast('error', 'Enter username and 6-digit PIN.');
+
+      clearError();
+
+      const usernameInput = ev.target.elements.username;
+      const pinInputs = container.querySelectorAll('.pin-digit');
+      window.UI.clearInlineError(usernameInput);
+      pinInputs.forEach(input => window.UI.clearInlineError(input));
+
+      let isValid = true;
+      if (!username) {
+        window.UI.showInlineError(usernameInput, 'Username is required');
+        isValid = false;
+      }
+      if (pin.length < 4 || pin.length > 6) {
+        window.UI.showInlineError(pinInputs[0], 'PIN must be 4-6 digits');
+        isValid = false;
+      }
+      if (!isValid) {
         return;
       }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Authenticating...';
+
       try {
         await window.Auth.login(username, pin);
+        await window.Auth.refresh();
         window.commandBus.dispatchEvent(new CustomEvent('auth-changed'));
         window.Router.navigate('/dashboard');
       } catch (err) {
-        window.UI.toast('error', err.message || 'Login failed');
+        showError(err.message || 'Login failed');
         digits.forEach((d) => (d.value = ''));
         pinField.value = '';
         digits[0].focus();
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Unlock';
       }
     });
   }

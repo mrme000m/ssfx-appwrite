@@ -1,6 +1,7 @@
 """MongoDB-backed store for signals and account executions."""
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
@@ -157,10 +158,14 @@ class MongoAccountStore:
         self._follower_id = follower_id
         self._accounts: Collection = self._db["ssfx_accounts"]
         self._executions: Collection = self._db["ssfx_follower_executions"]
+        self._risk_state: Collection = self._db["ssfx_risk_state"]
         self._ensure_indexes()
 
     def _ensure_indexes(self) -> None:
         self._accounts.create_index("_id", unique=True)
+        self._risk_state.create_index(
+            [("account_name", ASCENDING), ("date_str", ASCENDING)], unique=True
+        )
         self._executions.create_index(
             [("follower_id", ASCENDING), ("signal_chat_id", ASCENDING), ("signal_message_id", ASCENDING)],
             unique=True,
@@ -282,3 +287,38 @@ class MongoAccountStore:
             .limit(limit)
         )
         return [FollowerExecution.from_mongo(doc) for doc in docs]
+
+    def _risk_state_id(self, account_name: str, date_str: str) -> str:
+        return f"{account_name}:{date_str}"
+
+    def get_risk_state(self, account_name: str, date_str: str) -> dict[str, Any] | None:
+        try:
+            doc = self._risk_state.find_one({"_id": self._risk_state_id(account_name, date_str)})
+            if doc is None:
+                return None
+            return json.loads(doc.get("state_json", "{}"))
+        except Exception as exc:
+            logger.warning("Failed to get risk state for %s:%s: %s", account_name, date_str, exc)
+            return None
+
+    def upsert_risk_state(self, account_name: str, state: dict[str, Any]) -> None:
+        date_str = state.get("date_str", "")
+        row = {
+            "_id": self._risk_state_id(account_name, date_str),
+            "account_name": account_name,
+            "date_str": date_str,
+            "daily_start_equity": state.get("daily_start_equity"),
+            "daily_pnl": state.get("daily_pnl"),
+            "peak_equity": state.get("peak_equity"),
+            "kill_switch_active": state.get("kill_switch_active"),
+            "kill_switch_reason": state.get("kill_switch_reason"),
+            "state_json": json.dumps(state, separators=(",", ":")),
+            "updated_at": datetime.now(UTC).isoformat(),
+        }
+        try:
+            self._risk_state.update_one(
+                {"_id": row["_id"]}, {"$set": row}, upsert=True
+            )
+        except Exception as exc:
+            logger.error("Failed to upsert risk state for %s:%s: %s", account_name, date_str, exc)
+            raise

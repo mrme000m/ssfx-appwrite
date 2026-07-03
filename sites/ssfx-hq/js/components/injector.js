@@ -63,10 +63,34 @@ window.InjectorComponent = (function () {
     section.querySelector('#inject-form').addEventListener('submit', async (ev) => {
       ev.preventDefault();
       const fd = new FormData(ev.target);
+      const symbol = fd.get('symbol');
+      const entryPrice = fd.get('entry_price');
+      
+      // Validate required fields
+      let isValid = true;
+      const symbolInput = section.querySelector('[name="symbol"]');
+      const entryPriceInput = section.querySelector('[name="entry_price"]');
+      
+      window.UI.clearInlineError(symbolInput);
+      window.UI.clearInlineError(entryPriceInput);
+      
+      if (!symbol) {
+        window.UI.showInlineError(symbolInput, 'Symbol is required');
+        isValid = false;
+      }
+      if (!entryPrice) {
+        window.UI.showInlineError(entryPriceInput, 'Entry price is required');
+        isValid = false;
+      }
+      
+      if (!isValid) {
+        return;
+      }
+      
       const payload = {
-        symbol: fd.get('symbol'),
+        symbol: symbol,
         direction: fd.get('direction'),
-        entry_price: fd.get('entry_price') ? Number(fd.get('entry_price')) : null,
+        entry_price: entryPrice ? Number(entryPrice) : null,
         sl: fd.get('sl') ? Number(fd.get('sl')) : null,
         tp1: fd.get('tp1') ? Number(fd.get('tp1')) : null,
         tp2: fd.get('tp2') ? Number(fd.get('tp2')) : null,

@@ -62,18 +62,53 @@ window.UI = (function () {
     return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
 
-  function setLoading(isLoading) {
+  function setLoading(isLoading, message) {
     const app = document.getElementById('app');
     if (!app) return;
     if (isLoading && !app.querySelector('.loading-screen')) {
       app.innerHTML = `
         <div class="loading-screen">
           <div class="loading-spinner"></div>
-          <p>Loading...</p>
+          <p>${message || 'Loading...'}</p>
         </div>
       `;
     } else if (!isLoading && app.querySelector('.loading-screen')) {
       app.innerHTML = '';
+    }
+  }
+
+  function showError(title, message, container) {
+    const target = container || document.getElementById('app-main') || document.getElementById('app');
+    if (!target) return;
+    target.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-title">${title}</div>
+        <p class="empty-desc">${message}</p>
+        ${window.Auth.isAuthenticated() ? '<button class="btn btn-sm btn-primary mt-4" onclick="window.location.reload()">Retry</button>' : ''}
+      </div>
+    `;
+  }
+
+  function showInlineError(input, message) {
+    if (!input) return;
+    input.classList.add('error');
+    let errorEl = input.nextElementSibling;
+    if (errorEl && errorEl.classList && errorEl.classList.contains('form-error-message')) {
+      errorEl.textContent = message;
+    } else {
+      errorEl = document.createElement('div');
+      errorEl.className = 'form-error-message';
+      errorEl.textContent = message;
+      input.parentNode.insertBefore(errorEl, input.nextSibling);
+    }
+  }
+
+  function clearInlineError(input) {
+    if (!input) return;
+    input.classList.remove('error');
+    const errorEl = input.nextElementSibling;
+    if (errorEl && errorEl.classList && errorEl.classList.contains('form-error-message')) {
+      errorEl.remove();
     }
   }
 
@@ -107,5 +142,8 @@ window.UI = (function () {
     formatDateTime,
     setLoading,
     badge,
+    showError,
+    showInlineError,
+    clearInlineError,
   };
 })();

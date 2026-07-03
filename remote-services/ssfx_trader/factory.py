@@ -25,7 +25,8 @@ if typing.TYPE_CHECKING:
 
 def create_parser(agent_config: AgentConfig | None = None) -> ChainedParser:
     """Create the default LLM → regex chained parser."""
-    primary = LlmSignalParser(agent_config or AgentConfig(
+    # Check if we have a valid API key for LLM parsing
+    default_config = AgentConfig(
         base_url="https://openrouter.ai/api/v1",
         model="nvidia/nemotron-3-super-120b-a12b:free",
         temperature=0.1,
@@ -33,7 +34,23 @@ def create_parser(agent_config: AgentConfig | None = None) -> ChainedParser:
         timeout_seconds=30,
         min_confidence=0.75,
         api_key="",
-    ))
+    )
+    config = agent_config or default_config
+    api_key = getattr(config, 'api_key', '').strip()
+
+    if not api_key:
+        # No API key configured - log warning and use regex parser only
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            "No LLM API key configured for signal parsing. "
+            "Using regex parser only. Configure LLM_API_KEY to enable LLM parsing."
+        )
+        # Return regex parser only (no LLM parsing)
+        return ChainedParser(primary=RegexSignalParser(), fallback=RegexSignalParser())
+
+    # API key is available - create LLM parser
+    primary = LlmSignalParser(config)
     fallback = RegexSignalParser()
     return ChainedParser(primary=primary, fallback=fallback)
 
@@ -63,6 +80,7 @@ def create_follower(
     data_service_api_key: str | None = None,
     data_service_client: DataServiceClient | None = None,
     experience_updater: "SignalExperienceUpdater | None" = None,
+    autonomy_enabled: bool = False,
 ) -> AccountFollower:
     """Build an AccountFollower with the appropriate execution backend."""
     signal_store = signal_store or MongoSignalStore(mongo_uri, mongo_database, client=client)
@@ -113,4 +131,5 @@ def create_follower(
         account_store=account_store,
         executor=executor,
         config_provider=config_provider,
+        autonomy_enabled=autonomy_enabled,
     )

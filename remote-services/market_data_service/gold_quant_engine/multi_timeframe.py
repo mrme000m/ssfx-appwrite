@@ -93,8 +93,6 @@ class MultiTimeframeEngine:
         closes = [b["close"] for b in bars]
         highs = [b["high"] for b in bars]
         lows = [b["low"] for b in bars]
-        opens = [b["open"] for b in bars]
-        volumes = [b.get("volume", 0.0) for b in bars]
 
         score = 0.0
         indicators: list[dict[str, Any]] = []

@@ -13,6 +13,6 @@ window.APP_CONFIG = {
   "databaseId": "ctrader_auth",
   "marketDatabaseId": "market_data",
   "siteUrl": "https://app.mrme.tech",
-  "v2AdminKey": "my-admin-key",
-  "dataserviceApiKey": "my-ds-key"
+  "v2AdminKey": "",
+  "dataserviceApiKey": ""
 };
