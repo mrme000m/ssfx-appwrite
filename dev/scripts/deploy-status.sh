@@ -1,19 +1,30 @@
 #!/usr/bin/env bash
-# dev/scripts/deploy-status.sh — Show Azure VM and deployment status.
+# dev/scripts/deploy-status.sh — Show remote VM and deployment status.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VM_NAME="${AZURE_VM_NAME:-ubuntu-server}"
-RESOURCE_GROUP="${AZURE_RESOURCE_GROUP:-RG-UBUNTU-VM}"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-echo "[dev] Azure VM status:"
-az vm show \
-  --name "${VM_NAME}" \
-  --resource-group "${RESOURCE_GROUP}" \
-  --show-details \
-  --query "{Name:name, ResourceGroup:resourceGroup, Location:location, Size:hardwareProfile.vmSize, PowerState:powerState, PublicIp:publicIps, Fqdn:fqdns, ProvisioningState:provisioningState}" \
-  --output table
+# Load SSH target from vm.env if available; default to the current AWS VM.
+VM_ENV="${PROJECT_ROOT}/remote-services/config/vm.env"
+SSH_HOST="aws-ssfx"
+if [[ -f "${VM_ENV}" ]]; then
+  # shellcheck source=/dev/null
+  source "${VM_ENV}"
+fi
+SSH_HOST="${SSH_HOST:-aws-ssfx}"
 
+REMOTE_DIR="/home/${VM_USER:-ec2-user}/ssfx-remote-services"
+
+echo "[dev] Remote VM status (${SSH_HOST}):"
+ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new "${SSH_HOST}" "
+  echo \"Host: \$(hostname)\"
+  echo \"Uptime: \$(uptime -p 2>/dev/null || uptime)\"
+  echo \"Docker containers:\"
+  cd ${REMOTE_DIR} && docker compose ps 2>/dev/null || echo '  (stack not running)'
+" || echo "[dev] Could not reach ${SSH_HOST}."
+
+echo ""
 echo "[dev] Cloudflare tunnel status:"
 if [[ -n "${CF_API_TOKEN:-}" ]]; then
   "${SCRIPT_DIR}/cf_tunnel_status.py"
@@ -22,6 +33,4 @@ else
 fi
 
 echo ""
-echo "[dev] Deployment status:"
-# TODO: add commands to query deployed service status on the VM.
 echo "[dev] Deployment status check completed."

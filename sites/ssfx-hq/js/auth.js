@@ -22,16 +22,30 @@ window.Auth = (function () {
   async function checkSession() {
     try {
       const data = await window.API.AuthAPI.session();
-      window.appState.user = data.user || null;
-      window.appState.userId = data.user_id || data.user?.$id || null;
-      window.appState.username = data.username || '';
-      window.appState.role = data.role || 'slave';
-      window.appState.grantId = data.grant_id || null;
-      window.appState.status = data.status || '';
-      window.appState.active = data.active === true;
-      window.appState.lastHeartbeat = data.last_heartbeat_at || null;
-      window.appState.accounts = Array.isArray(data.accounts) ? data.accounts : [];
-      window.appState.selectedAccountId = data.selected_account_id || '';
+      // The /session endpoint returns session fields directly, not a nested user object.
+      if (data && data.authenticated) {
+        window.appState.user = data.user || {
+          $id: data.user_id,
+          name: data.name || data.username,
+        };
+        window.appState.userId = data.user_id || window.appState.user?.$id || null;
+        window.appState.username = data.username || data.name || window.appState.user?.name || '';
+        window.appState.role = data.role || 'slave';
+        window.appState.grantId = data.grant_id || null;
+        window.appState.status = data.status || '';
+        window.appState.active = data.active === true;
+        window.appState.lastHeartbeat = data.last_heartbeat_at || null;
+        window.appState.accounts = Array.isArray(data.accounts) ? data.accounts : [];
+        window.appState.selectedAccountId = data.selected_account_id || '';
+      } else {
+        window.appState.user = null;
+        window.appState.userId = null;
+        window.appState.username = '';
+        window.appState.role = null;
+        window.appState.grantId = null;
+        window.appState.status = '';
+        window.appState.active = false;
+      }
       return data;
     } catch (err) {
       window.appState.user = null;

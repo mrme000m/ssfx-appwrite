@@ -21,7 +21,7 @@ class AgentHarnessSettings(BaseSettings):
     agent_harness_port: int = Field(default=9003, alias="AGENT_HARNESS_PORT")
     agent_harness_host: str = Field(default="0.0.0.0", alias="AGENT_HARNESS_HOST")
     cors_origins: str = Field(
-        default="https://app.mrme.tech,https://command.mrme.tech,https://admin.mrme.tech,http://localhost:3000,http://localhost:8001",
+        default="https://app.mrme.tech,http://localhost:3000,http://localhost:8001",
         alias="AGENT_HARNESS_CORS_ORIGINS",
     )
 

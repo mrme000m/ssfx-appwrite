@@ -176,6 +176,12 @@ def main():
             print(f"[gh-secrets] Warning: {key} not found in .env", file=sys.stderr)
 
     # Site admin API keys for the consolidated dashboard
+    # V2_ADMIN_KEY defaults to ADMIN_API_KEY (the ssfx-server admin key) so the
+    # SPA can authenticate to /api/* endpoints.
+    if not env.get("V2_ADMIN_KEY") and env.get("ADMIN_API_KEY"):
+        env["V2_ADMIN_KEY"] = env["ADMIN_API_KEY"]
+        print("[gh-secrets] Derived V2_ADMIN_KEY from ADMIN_API_KEY")
+
     site_secret_keys = ["V2_ADMIN_KEY", "DATA_SERVICE_API_KEY", "AGENT_HARNESS_BASE"]
     for key in site_secret_keys:
         val = env.get(key)

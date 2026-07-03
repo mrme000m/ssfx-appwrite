@@ -27,6 +27,11 @@
       "originRequest": {}
     },
     {
+      "hostname": "pplx-agent.mrme.tech",
+      "service": "http://localhost:9004",
+      "originRequest": {}
+    },
+    {
       "hostname": "ctrader.mrme.tech",
       "service": "http://localhost:9300",
       "originRequest": {}
@@ -34,11 +39,6 @@
     {
       "hostname": "account-hub.mrme.tech",
       "service": "http://localhost:9301",
-      "originRequest": {}
-    },
-    {
-      "hostname": "admin.mrme.tech",
-      "service": "http://localhost:8100",
       "originRequest": {}
     },
     {

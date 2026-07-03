@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # deploy-master.sh — Master deployment script for remote-services to Azure VM.
-# 
+# DEPRECATED: Use `python3 remote-services/setup_vm.py` for the current AWS VM.
+# Kept only for legacy Azure VM compatibility.
+#
 # This script orchestrates:
 #   1. VM cleanup (stop old services, remove old containers)
 #   2. Cloudflare tunnel config clean-up + update
@@ -160,7 +162,6 @@ echo "  https://ds-sse.mrme.tech        -> MCP SSE Server (port 9001)"
 echo "  https://ssfx-api.mrme.tech      -> Telegram Webhook / Admin API (port 8000)"
 echo "  https://ctrader.mrme.tech       -> cTrader Unified Service (port 9300)"
 echo "  https://account-hub.mrme.tech   -> Account Hub WebSocket (port 9301)"
-echo "  https://admin.mrme.tech         -> Admin Panel (port 8100)"
 echo ""
 echo "Direct VM access:"
 echo "  ssh ${VM_USER}@${VM_IP}"

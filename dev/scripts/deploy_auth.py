@@ -57,6 +57,14 @@ REQUIRED_SECRETS = [
 DEFAULT_FUNCTION_IGNORE = "node_modules\n.tmp\n.env"
 DEFAULT_SITE_IGNORE = "node_modules\n.tmp\n.env\n.env.example\n.git"
 
+SITE_VARIABLES = {
+    "ssfx-hq": {
+        # Exposes the ssfx-server admin API key to the SPA build so it can
+        # call /api/* endpoints via the x-admin-key header.
+        "ADMIN_API_KEY": "{ADMIN_API_KEY}",
+    },
+}
+
 FUNCTION_VARIABLES = {
     "ctrader-auth": {
         "APPWRITE_ENDPOINT": "{APPWRITE_ENDPOINT}",
@@ -112,6 +120,8 @@ REDACT_KEYS = {
     "SESSION_HMAC_KEY",
     "INTERNAL_API_KEY",
     "RESEND_API_KEY",
+    "ADMIN_API_KEY",
+    "V2_ADMIN_KEY",
 }
 
 # Variables that should be stored as plain (non-secret) in Appwrite.
@@ -352,6 +362,66 @@ def upsert_function_variables(function_id: str, variables: dict[str, str]) -> No
             ])
 
 
+def list_site_variable_metadata(site_id: str) -> dict[str, dict]:
+    """Return a mapping variable-key -> metadata dict for a site."""
+    result = run_cli([
+        "appwrite", "sites", "list-variables",
+        "--site-id", site_id,
+        "--json",
+    ], capture=True)
+    data = json.loads(result.stdout)
+    variables = data.get("variables", [])
+    return {v["key"]: v for v in variables if "key" in v}
+
+
+def upsert_site_variables(site_id: str, variables: dict[str, str]) -> None:
+    """Create or update variables for a site, recreating when secret flag changes."""
+    existing_meta = list_site_variable_metadata(site_id)
+    existing = {k: v["$id"] for k, v in existing_meta.items()}
+    for key, value in variables.items():
+        safe_value = redact_value(key, value)
+        desired_secret = key not in PLAIN_KEYS
+        secret_flag = "true" if desired_secret else "false"
+
+        if key in existing:
+            current_secret = existing_meta[key].get("secret", True)
+            if current_secret != desired_secret:
+                log(f"  recreating site variable {key}={safe_value} (secret {current_secret} -> {desired_secret})")
+                run_cli([
+                    "appwrite", "sites", "delete-variable",
+                    "--site-id", site_id,
+                    "--variable-id", existing[key],
+                ])
+                run_cli([
+                    "appwrite", "sites", "create-variable",
+                    "--site-id", site_id,
+                    "--variable-id", uuid.uuid4().hex[:20],
+                    "--key", key,
+                    "--value", value,
+                    "--secret", secret_flag,
+                ])
+            else:
+                log(f"  updating site variable {key}={safe_value}")
+                run_cli([
+                    "appwrite", "sites", "update-variable",
+                    "--site-id", site_id,
+                    "--variable-id", existing[key],
+                    "--key", key,
+                    "--value", value,
+                    "--secret", secret_flag,
+                ])
+        else:
+            log(f"  creating site variable {key}={safe_value}")
+            run_cli([
+                "appwrite", "sites", "create-variable",
+                "--site-id", site_id,
+                "--variable-id", uuid.uuid4().hex[:20],
+                "--key", key,
+                "--value", value,
+                "--secret", secret_flag,
+            ])
+
+
 # ─── Deployment polling ─────────────────────────────────────────────────────
 
 def poll_function_status(function_id: str) -> tuple[str, str, str]:
@@ -461,6 +531,9 @@ def deploy_site(site: dict) -> None:
     code_dir = resolve_code_path(site)
 
     log(f"Deploying site {site_id}...")
+
+    if site_id in SITE_VARIABLES:
+        upsert_site_variables(site_id, render_variables(SITE_VARIABLES[site_id]))
 
     tarball = build_tarball(code_dir, ignore_text)
     try:

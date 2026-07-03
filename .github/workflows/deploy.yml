@@ -62,7 +62,9 @@ jobs:
         run: appwrite client --endpoint "$APPWRITE_ENDPOINT" --project-id "$APPWRITE_PROJECT_ID" --key "$APPWRITE_API_KEY"
       - name: Deploy site
         env:
+          # The SPA build reads V2_ADMIN_KEY or ADMIN_API_KEY (alias) to set v2AdminKey.
           V2_ADMIN_KEY: ${{ secrets.V2_ADMIN_KEY }}
+          ADMIN_API_KEY: ${{ secrets.V2_ADMIN_KEY }}
           DATA_SERVICE_API_KEY: ${{ secrets.DATA_SERVICE_API_KEY }}
           AGENT_HARNESS_BASE: ${{ secrets.AGENT_HARNESS_BASE }}
         run: |

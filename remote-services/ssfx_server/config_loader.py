@@ -121,7 +121,7 @@ def load_config(env_file: str | None = None) -> ServerConfig:
         agent_harness_base_url=_env("AGENT_HARNESS_URL", "http://127.0.0.1:9003"),
         agent_intent_enabled=_env("AGENT_INTENT_ENABLED", "true").lower() == "true",
         ctrader_broker_url=_env("CTRADER_BROKER_URL", "https://auth-ctrader.mrme0.store"),
-        admin_site_origin=_env("ADMIN_SITE_ORIGIN", "https://command.mrme.tech"),
+        admin_site_origin=_env("ADMIN_SITE_ORIGIN", "https://app.mrme.tech"),
         admin_api_key=_env("ADMIN_API_KEY", ""),
         signal_experience_enabled=_env("SIGNAL_EXPERIENCE_ENABLED", "true").lower() == "true",
         signal_experience_database_id=_env("SIGNAL_EXPERIENCE_DATABASE_ID", "market_data"),

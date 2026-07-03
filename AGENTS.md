@@ -494,11 +494,12 @@ Replaces `cf-auth-broker` (Cloudflare Worker) with Appwrite Functions + TablesDB
 | `ctrader-internal` | Server-to-server for Python backends (gated by `x-internal-key`) | `POST /internal/ctrader/refresh`, `GET /internal/grant/latest`, `POST /internal/grant/:grant_id/accounts` |
 | `ctrader-token-refresh-worker` | Scheduled cron (daily 03:00) + on-demand HTTP for rotating near-expiry tokens and sweeping stale ephemeral_tokens | `GET /` (HTTP trigger) |
 
-### Appwrite Site
+### Appwrite Sites
 
 | Site | Purpose |
 |------|---------|
 | `ctrader-auth-site` | Static SPA (plain HTML/JS) with hash routing: landing, onboarding, login, slave dashboard, master dashboard. Uses Appwrite Web SDK + Realtime. |
+| `ssfx-hq` | Consolidated command/dashboard SPA served at `https://app.mrme.tech`. Calls the SSFX v2 admin API, agent harness, and market data service. |
 
 ### Auth Flow
 
@@ -527,7 +528,7 @@ Deployment is fully automated via **GitHub Actions** on push to the `develop` br
 1. Developer pushes to `develop` branch
 2. GitHub Actions runs `deploy-tables` first, then `deploy-functions` and `deploy-site` in parallel
 3. `deploy-functions` calls `dev/scripts/deploy_auth.py --functions`, which creates each function deployment with `appwrite functions create-deployment`, upserts variables by variable ID, activates the deployment, and sets the worker cron schedule
-4. `deploy-site` calls `dev/scripts/deploy_auth.py --site`, which creates the site deployment with `appwrite sites create-deployment` and activates it
+4. `deploy-site` calls `dev/scripts/deploy_auth.py --site`, which upserts site build variables, creates the site deployment with `appwrite sites create-deployment`, and activates it
 5. `smoke-test` verifies all endpoints are healthy
 6. `cleanup` removes old deployments
 
@@ -552,6 +553,7 @@ Deployment is fully automated via **GitHub Actions** on push to the `develop` br
 | `TOKEN_ENCRYPTION_KEY` | AES-GCM-256 key for token encryption |
 | `SESSION_HMAC_KEY` | HMAC key for session state signing |
 | `INTERNAL_API_KEY` | Internal API key for ctrader-internal |
+| `V2_ADMIN_KEY` | Admin key for the `ssfx-hq` dashboard to call `ssfx-api` `/api/*` endpoints. Defaults to `ADMIN_API_KEY` from `.env` during `./dev.sh setup-gh-secrets`. |
 
 ### Manual Deployment (one-time setup)
 
@@ -566,7 +568,8 @@ Deployment is fully automated via **GitHub Actions** on push to the `develop` br
 ./init-scripts/ctrader-oauth.sh
 
 # 4. Register the ctrader-auth /callback domain in openapi.ctrader.com
-# 5. Update sites/ctrader-auth-site/config.js with deployed Function domains
+# 5. Update sites/ctrader-auth-site/config.js and sites/ssfx-hq/config.js with deployed Function domains
+#    (ssfx-hq reads V2_ADMIN_KEY / ADMIN_API_KEY at build time so the SPA can call /api/* endpoints)
 # 6. E2E test: SPA → start → consent → callback → grant stored + session
 ```
 
@@ -579,6 +582,12 @@ Variables are upserted by `dev/scripts/deploy_auth.py` from environment values (
 - `BCRYPT_SALT_ROUNDS` → `ctrader-pin-auth`
 - `REFRESH_BUFFER_HOURS` → `ctrader-token-refresh-worker`
 - `APPWRITE_PROJECT_ID`, `APPWRITE_API_KEY`, `APPWRITE_ENDPOINT`, `CTRADER_AUTH_DATABASE_ID` → all functions
+
+### Site Variables (secrets)
+
+Site build variables are upserted by `dev/scripts/deploy_auth.py` before each site deployment:
+
+- `ADMIN_API_KEY` → `ssfx-hq` (build-time; injected into `config.js` as `v2AdminKey` for `x-admin-key` authentication against `ssfx-api`)
 
 ### Python Backend Migration
 

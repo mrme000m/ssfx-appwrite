@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# Cloudflare tunnel ingress update for remote-services on Azure VM.
+# Cloudflare tunnel ingress update for remote-services on the AWS VM.
+# DEPRECATED: use `python3 remote-services/setup_vm.py` or `./dev.sh cf-tunnel-update`
+# instead. Kept as a fallback reference only.
+#
 # Fetches the current tunnel config, replaces with clean ingress rules for
 # the Docker-based deployment, and pushes the updated config back to Cloudflare.
 #
@@ -61,7 +64,6 @@ read -r -d '' NEW_INGRESS_JSON <<'EOF' || true
   { "hostname": "pplx-agent.mrme.tech", "service": "http://localhost:9004" },
   { "hostname": "ctrader.mrme.tech",    "service": "http://localhost:9300" },
   { "hostname": "account-hub.mrme.tech","service": "http://localhost:9301" },
-  { "hostname": "admin.mrme.tech",      "service": "http://ubuntu-server:8100" },
   { "service": "http_status:404" }
 ]
 EOF
@@ -90,7 +92,7 @@ echo "[cf-tunnel] Tunnel config updated successfully."
 echo "[cf-tunnel] Ensuring DNS CNAME records ..."
 TUNNEL_CNAME="${TUNNEL_ID}.cfargotunnel.com"
 
-for host in ssfx-api ds-control ds-sse dataservice agent pplx-agent ctrader account-hub admin; do
+for host in ssfx-api ds-control ds-sse dataservice agent pplx-agent ctrader account-hub; do
   RECORD="${host}.mrme.tech"
   
   # Check if record exists
@@ -132,5 +134,4 @@ echo "  agent.mrme.tech        -> http://localhost:9003   (AI agent harness)"
 echo "  pplx-agent.mrme.tech   -> http://localhost:9004   (PPLX research agent)"
 echo "  ctrader.mrme.tech      -> http://localhost:9300   (cTrader unified service)"
 echo "  account-hub.mrme.tech  -> http://localhost:9301   (Account hub WebSocket)"
-echo "  admin.mrme.tech        -> http://ubuntu-server:8100 (Admin panel)"
 echo "  catch-all              -> http_status:404"

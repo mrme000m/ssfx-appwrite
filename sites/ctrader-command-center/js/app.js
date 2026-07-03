@@ -50,7 +50,7 @@ function renderLoginGate() {
     <p style="color:var(--text-dim);text-align:center;max-width:360px;">
       This console is restricted to master operators. Sign in via the cTrader auth site, then return here.
     </p>
-    <a class="btn" href="https://app.mrme.tech/#/login?redirect=https://command.mrme.tech">Sign In</a>
+    <a class="btn" href="https://app.mrme.tech/#/login?redirect=https://app.mrme.tech">Sign In</a>
   `;
   stage.appendChild(gate);
 }

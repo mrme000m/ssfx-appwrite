@@ -14,7 +14,7 @@ This document captures the architecture, conventions, and operational details di
 | Appwrite organization | `685456084475475206c2` |
 | Primary domain | `mrme.tech` |
 | Cloudflare tunnel | `ssfx_azurue` (`d1e96e86-a44a-457a-a60c-e7d5d5d675bd`) |
-| Azure VM | `ubuntu-server` / `RG-UBUNTU-VM` / `westus2` / `172.171.109.137` |
+| AWS VM | `aws-ssfx` (current IP `18.207.246.5`, user `ec2-user`) — canonical deployer: `remote-services/setup_vm.py` |
 
 ---
 
@@ -74,8 +74,8 @@ Commands are discovered automatically; hyphens in command names map to underscor
 | Site | Public hostname | Purpose |
 |------|-----------------|---------|
 | `ctrader-auth-site` | `app.mrme.tech` | Slave onboarding, login, dashboards |
-| `ssfx-hq` | `hq.mrme.tech` | New HQ/dashboard site |
-| `ctrader-command-center` | `command.mrme.tech` | Admin/trading command center |
+| `ssfx-hq` | `app.mrme.tech` | Primary HQ/dashboard SPA (replaces `hq.mrme.tech` / `command.mrme.tech`) |
+| `ctrader-command-center` | `command.mrme.tech` | **Deprecated** — functionality merged into `ssfx-hq` at `app.mrme.tech` |
 
 ### Shared module
 
@@ -177,9 +177,10 @@ Two competing paths exist:
 
 | Script | Remote directory | Notes |
 |--------|------------------|-------|
-| `remote-services/deploy-azure.sh` | `~/ssfx-remote-services` | Idempotent sync + build + up |
-| `remote-services/deploy-master.sh` | `~/ssfx-remote-services` | Orchestrates cleanup + tunnel + deploy + verify |
-| `dev/scripts/remote-services-sync.py` | `~/ctrader-services` | Conflicting target directory |
+| `remote-services/setup_vm.py` | `~/ssfx-remote-services` | **Canonical** AWS VM provision + sync + build + deploy |
+| `remote-services/deploy-azure.sh` | `~/ssfx-remote-services` | **Deprecated** — kept for Azure compatibility only |
+| `remote-services/deploy-master.sh` | `~/ssfx-remote-services` | **Deprecated** — Azure-specific orchestrator |
+| `dev/scripts/remote-services-sync.py` | `~/ctrader-services` | **Deprecated** — stale target directory |
 
 The VM runs a single Docker container via `docker-compose.yml` exposing ports 8000, 9000, 9001, 9002, 9003, 9300, 9301.
 
@@ -193,12 +194,16 @@ Current intended public hostnames (from `setup-cf-tunnel.sh` / `deploy-master.sh
 |----------|------------|------|
 | `dataservice.mrme.tech` | localhost | 9002 |
 | `ds-sse.mrme.tech` | localhost | 9001 |
-| `ssfx-api.mrme.tech` | ubuntu-server | 8000 |
-| `ctrader.mrme.tech` | ubuntu-server | 9300 |
-| `account-hub.mrme.tech` | ubuntu-server | 9301 |
-| `admin.mrme.tech` | ubuntu-server | 8100 (nothing listens here) |
+| `ssfx-api.mrme.tech` | localhost | 8000 |
+| `ds-control.mrme.tech` | localhost | 9000 |
+| `ds-sse.mrme.tech` | localhost | 9001 |
+| `dataservice.mrme.tech` | localhost | 9002 |
+| `agent.mrme.tech` | localhost | 9003 |
+| `pplx-agent.mrme.tech` | localhost | 9004 |
+| `ctrader.mrme.tech` | localhost | 9300 |
+| `account-hub.mrme.tech` | localhost | 9301 |
 
-`dev/scripts/cf-tunnel-config.json` is stale: it maps `dataservice.mrme.tech` to port 9099 and includes `ssfx.mrme.tech` → 9300 instead of `ctrader.mrme.tech`.
+The canonical tunnel ingress source of truth is `remote-services/config/tunnel-ingress.json`, applied by `setup_vm.py` or `./dev.sh cf-tunnel-update`. Older `dev/scripts/cf-tunnel-config.json` and `remote-services/setup-cf-tunnel.sh` are deprecated.
 
 ---
 
@@ -286,7 +291,7 @@ Set via `./dev.sh setup-gh-secrets`:
 
 ## 10. Critical issues discovered during review
 
-1. `SITES_URL` points to `hq.mrme.tech` instead of `app.mrme.tech` in deployed function variables.
+1. `SITES_URL` now points to `app.mrme.tech` (historically pointed to `hq.mrme.tech`).
 2. Plaintext PIN reset token logged in `ctrader-pin-auth`.
 3. PIN reset flow does not send email.
 4. `trade_configs` table permissions allow any user to read/modify any row.
@@ -316,8 +321,7 @@ appwrite projects get --project-id 6a22a362002b9ae880bb
 # Check tunnel
 curl https://auth.mrme.tech/session
 curl https://app.mrme.tech/
-curl https://hq.mrme.tech/
 
-# Azure VM
-az vm show --name ubuntu-server --resource-group RG-UBUNTU-VM --output table
+# AWS VM (canonical deployer: remote-services/setup_vm.py)
+ssh aws-ssfx 'cd ~/ssfx-remote-services && docker compose ps'
 ```

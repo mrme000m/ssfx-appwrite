@@ -25,29 +25,34 @@ Cross-agent rules for OpenCode, Claude Code, and Qwen Code working on the slwp p
   - `dev.sh logs` — tail relevant logs
   - `dev.sh test` — run tests
   - `dev.sh lint` — run linting / type checking
-  - `dev.sh deploy` — deploy to the Azure VM
-  - `dev.sh deploy-remote <target>` — deploy to a specific remote target (default target is the Azure VM)
-  - `dev.sh deploy-status` — show deployment status (Azure VM health + service status)
+  - `dev.sh deploy` — deploy to the primary remote environment (AWS VM via `setup_vm.py`)
+  - `dev.sh deploy-remote <target>` — deploy to a specific remote target (default is the AWS VM `aws-ssfx`)
+  - `dev.sh deploy-status` — show deployment status (remote VM health + service status)
   - `dev.sh init` — run all third-party service init scripts
 - Do not run ad-hoc commands for dev operations; add them to `dev/scripts/` and expose them through `dev.sh`.
 - Scripts must be idempotent, print clear status, and exit non-zero on failure.
 
-### Remote Deployment Target: Azure VM
+### Remote Deployment Target: AWS VM
 
-- Remote deployments target the running Azure VM (`ubuntu-server` in resource group `RG-UBUNTU-VM`).
-- Use the Azure CLI (`az`) to discover the VM and its current public IP.
-- Do not hardcode the VM IP in deployment scripts; resolve it dynamically with `az vm list-ip-addresses`.
-- The deployment scripts use SSH to connect to the VM as user `m`.
-- Required tools: `az` (Azure CLI), `ssh`, and an SSH key configured for the `m` user on the VM.
+- Remote deployments target the running AWS VM (`aws-ssfx` in `~/.ssh/config`; current IP `18.207.246.5`).
+- The canonical deployment script is `remote-services/setup_vm.py`.
+- VM target is configured in `remote-services/config/vm.env` (usually only `SSH_HOST=aws-ssfx`).
+- Use `python3 remote-services/setup_vm.py` for fresh-VM setup and `SKIP_VM_SETUP=1 SKIP_TUNNEL=1 python3 remote-services/setup_vm.py` for code-only sync/rebuild.
+- Required tools: `ssh`, `rsync`, and an SSH key configured for the `ec2-user` user on the VM.
 
 ### Public Access: Cloudflare Tunnel on `mrme.tech`
 
-- All public access to services on the Azure VM must use the Cloudflare Tunnel `ssfx_azurue` for the `mrme.tech` domain on account `misterme00@icloud.com`.
-- Do not expose services directly via the Azure VM public IP.
+- All public access to services on the AWS VM must use the Cloudflare Tunnel `ssfx_azurue` for the `mrme.tech` domain on account `misterme00@icloud.com`.
+- Do not expose services directly via the AWS VM public IP.
 - Current public hostnames:
-  - `dataservice.mrme.tech` → `http://localhost:9099`
+  - `ssfx-api.mrme.tech` → `http://localhost:8000`
+  - `ds-control.mrme.tech` → `http://localhost:9000`
   - `ds-sse.mrme.tech` → `http://localhost:9001`
-  - `admin.mrme.tech` → `http://ubuntu-server:8100`
+  - `dataservice.mrme.tech` → `http://localhost:9002`
+  - `agent.mrme.tech` → `http://localhost:9003`
+  - `pplx-agent.mrme.tech` → `http://localhost:9004`
+  - `ctrader.mrme.tech` → `http://localhost:9300`
+  - `account-hub.mrme.tech` → `http://localhost:9301`
 - To add a new public service:
   1. Add a tunnel ingress rule mapping the subdomain to the local service.
   2. Add a proxied CNAME record in the `mrme.tech` zone pointing to `<tunnel-id>.cfargotunnel.com`.

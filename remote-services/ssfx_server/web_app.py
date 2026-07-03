@@ -37,6 +37,8 @@ class AppState:
     def __init__(self, config: ServerConfig):
         self.config = config
         self.trading_enabled = False
+        # Account state is always read from Appwrite, even when trading is disabled.
+        self.account_store = AppwriteAccountStore()
         # Try MongoDB for signal history; fall back to no-op if unavailable
         try:
             self.signal_store = MongoSignalStore(config.mongo_uri, config.mongo_database)
@@ -79,7 +81,6 @@ class AppState:
             self.trading_enabled = False
             return
 
-        self.account_store = AppwriteAccountStore()
         source = "Appwrite"
         accounts = self.account_store.list_accounts()
         if not accounts:
@@ -169,7 +170,6 @@ _CORS_ORIGINS = [
     origin.strip()
     for origin in (
         f"{load_config().admin_site_origin},"
-        "https://app.mrme.tech,"
         "http://localhost:8001,http://127.0.0.1:8001,"
         "http://localhost:3000,http://127.0.0.1:3000,"
         "http://localhost:5000,http://127.0.0.1:5000"

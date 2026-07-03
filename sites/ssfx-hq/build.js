@@ -24,7 +24,7 @@ const defaults = {
 // Map of config keys to additional environment variable names to try
 const envKeyAliases = {
   dataserviceApiKey: ['DATA_SERVICE_API_KEY', 'DATASERVICE_API_KEY'],
-  v2AdminKey: ['V2_ADMIN_KEY', 'V2ADMIN_KEY'],
+  v2AdminKey: ['V2_ADMIN_KEY', 'ADMIN_API_KEY', 'V2ADMIN_KEY'],
   agentHarnessBase: ['AGENT_HARNESS_BASE'],
 };
 
