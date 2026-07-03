@@ -93,6 +93,8 @@ window.Auth = (function () {
     window.appState.accounts = [];
     window.appState.fleetAccounts = [];
     window.appState.selectedAccountId = '';
+    window.appState.initialized = false;
+    window.commandBus.dispatchEvent(new CustomEvent('auth-changed'));
   }
 
   async function selectAccount(accountId) {

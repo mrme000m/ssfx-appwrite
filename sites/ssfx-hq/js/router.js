@@ -92,7 +92,8 @@ window.Router = (function () {
     if (logoutBtn) {
       logoutBtn.addEventListener('click', async () => {
         await window.Auth.logout();
-        window.Router.navigate('/login');
+        renderShell();
+        navigate('/login');
       });
     }
 
