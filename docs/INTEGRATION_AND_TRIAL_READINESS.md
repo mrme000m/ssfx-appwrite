@@ -30,7 +30,7 @@ The system is **architecturally sound and substantially implemented**. All criti
 | `AUTHENTICATION_ARCHITECTURE.md` security checklist uses `[ ]` (unchecked) | Cosmetic, but implies unverified | Verify each item and mark `[x]` |
 | `ARCHITECTURE.md` §2.5.1 lists `ssfx_presets` / `ssfx_risk_state` tables but no schema file exists in `appwrite/` | Schema drift risk | Add table definitions to `appwrite/functions.json` or a schema file |
 | `appwrite.config.json` reports `functions: 0, sites: 0, databases: 0` | CLI may not deploy correctly | Reconcile with `appwrite/functions.json` (which has 4 functions) |
-| Deprecated sites (`ctrader-auth-site`, `ctrader-command-center`) still in working tree | Confusion, deploy noise | Delete per NAMING_AND_CONSOLIDATION_OVERHAUL.md Phase 0 |
+| Sites consolidated: `ssfx-hq` is the only deployed site still in working tree | Confusion, deploy noise | Delete per NAMING_AND_CONSOLIDATION_OVERHAUL.md Phase 0 |
 
 ---
 
@@ -211,7 +211,7 @@ Phase C: Copy trading trial
 | Accidental live account trade | Use only demo cTrader accounts; verify `isLive: false` in `accounts` table |
 | Signal spam | Start with `copy_enabled: false` on all slaves; enable one at a time |
 | Agent LLM costs | Keep `AGENT_*_ENABLED=false` initially; enable only `AGENT_INTENT_ENABLED` first |
-| Token refresh failure | Monitor `ctrader-token-refresh-worker` logs; set up alerting |
+| Token refresh failure | Monitor `token-refresh` logs; set up alerting |
 
 ---
 
@@ -219,10 +219,10 @@ Phase C: Copy trading trial
 
 | Documented Component | Code Location | Lines | Status |
 |---------------------|--------------|-------|--------|
-| ctrader-auth function | `functions/ctrader-auth/src/main.js` | 791 | ✅ Implemented |
-| ctrader-pin-auth function | `functions/ctrader-pin-auth/src/main.js` | 572 | ✅ Implemented |
-| ctrader-internal function | `functions/ctrader-internal/src/main.js` | 428 | ✅ Implemented |
-| token-refresh-worker | `functions/ctrader-token-refresh-worker/src/main.js` | 204 | ✅ Implemented |
+| auth-oauth function | `functions/auth-oauth/src/main.js` | 791 | ✅ Implemented |
+| auth-pin function | `functions/auth-pin/src/main.js` | 572 | ✅ Implemented |
+| api-internal function | `functions/api-internal/src/main.js` | 428 | ✅ Implemented |
+| token-refresh-worker | `functions/token-refresh/src/main.js` | 204 | ✅ Implemented |
 | Shared crypto/auth utils | `functions/_shared/index.js` | 363 | ✅ Implemented |
 | ssfx-hq SPA | `sites/ssfx-hq/` | — | ✅ Implemented |
 | cTrader Open API client | `remote-services/ctrader_client/` | ~3400 | ✅ Implemented |

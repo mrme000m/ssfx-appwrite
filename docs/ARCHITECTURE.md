@@ -143,7 +143,7 @@ Python FastAPI services that make trading decisions.
 
 ### 2.4. Operations Plane
 
-Containerized Python services on the AWS VM. They read current configuration from Appwrite and use short-lived access tokens from `ctrader-internal`.
+Containerized Python services on the AWS VM. They read current configuration from Appwrite and use short-lived access tokens from `api-internal`.
 
 | Service | Port | Responsibility |
 |---|---|---|
@@ -208,7 +208,7 @@ User → ssfx-hq → /auth/ctrader/start  → state token in ephemeral_tokens
 Telegram channel → Telegram Bot Webhook → ssfx_server /webhook
 → SignalIntentAgent → parser → SignalExperienceScorer
 → per-slave AccountSlave → executor
-→ ctrader-internal /refresh (if needed) → ctrader-open-api
+→ api-internal /refresh (if needed) → ctrader-open-api
 → position → account_events / ctrader_trading_events
 ```
 

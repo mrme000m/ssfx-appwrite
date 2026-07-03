@@ -87,12 +87,6 @@ critical and medium-priority issues before live autonomous trading can be enable
 - Add `RiskMonitor` unit tests for daily loss, drawdown, panic, and reset behavior.
 - Ensure new kill-switch trips produce WARN/ERROR logs with `account_name` and reason.
 
-## Phased rollout
-
-1. **Week 1:** Items 1–2 (security + kill-switches). Deploy and verify with `./dev.sh deploy-auth` + `./dev.sh deploy`.
-2. **Week 2:** Item 3 (init scripts) and item 4 (schema gaps). Run `./dev.sh init` + `./dev.sh deploy-auth`.
-3. **Week 3:** Items 5–6 (dev.sh + tests). Verify CI still passes and all endpoints are healthy.
-
 ## Completion Summary (2026-07-02)
 
 All Phase 2 hardening tasks have been implemented and verified:
@@ -105,7 +99,43 @@ All Phase 2 hardening tasks have been implemented and verified:
 - **Tunnel:** Canonical hostnames configured (ssfx-api, ds-control, ds-sse, dataservice, agent, ctrader, account-hub, admin)
 - **Tests:** 23 tests passing, lint clean
 
-**Next:** Run `./dev.sh deploy-auth` to deploy schema and `./dev.sh deploy-remote` to deploy to Azure VM.
+---
+
+## Post-Phase-2: Consolidation (2026-07-03)
+
+After Phase 2, a comprehensive consolidation pass was executed across the entire codebase:
+
+### Dead code removal
+- Deleted `sites/ctrader-auth-site/` and `sites/ctrader-command-center/` (superseded by `ssfx-hq`)
+- Deleted `ctrader/market/` (5 files, redundant proxy of `market_data_service/`)
+- Deleted `ssfx_trader/cli.py`, `ssfx_trader/stores/mongo_store.py`
+- Deleted `ssfx_server/cli.py` (replaced by standalone `dev/scripts/ops/set_telegram_webhook.py`)
+- Deleted `ctrader/trading/user_config_store.py` (merged into `AppwriteAccountStore`)
+- Deleted deprecated Azure scripts: `deploy-azure.sh`, `deploy-master.sh`, `setup-cf-tunnel.sh`, `cleanup-vm.sh`
+
+### Naming overhaul
+- `ctrader-auth` → `auth-oauth`
+- `ctrader-pin-auth` → `auth-pin`
+- `ctrader-internal` → `api-internal`
+- `ctrader-token-refresh-worker` → `token-refresh`
+- `follower` → `slave` throughout codebase
+- `AccountFollower` → `AccountSlave`
+- `to_mongo`/`from_mongo` → `to_doc`/`from_doc`
+
+### Architecture improvements
+- Created `remote-services/shared/appwrite_client.py` (single factory used by 8+ files)
+- Merged `UserConfigStore` into `AppwriteAccountStore`
+- Eliminated circular import (`ssfx_trader` → `ssfx_server`)
+- Organized `dev/scripts/` into 6 subdirectories (`cleanup/`, `deploy/`, `init/`, `ops/`, `testing/`, `tunnel/`)
+- Moved `init-scripts/` → `dev/scripts/init/`
+
+### Doc updates
+- Rewrote `AUTHENTICATION_ARCHITECTURE.md` with current names
+- Updated `INTEGRATION_AND_TRIAL_READINESS.md` for current state
+- Updated `project-devstack-deployment-learnings.md` path references
+- Created `REMOTE_SERVICES_AUDIT.md`
+
+See `docs/CONSOLIDATION_ANALYSIS.md` for the full analysis.
 
 ## Verification checklist
 

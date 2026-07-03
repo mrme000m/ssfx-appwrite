@@ -17,7 +17,7 @@ This document describes the Appwrite-native cTrader runtime architecture in `rem
 
 ## High-level goals
 
-1. **Authenticate through Appwrite Functions** rather than holding decrypted cTrader tokens in Python. Tokens are AES-GCM-256 encrypted in Appwrite TablesDB; Python calls `ctrader-internal` to refresh short-lived access tokens.
+1. **Authenticate through Appwrite Functions** rather than holding decrypted cTrader tokens in Python. Tokens are AES-GCM-256 encrypted in Appwrite TablesDB; Python calls `api-internal` to refresh short-lived access tokens.
 2. **One cTrader transport per environment** (live + demo) shared across all slave accounts, following cTrader Open API best practice.
 3. **Discover accounts dynamically** from Appwrite `slave_accounts` and `accounts` tables.
 4. **Persist real-time account state/events** (execution, trader, margin, positions, orders) into Appwrite TablesDB (`account_events`).
@@ -139,8 +139,8 @@ await hub.start()
 | Variable | Purpose |
 |----------|---------|
 | `CTRADER_USE_APPWRITE_AUTH` | Enable Appwrite-native auth for the data service (`true`/`false`) |
-| `CTRADER_AUTH_BROKER_URL` | `ctrader-internal` Appwrite Function domain |
-| `INTERNAL_API_KEY` | `x-internal-key` for `ctrader-internal` |
+| `CTRADER_AUTH_BROKER_URL` | `api-internal` Appwrite Function domain |
+| `INTERNAL_API_KEY` | `x-internal-key` for `api-internal` |
 | `CTRADER_AUTH_GRANT_ID` | Grant ID for single-account broker-backed access |
 | `CTRADER_CLIENT_ID` | cTrader OAuth client ID |
 | `CTRADER_CLIENT_SECRET` | cTrader OAuth client secret |

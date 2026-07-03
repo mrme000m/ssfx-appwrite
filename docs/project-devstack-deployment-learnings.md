@@ -43,8 +43,8 @@ Commands are discovered automatically; hyphens in command names map to underscor
 | `logs` | `dev/scripts/ops/logs.sh` | Stub |
 | `test` | `dev/scripts/test.sh` | Stub |
 | `lint` | `dev/scripts/testing/lint.sh` | Implemented |
-| `integration-test` | `dev/scripts/integration_test.py` | Implemented |
-| `deploy` | `dev/scripts/deploy/deploy.sh` | Implemented (delegates to `remote-services/deploy-azure.sh`) |
+| `integration-test` | `dev/scripts/testing/integration_test.py` | Implemented |
+| `deploy` | `dev/scripts/deploy/deploy.sh` | Implemented (delegates to `remote-services/setup_vm.py`) |
 | `deploy-remote <target>` | `dev/scripts/deploy/deploy-remote.sh` | Stub for Azure |
 | `deploy-status` | `dev/scripts/deploy/deploy-status.sh` | Implemented |
 | `init` | `dev/scripts/init.sh` | Implemented |
@@ -64,18 +64,18 @@ Commands are discovered automatically; hyphens in command names map to underscor
 
 | Function | Runtime | Entry | Purpose |
 |----------|---------|-------|---------|
-| `ctrader-auth` | node-22 | `src/main.js` | OAuth start/callback, session, logout, admin slaves |
-| `ctrader-pin-auth` | node-22 | `src/main.js` | PIN login, set credentials, PIN reset |
-| `ctrader-internal` | node-22 | `src/main.js` | Server-to-server token refresh for Python backends |
-| `ctrader-token-refresh-worker` | node-22 | `src/main.js` | Scheduled cron + HTTP trigger for token rotation |
+| `auth-oauth` | node-22 | `src/main.js` | OAuth start/callback, session, logout, admin slaves |
+| `auth-pin` | node-22 | `src/main.js` | PIN login, set credentials, PIN reset |
+| `api-internal` | node-22 | `src/main.js` | Server-to-server token refresh for Python backends |
+| `token-refresh` | node-22 | `src/main.js` | Scheduled cron + HTTP trigger for token rotation |
 
 ### Sites
 
 | Site | Public hostname | Purpose |
 |------|-----------------|---------|
-| `ctrader-auth-site` | `app.mrme.tech` | Slave onboarding, login, dashboards |
+| `auth-oauth-site` | `app.mrme.tech` | Slave onboarding, login, dashboards |
 | `ssfx-hq` | `app.mrme.tech` | Primary HQ/dashboard SPA (replaces `hq.mrme.tech` / `command.mrme.tech`) |
-| `ctrader-command-center` | `command.mrme.tech` | **Deprecated** — functionality merged into `ssfx-hq` at `app.mrme.tech` |
+| `ssfx-hq` | `command.mrme.tech` | **Deprecated** — functionality merged into `ssfx-hq` at `app.mrme.tech` |
 
 ### Shared module
 
@@ -93,12 +93,12 @@ Commands are discovered automatically; hyphens in command names map to underscor
 ### Auth flow
 
 1. New slave visits `https://app.mrme.tech` → clicks Connect.
-2. `ctrader-auth` `/auth/ctrader/start` stores OAuth state in `ephemeral_tokens`, redirects to cTrader consent.
+2. `auth-oauth` `/auth/ctrader/start` stores OAuth state in `ephemeral_tokens`, redirects to cTrader consent.
 3. cTrader redirects to `https://auth.mrme.tech/callback`.
 4. Function exchanges code, creates/updates Appwrite user, creates `slave_accounts` row with encrypted tokens, issues session cookie, redirects to SPA.
-5. Slave sets username + PIN via `ctrader-pin-auth` `/set-credentials`.
-6. Future login via `ctrader-pin-auth` `/pin-login`.
-7. Python backends call `ctrader-internal` `/internal/ctrader/refresh` with `x-internal-key` to get short-lived access tokens.
+5. Slave sets username + PIN via `auth-pin` `/set-credentials`.
+6. Future login via `auth-pin` `/pin-login`.
+7. Python backends call `api-internal` `/internal/ctrader/refresh` with `x-internal-key` to get short-lived access tokens.
 
 ---
 
@@ -178,8 +178,8 @@ Two competing paths exist:
 | Script | Remote directory | Notes |
 |--------|------------------|-------|
 | `remote-services/setup_vm.py` | `~/ssfx-remote-services` | **Canonical** AWS VM provision + sync + build + deploy |
-| `remote-services/deploy-azure.sh` | `~/ssfx-remote-services` | **Deprecated** — kept for Azure compatibility only |
-| `remote-services/deploy-master.sh` | `~/ssfx-remote-services` | **Deprecated** — Azure-specific orchestrator |
+| `remote-services/setup-vm.sh` | `~/ssfx-remote-services` | Thin shell wrapper around `setup_vm.py` |
+
 | `dev/scripts/ops/remote-services-sync.py` | `~/ctrader-services` | **Deprecated** — stale target directory |
 
 The VM runs a single Docker container via `docker-compose.yml` exposing ports 8000, 9000, 9001, 9002, 9003, 9300, 9301.
@@ -188,7 +188,7 @@ Health check is `nc -z` on ports 9001, 9002, 9003, 9301 only.
 
 ### Cloudflare tunnel
 
-Current intended public hostnames (from `setup-cf-tunnel.sh` / `deploy-master.sh`):
+Current intended public hostnames (from `remote-services/config/tunnel-ingress.json`):
 
 | Hostname | VM service | Port |
 |----------|------------|------|
@@ -232,7 +232,7 @@ All services run in a single Docker container under `supervisord`.
 
 - **One transport per environment** (live + demo).
 - Application auth once per transport; account auth for each managed account.
-- Python calls `ctrader-internal` to refresh short-lived access tokens; refresh tokens never leave the Appwrite Function.
+- Python calls `api-internal` to refresh short-lived access tokens; refresh tokens never leave the Appwrite Function.
 - Token refresh uses per-grant `asyncio.Lock` to prevent thundering herds.
 
 ### Signal → trade pipeline
@@ -292,7 +292,7 @@ Set via `./dev.sh setup-gh-secrets`:
 ## 10. Critical issues discovered during review
 
 1. `SITES_URL` now points to `app.mrme.tech` (historically pointed to `hq.mrme.tech`).
-2. Plaintext PIN reset token logged in `ctrader-pin-auth`.
+2. Plaintext PIN reset token logged in `auth-pin`.
 3. PIN reset flow does not send email.
 4. `trade_configs` table permissions allow any user to read/modify any row.
 5. Function `.env` files with secrets exist in working tree.
