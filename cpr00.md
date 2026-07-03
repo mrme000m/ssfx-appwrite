@@ -72,10 +72,11 @@ Then register the webhook:
 
 ```bash
 # From inside the container / repo root
-python -m ssfx_server.cli set-webhook
+./dev.sh set-telegram-webhook
 ```
 
-This calls `Bot.set_webhook(url=..., allowed_updates=["channel_post"])` (`ssfx_server/cli.py`).
+This calls `Bot.set_webhook(url=..., allowed_updates=["channel_post"])`
+(`dev/scripts/ops/set_telegram_webhook.py`).
 
 Verify with:
 

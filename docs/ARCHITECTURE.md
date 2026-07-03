@@ -63,8 +63,6 @@
 - Use the **Appwrite Web SDK** for session cookies, account status, and Realtime subscriptions.
 - Subscribe to **Realtime** for account events, execution updates, and signal lifecycle changes instead of polling.
 
-**Cleanup note:** `sites/ctrader-auth-site` and `sites/ctrader-command-center` are deprecated; `ssfx-hq` is the only deployed site. Remove them from the working tree once references in `AGENTS.md` and scripts are migrated.
-
 ### 2.2. Identity & Access Plane
 
 This plane is implemented entirely with Appwrite primitives: Functions, Auth, and TablesDB.

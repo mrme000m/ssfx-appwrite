@@ -128,7 +128,7 @@ The proposed renames are not cosmetic; they are prerequisites for using Appwrite
 - [x] Consolidate `ARCHITECTURE.md` and `AUTHENTICATION_ARCHITECTURE.md`.
 - [x] Publish `NAMING_AND_CONSOLIDATION_OVERHAUL.md` as decision backlog.
 - [ ] Update any internal wiki/Notion links to point to `ARCHITECTURE.md`.
-- [ ] Delete deprecated `sites/ctrader-auth-site` and `sites/ctrader-command-center` after confirming no deployment references remain.
+- [x] Delete deprecated `sites/ctrader-auth-site` and `sites/ctrader-command-center`.
 
 ### Phase 1 — Function and domain consolidation (✅ COMPLETED)
 

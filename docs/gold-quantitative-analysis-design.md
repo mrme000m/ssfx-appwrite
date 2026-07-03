@@ -387,7 +387,7 @@ async def score_with_market_context(signal: TradeSignal) -> tuple[float, dict]:
 
 ### 7.2 Context Engine
 
-Extend `ctrader/market/context_engine.py` to include gold quant context in agent prompts:
+Extend `market_data_service/gold_quant_engine/context_builder.py` to include gold quant context in agent prompts:
 
 ```python
 def build_prompt(self, symbol: str, ...):
