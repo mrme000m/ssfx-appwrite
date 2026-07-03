@@ -19,6 +19,7 @@ const {
   refreshCtraderToken,
   corsHeaders,
   handleOptions,
+  rowData,
   Query,
 } = require('./_shared');
 
@@ -236,6 +237,49 @@ async function upsertAccountRow(db, rowId, data) {
   }
 }
 
+function normalizeAccount(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const idRaw = raw.ctidTraderAccountId !== undefined ? raw.ctidTraderAccountId : raw.accountId;
+  const id = Number(idRaw);
+  if (!Number.isInteger(id) || id <= 0) return null;
+
+  const moneyDigits = typeof raw.moneyDigits === 'number' ? raw.moneyDigits : 0;
+  const rawBalance = typeof raw.balance === 'number' ? raw.balance : 0;
+  const divisor = moneyDigits > 0 ? 10 ** moneyDigits : 100;
+
+  const leverageInCentsRaw = raw.leverageInCents !== undefined ? raw.leverageInCents : raw.leverage;
+  const leverageInCents = typeof leverageInCentsRaw === 'number'
+    ? leverageInCentsRaw
+    : (typeof leverageInCentsRaw === 'string' ? parseInt(leverageInCentsRaw, 10) || 0 : 0);
+  // If we only got a plain leverage multiplier (e.g. 200), convert to cents (20000).
+  const normalizedLeverageInCents = leverageInCents < 1000 ? leverageInCents * 100 : leverageInCents;
+
+  const ts = (v) => {
+    if (!v && v !== 0) return null;
+    const n = Number(v);
+    if (Number.isNaN(n)) return null;
+    return new Date(n).toISOString();
+  };
+
+  return {
+    grant_id: raw.grant_id,
+    ctidTraderAccountId: id,
+    isLive: raw.isLive === true || raw.isLive === 'true' || raw.live === true || raw.live === 'true',
+    traderLogin: String(raw.traderLogin || raw.accountNumber || ''),
+    brokerTitleShort: String(raw.brokerTitleShort || raw.brokerTitle || ''),
+    brokerName: String(raw.brokerName || ''),
+    lastClosingDealTimestamp: ts(raw.lastClosingDealTimestamp),
+    lastBalanceUpdateTimestamp: ts(raw.lastBalanceUpdateTimestamp),
+    balance: rawBalance / divisor,
+    moneyDigits,
+    accountType: String(raw.accountType || raw.traderAccountType || ''),
+    depositAssetId: String(raw.depositAssetId || raw.depositCurrency || ''),
+    leverageInCents: normalizedLeverageInCents,
+    registrationTimestamp: ts(raw.registrationTimestamp || raw.traderRegistrationTimestamp),
+    selected: raw.selected === true || raw.selected === 'true',
+  };
+}
+
 async function handleGrantAccounts(req, res, log, error) {
   const parts = req.path.split('/');
   const grantId = parts[3];
@@ -255,10 +299,11 @@ async function handleGrantAccounts(req, res, log, error) {
   if (slaveList.rows.length === 0) {
     return res.json({ error: 'Grant not found' }, 404, corsHeaders(req.headers['origin'] || ''));
   }
-  const slave = slaveList.rows[0];
+  const slave = rowData(slaveList.rows[0]) || slaveList.rows[0];
 
-  // Rich per-account payload from ctrader-open-api
-  const richAccounts = Array.isArray(body.accounts) ? body.accounts : [];
+  // Rich per-account payload from ctrader-open-api or REST snapshot.
+  // Accept either { accounts: [...] } or { data: [...] }.
+  const richAccounts = Array.isArray(body.accounts) ? body.accounts : (Array.isArray(body.data) ? body.data : []);
   // Legacy flat-array fallback
   const legacyIds = Array.isArray(body.accountIds) ? body.accountIds : [];
   const selectedAccountId = String(body.selectedAccountId || '');
@@ -268,30 +313,12 @@ async function handleGrantAccounts(req, res, log, error) {
 
   if (richAccounts.length > 0) {
     for (const acc of richAccounts) {
-      const id = String(acc.ctidTraderAccountId || '');
-      if (!id) continue;
+      const row = normalizeAccount({ ...acc, grant_id: grantId });
+      if (!row) continue;
+      const id = row.ctidTraderAccountId;
       accountIds.push(id);
       const rowId = accountRowId(grantId, id);
-      const moneyDigits = typeof acc.moneyDigits === 'number' ? acc.moneyDigits : 0;
-      const rawBalance = typeof acc.balance === 'number' ? acc.balance : 0;
-      const divisor = moneyDigits > 0 ? 10 ** moneyDigits : 100;
-      const row = {
-        grant_id: grantId,
-        ctidTraderAccountId: id,
-        isLive: acc.isLive === true || acc.isLive === 'true',
-        traderLogin: acc.traderLogin ? String(acc.traderLogin) : '',
-        brokerTitleShort: acc.brokerTitleShort ? String(acc.brokerTitleShort) : '',
-        brokerName: acc.brokerName ? String(acc.brokerName) : '',
-        lastClosingDealTimestamp: acc.lastClosingDealTimestamp ? new Date(Number(acc.lastClosingDealTimestamp)).toISOString() : null,
-        lastBalanceUpdateTimestamp: acc.lastBalanceUpdateTimestamp ? new Date(Number(acc.lastBalanceUpdateTimestamp)).toISOString() : null,
-        balance: rawBalance / divisor,
-        moneyDigits: moneyDigits,
-        accountType: acc.accountType ? String(acc.accountType) : '',
-        depositAssetId: acc.depositAssetId ? String(acc.depositAssetId) : '',
-        leverageInCents: typeof acc.leverageInCents === 'number' ? acc.leverageInCents : 0,
-        registrationTimestamp: acc.registrationTimestamp ? new Date(Number(acc.registrationTimestamp)).toISOString() : null,
-        selected: (selectedAccountId && selectedAccountId === id) || acc.selected === true || acc.selected === 'true',
-      };
+      row.selected = (selectedAccountId && selectedAccountId === id) || row.selected;
       accountRows.push(row);
       try {
         await upsertAccountRow(db, rowId, row);
@@ -325,13 +352,15 @@ async function handleGrantAccounts(req, res, log, error) {
       tableId: 'accounts',
       queries: [Query.equal('grant_id', grantId)],
     });
-    for (const acc of existingAccounts.rows || []) {
+    for (const row of existingAccounts.rows || []) {
+      const acc = rowData(row) || row;
       const isSelected = String(acc.ctidTraderAccountId) === selectedAccountId;
-      if (acc.selected !== isSelected) {
+      const rowId = row.$id || acc.$id;
+      if (acc.selected !== isSelected && rowId) {
         await db.updateRow({
           databaseId: DB_ID,
           tableId: 'accounts',
-          rowId: acc.$id,
+          rowId,
           data: { selected: isSelected },
         });
       }
@@ -374,22 +403,25 @@ async function handleGetAccounts(req, res, log, error) {
     queries: [Query.equal('grant_id', grantId)],
   });
 
-  const accounts = (list.rows || []).map((acc) => ({
-    ctidTraderAccountId: acc.ctidTraderAccountId,
-    isLive: acc.isLive,
-    traderLogin: acc.traderLogin,
-    brokerTitleShort: acc.brokerTitleShort,
-    brokerName: acc.brokerName,
-    lastClosingDealTimestamp: acc.lastClosingDealTimestamp,
-    lastBalanceUpdateTimestamp: acc.lastBalanceUpdateTimestamp,
-    balance: acc.balance,
-    moneyDigits: acc.moneyDigits,
-    accountType: acc.accountType,
-    depositAssetId: acc.depositAssetId,
-    leverageInCents: acc.leverageInCents,
-    registrationTimestamp: acc.registrationTimestamp,
-    selected: acc.selected,
-  }));
+  const accounts = (list.rows || []).map((row) => {
+    const acc = rowData(row) || row;
+    return {
+      ctidTraderAccountId: acc.ctidTraderAccountId,
+      isLive: acc.isLive,
+      traderLogin: acc.traderLogin,
+      brokerTitleShort: acc.brokerTitleShort,
+      brokerName: acc.brokerName,
+      lastClosingDealTimestamp: acc.lastClosingDealTimestamp,
+      lastBalanceUpdateTimestamp: acc.lastBalanceUpdateTimestamp,
+      balance: acc.balance,
+      moneyDigits: acc.moneyDigits,
+      accountType: acc.accountType,
+      depositAssetId: acc.depositAssetId,
+      leverageInCents: acc.leverageInCents,
+      registrationTimestamp: acc.registrationTimestamp,
+      selected: acc.selected,
+    };
+  });
 
   return res.json({ success: true, grant_id: grantId, accounts }, 200, corsHeaders(req.headers['origin'] || ''));
 }

@@ -264,10 +264,10 @@
         </div>`;
     }
     return `<div class="account-cards">${accounts.map(acc => {
-      const id = String(acc.ctid_trader_account_id || acc.ctidTraderAccountId || '');
-      const login = String(acc.trader_login || acc.traderLogin || '');
-      const broker = String(acc.broker_name || acc.brokerName || acc.broker_title_short || acc.brokerTitleShort || 'Unknown Broker');
-      const isLive = acc.is_live === true || acc.isLive === true;
+      const id = String(acc.ctid_trader_account_id || acc.ctidTraderAccountId || acc.accountId || '');
+      const login = String(acc.trader_login || acc.traderLogin || acc.accountNumber || '');
+      const broker = String(acc.broker_name || acc.brokerName || acc.broker_title_short || acc.brokerTitleShort || acc.brokerTitle || 'Unknown Broker');
+      const isLive = acc.is_live === true || acc.isLive === true || acc.live === true;
       const selected = acc.selected === true;
       const balance = typeof acc.balance === 'number' ? acc.balance : null;
       const accountType = acc.account_type || acc.accountType || '';

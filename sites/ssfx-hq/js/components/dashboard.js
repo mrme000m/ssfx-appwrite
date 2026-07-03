@@ -97,15 +97,17 @@ window.DashboardComponent = (function () {
     }
 
     const cards = accounts.map((acc) => {
-      const id = String(acc.ctid_trader_account_id || acc.ctidTraderAccountId || '');
-      const login = String(acc.trader_login || acc.traderLogin || '');
-      const broker = String(acc.broker_title_short || acc.brokerTitleShort || acc.broker_name || acc.brokerName || 'Unknown Broker');
-      const isLive = acc.is_live === true || acc.isLive === true;
+      // Support both normalized (snake/camel) and raw cTrader REST field names.
+      const id = String(acc.ctid_trader_account_id || acc.ctidTraderAccountId || acc.accountId || '');
+      const login = String(acc.trader_login || acc.traderLogin || acc.accountNumber || '');
+      const broker = String(acc.broker_title_short || acc.brokerTitleShort || acc.brokerTitle || acc.broker_name || acc.brokerName || 'Unknown Broker');
+      const isLive = acc.is_live === true || acc.isLive === true || acc.live === true;
       const selected = String(selectedId) === String(id);
       const balance = typeof acc.balance === 'number' ? acc.balance : null;
       const moneyDigits = acc.money_digits || acc.moneyDigits || 0;
       const formattedBalance = balance !== null ? fmtMoney(balance, moneyDigits > 0 ? moneyDigits : 2) : '—';
-      const currency = String(acc.deposit_asset_id || acc.depositAssetId || '');
+      const currency = String(acc.deposit_asset_id || acc.depositAssetId || acc.depositCurrency || '');
+      const leverageCents = acc.leverage_in_cents || acc.leverageInCents || (acc.leverage ? acc.leverage * 100 : 0);
 
       return `
         <div class="account-card ${selected ? 'account-card-selected' : ''}" data-account-id="${window.UI.esc(id)}">
@@ -117,8 +119,8 @@ window.DashboardComponent = (function () {
             ${formattedBalance}<span class="account-card-currency">${window.UI.esc(currency)}</span>
           </div>
           <div class="account-card-meta">
-            <span class="text-dim">${window.UI.esc(accountTypeLabel(acc.account_type || acc.accountType))}</span>
-            <span class="text-dim">${leverageDisplay(acc.leverage_in_cents || acc.leverageInCents)}</span>
+            <span class="text-dim">${window.UI.esc(accountTypeLabel(acc.account_type || acc.accountType || acc.traderAccountType))}</span>
+            <span class="text-dim">${leverageDisplay(leverageCents)}</span>
             <span class="text-dim mono">${login ? 'Login ' + window.UI.esc(login) : ''}</span>
           </div>
           <div class="account-card-actions">
@@ -179,9 +181,10 @@ window.DashboardComponent = (function () {
   }
 
   function renderMasterDashboard(container) {
+    const fleetAccounts = window.appState.fleetAccounts || [];
     const accounts = window.appState.accounts || [];
-    const running = accounts.filter((a) => a.runtime?.running).length;
-    const connected = accounts.filter((a) => a.runtime?.connected !== false).length;
+    const running = fleetAccounts.filter((a) => a.runtime?.running).length;
+    const connected = fleetAccounts.filter((a) => a.runtime?.connected !== false).length;
 
     if (!window.appState.initialized) {
       container.innerHTML = `
@@ -230,7 +233,7 @@ window.DashboardComponent = (function () {
               <tr><th>Name</th><th>Host</th><th>Status</th><th>Positions</th></tr>
             </thead>
             <tbody>
-              ${accounts.slice(0, 10).map((a) => `
+              ${fleetAccounts.slice(0, 10).map((a) => `
                 <tr>
                   <td class="cell-mono">${window.UI.esc(a.name)}</td>
                   <td>${window.UI.esc(a.host_type || 'demo')}</td>

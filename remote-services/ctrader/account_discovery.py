@@ -88,7 +88,7 @@ class AccountDiscovery:
                             is_live=is_live,
                             username=username,
                             appwrite_user_id=appwrite_user_id,
-                            broker_name=acc.get("brokerName") or acc.get("brokerTitleShort") or None,
+                            broker_name=acc.get("brokerName") or acc.get("brokerTitleShort") or acc.get("brokerTitle") or None,
                             selected=bool(acc.get("selected", False)),
                         )
                     )

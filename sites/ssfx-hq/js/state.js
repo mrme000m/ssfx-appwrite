@@ -11,6 +11,7 @@ window.appState = {
   active: false,
   lastHeartbeat: null,
   accounts: [],
+  fleetAccounts: [],
   selectedAccountId: '',
   signals: [],
   agentLogs: [],

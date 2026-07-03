@@ -44,7 +44,7 @@ window.FleetComponent = (function () {
     const section = document.createElement('section');
     section.innerHTML = `
       <div class="page-header">
-        <h1>Slave Fleet <span class="page-subtitle">${window.appState.accounts?.length ?? 0} account(s)</span></h1>
+        <h1>Slave Fleet <span class="page-subtitle">${window.appState.fleetAccounts?.length ?? 0} account(s)</span></h1>
       </div>
       <div class="data-grid data-grid-auto" id="fleet-grid"></div>
     `;
@@ -53,7 +53,7 @@ window.FleetComponent = (function () {
     function render() {
       const grid = section.querySelector('#fleet-grid');
       if (!grid) return;
-      const accounts = window.appState.accounts || [];
+      const accounts = window.appState.fleetAccounts || [];
       grid.innerHTML = '';
       if (accounts.length === 0) {
         grid.innerHTML = `

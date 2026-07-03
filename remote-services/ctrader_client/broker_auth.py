@@ -83,7 +83,7 @@ async def sync_accounts_to_broker(
                 trader = nested
 
         entry["brokerName"] = getattr(trader, "brokerName", "")
-        entry["brokerTitleShort"] = getattr(acc, "brokerTitleShort", "") or getattr(trader, "brokerTitleShort", "")
+        entry["brokerTitleShort"] = getattr(acc, "brokerTitleShort", "") or getattr(acc, "brokerTitle", "") or getattr(trader, "brokerTitleShort", "") or getattr(trader, "brokerTitle", "")
         acc_type_raw = getattr(trader, "accountType", None)
         if isinstance(acc_type_raw, int):
             entry["accountType"] = _ACCOUNT_TYPE_MAP.get(acc_type_raw, str(acc_type_raw))

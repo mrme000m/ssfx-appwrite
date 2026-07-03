@@ -91,6 +91,7 @@ window.Auth = (function () {
     window.appState.status = '';
     window.appState.active = false;
     window.appState.accounts = [];
+    window.appState.fleetAccounts = [];
     window.appState.selectedAccountId = '';
   }
 

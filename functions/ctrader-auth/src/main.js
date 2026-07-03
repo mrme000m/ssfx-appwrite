@@ -19,6 +19,7 @@ const {
   handleOptions,
   sessionCookie,
   clearCookie,
+  rowData,
   ID,
   Query,
   Permission,
@@ -402,7 +403,7 @@ async function handleSession(req, res, log) {
       queries: [Query.equal('appwrite_user_id', user.$id)],
     });
 
-    const slave = slaveList.rows[0] || null;
+    const slave = rowData(slaveList.rows[0]) || null;
     
     // Check if user is master/admin via service_config table
     let role = slave ? slave.role : 'slave';
@@ -438,22 +439,25 @@ async function handleSession(req, res, log) {
           tableId: 'accounts',
           queries: [Query.equal('grant_id', slave.grant_id)],
         });
-        accounts = (accountList.rows || []).map((acc) => ({
-          ctid_trader_account_id: acc.ctidTraderAccountId,
-          is_live: acc.isLive,
-          trader_login: acc.traderLogin,
-          broker_title_short: acc.brokerTitleShort,
-          broker_name: acc.brokerName,
-          last_closing_deal_timestamp: acc.lastClosingDealTimestamp,
-          last_balance_update_timestamp: acc.lastBalanceUpdateTimestamp,
-          balance: typeof acc.balance === 'number' ? acc.balance : null,
-          money_digits: acc.moneyDigits,
-          account_type: acc.accountType,
-          deposit_asset_id: acc.depositAssetId,
-          leverage_in_cents: acc.leverageInCents,
-          registration_timestamp: acc.registrationTimestamp,
-          selected: acc.selected,
-        }));
+        accounts = (accountList.rows || []).map((row) => {
+          const acc = rowData(row) || {};
+          return {
+            ctid_trader_account_id: acc.ctidTraderAccountId,
+            is_live: acc.isLive,
+            trader_login: acc.traderLogin,
+            broker_title_short: acc.brokerTitleShort,
+            broker_name: acc.brokerName,
+            last_closing_deal_timestamp: acc.lastClosingDealTimestamp,
+            last_balance_update_timestamp: acc.lastBalanceUpdateTimestamp,
+            balance: typeof acc.balance === 'number' ? acc.balance : null,
+            money_digits: acc.moneyDigits,
+            account_type: acc.accountType,
+            deposit_asset_id: acc.depositAssetId,
+            leverage_in_cents: acc.leverageInCents,
+            registration_timestamp: acc.registrationTimestamp,
+            selected: acc.selected,
+          };
+        });
       } catch (accErr) {
         error(`Account lookup failed: ${accErr.message}`);
       }
@@ -567,16 +571,19 @@ async function handleAdminSlaves(req, res, log, error) {
       queries: [Query.equal('role', 'slave'), Query.limit(100)],
     });
 
-    const slaves = (list.rows || []).map((s) => ({
-      username: s.username || '',
-      email: s.email || '',
-      grant_id: s.grant_id || '',
-      status: s.status || '',
-      active: s.active || false,
-      ctrader_account_ids: s.ctrader_account_ids || '',
-      selected_account_id: s.selected_account_id || '',
-      last_heartbeat_at: s.last_heartbeat_at || null,
-    }));
+    const slaves = (list.rows || []).map((row) => {
+      const s = rowData(row) || {};
+      return {
+        username: s.username || '',
+        email: s.email || '',
+        grant_id: s.grant_id || '',
+        status: s.status || '',
+        active: s.active || false,
+        ctrader_account_ids: s.ctrader_account_ids || '',
+        selected_account_id: s.selected_account_id || '',
+        last_heartbeat_at: s.last_heartbeat_at || null,
+      };
+    });
 
     return res.json({ success: true, slaves }, 200, corsHeaders(req.headers['origin'] || ''));
   } catch (err) {

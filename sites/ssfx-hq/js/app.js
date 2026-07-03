@@ -18,7 +18,7 @@
   async function refreshAccounts() {
     try {
       const data = await window.API.V2API.listAccounts();
-      window.appState.accounts = data || [];
+      window.appState.fleetAccounts = data || [];
       window.commandBus.dispatchEvent(new CustomEvent('accounts'));
     } catch (err) {
       window.appState.online = false;

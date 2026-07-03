@@ -73,6 +73,12 @@ function makeAdminUsers() {
   return new Users(makeAdminClient());
 }
 
+function rowData(row) {
+  if (!row) return row;
+  if (typeof row === 'object' && row.data !== undefined) return row.data;
+  return row;
+}
+
 // ─── Service config lookup ──────────────────────────────────────────
 
 async function getServiceConfig(db, key, fallbackEnv = null) {
@@ -332,6 +338,7 @@ module.exports = {
   makeAdminClient,
   makeAdminDb,
   makeAdminUsers,
+  rowData,
   getServiceConfig,
   acquireGrantLock,
   releaseGrantLock,
