@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """XAUUSD Min-Vol Trade Lifecycle Manager — Market-Aware.
 
-Connects to the local ctrader trading service (port 9300) using admin API key,
-the account-hub (port 9301) for live events, and the dataservice API (port 9002)
-for real-time market prices.
+Ad-hoc trading CLI. Connects to the local ctrader trading service (port 9300)
+using admin API key, the account-hub (port 9301) for live events, and the
+dataservice API (port 9002) for real-time market prices.
+
+Location: dev/scripts/xauusd_lifecycle.py (moved from remote-services/)
+— this is a development tool, not a runtime service.
 
 Lifecycle phases:
   1. NEW     — Open a BUY/SELL XAUUSD position at min volume (0.01 lots)
