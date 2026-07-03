@@ -106,6 +106,10 @@ module.exports = async function main({ req, res, log, error }) {
     if (adminAccountDelete && method === 'DELETE') {
       return await handleAdminDeleteAccount(req, res, adminAccountDelete[1], adminAccountDelete[2], log, error);
     }
+    const adminReset = path.match(/^\/admin\/slaves\/([^/]+)\/reset$/);
+    if (adminReset && method === 'POST') {
+      return await handleAdminResetSlave(req, res, adminReset[1], log, error);
+    }
     if (path === '/echo' && method === 'GET') {
       return res.json({ cookie: req.headers['cookie'] || '', origin: req.headers['origin'] || '' }, 200, corsHeaders(origin));
     }
@@ -789,5 +793,64 @@ async function handleAdminUnlinkSlave(req, res, log, error) {
   } catch (err) {
     error(`Admin unlink slave failed: ${err.message}`);
     return res.json({ error: 'Failed to unlink slave' }, 500, corsHeaders(req.headers['origin'] || ''));
+  }
+}
+
+// ─── POST /admin/slaves/:grant_id/reset ────────────────────────────────────
+
+async function handleAdminResetSlave(req, res, grantId, log, error) {
+  const auth = await requireMaster(req, res);
+  if (auth.error) return auth.error;
+  const { db } = auth;
+
+  try {
+    // Delete all persisted accounts for this grant.
+    const accountList = await db.listRows({
+      databaseId: DB_ID,
+      tableId: 'accounts',
+      queries: [Query.equal('grant_id', grantId)],
+    });
+    for (const row of accountList.rows || []) {
+      await db.deleteRow({
+        databaseId: DB_ID,
+        tableId: 'accounts',
+        rowId: row.$id,
+      });
+    }
+
+    // Delete the slave row entirely.
+    const slaveList = await db.listRows({
+      databaseId: DB_ID,
+      tableId: 'slave_accounts',
+      queries: [Query.equal('grant_id', grantId)],
+    });
+    if (slaveList.rows && slaveList.rows.length > 0) {
+      const slaveRow = slaveList.rows[0];
+      await db.deleteRow({
+        databaseId: DB_ID,
+        tableId: 'slave_accounts',
+        rowId: slaveRow.$id,
+      });
+    }
+
+    // Also delete any trade configs for this grant
+    const configList = await db.listRows({
+      databaseId: DB_ID,
+      tableId: 'trade_configs',
+      queries: [Query.equal('grant_id', grantId)],
+    });
+    for (const row of configList.rows || []) {
+      await db.deleteRow({
+        databaseId: DB_ID,
+        tableId: 'trade_configs',
+        rowId: row.$id,
+      });
+    }
+
+    log(`Admin reset grant ${grantId} - deleted slave row and all related data`);
+    return res.json({ success: true, grant_id: grantId }, 200, corsHeaders(req.headers['origin'] || ''));
+  } catch (err) {
+    error(`Admin reset slave failed: ${err.message}`);
+    return res.json({ error: 'Failed to reset slave' }, 500, corsHeaders(req.headers['origin'] || ''));
   }
 }

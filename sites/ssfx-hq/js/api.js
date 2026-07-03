@@ -46,6 +46,7 @@ window.API = (function () {
     adminSlaveAccounts: (grantId) => fetchJson(`${CFG.authDomain}/admin/slaves/${encodeURIComponent(grantId)}/accounts`),
     adminDeleteSlaveAccount: (grantId, accountId) => fetchJson(`${CFG.authDomain}/admin/slaves/${encodeURIComponent(grantId)}/accounts/${encodeURIComponent(accountId)}`, { method: 'DELETE' }),
     adminUnlinkSlave: (grantId) => fetchJson(`${CFG.authDomain}/admin/slaves/unlink`, { method: 'POST', body: JSON.stringify({ grant_id: grantId }) }),
+    adminResetSlave: (grantId) => fetchJson(`${CFG.authDomain}/admin/slaves/${encodeURIComponent(grantId)}/reset`, { method: 'POST' }),
     pinLogin: (body) => fetchJson(`${CFG.pinDomain}/pin-login`, { method: 'POST', body: JSON.stringify(body) }),
     setCredentials: (body) => fetchJson(`${CFG.pinDomain}/set-credentials`, { method: 'POST', body: JSON.stringify(body) }),
     pinResetRequest: (body) => fetchJson(`${CFG.pinDomain}/pin-reset/request`, { method: 'POST', body: JSON.stringify(body) }),

@@ -260,6 +260,21 @@ window.DashboardComponent = (function () {
     renderLinkedSlaves(wrapper);
   }
 
+  async function resetSlave(grantId, wrapper) {
+    if (!confirm(`RESET USER DATABASE for grant ${grantId}? This will PERMANENTLY DELETE the slave row and ALL related data (accounts, trade configs, tokens). The user will need to reconnect their cTrader account.`)) return;
+    try {
+      await window.API.AuthAPI.adminResetSlave(grantId);
+      window.UI.toast('success', `Grant ${grantId} database reset - slave row deleted`, 'Admin');
+      linkedSlavesState.expanded.delete(grantId);
+      delete linkedSlavesState.accounts[grantId];
+      await loadLinkedSlaves(wrapper.closest('#app-main') || wrapper);
+      return;
+    } catch (err) {
+      window.UI.toast('error', err.message || 'Could not reset slave', 'Admin');
+    }
+    renderLinkedSlaves(wrapper);
+  }
+
   function renderAccountMiniCard(acc) {
     const id = String(acc.ctid_trader_account_id || acc.ctidTraderAccountId || '');
     const broker = String(acc.broker_title_short || acc.brokerTitleShort || acc.brokerTitle || acc.broker_name || acc.brokerName || 'Unknown Broker');
@@ -322,6 +337,7 @@ window.DashboardComponent = (function () {
                     ${expanded ? 'Hide accounts' : 'Show accounts'}
                   </button>
                   <button type="button" class="btn btn-sm btn-danger unlink-slave-btn" data-grant="${grantId}">Unlink</button>
+                  <button type="button" class="btn btn-sm btn-danger reset-slave-btn" data-grant="${grantId}">Reset DB</button>
                 </td>
               </tr>
               ${expanded ? `
@@ -354,6 +370,9 @@ window.DashboardComponent = (function () {
     });
     wrapper.querySelectorAll('.unlink-slave-btn').forEach((btn) => {
       btn.addEventListener('click', () => unlinkSlave(btn.dataset.grant, wrapper));
+    });
+    wrapper.querySelectorAll('.reset-slave-btn').forEach((btn) => {
+      btn.addEventListener('click', () => resetSlave(btn.dataset.grant, wrapper));
     });
     wrapper.querySelectorAll('.delete-account-btn').forEach((btn) => {
       btn.addEventListener('click', () => deleteSlaveAccount(btn.dataset.grant, btn.dataset.account, wrapper));
