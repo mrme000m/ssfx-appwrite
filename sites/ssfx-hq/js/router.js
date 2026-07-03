@@ -18,7 +18,8 @@ window.Router = (function () {
   };
 
   function getPath() {
-    return window.location.hash.replace(/^#/, '') || '/';
+    const hash = window.location.hash.replace(/^#/, '') || '/';
+    return hash.split('?')[0];
   }
 
   function navigate(path, replace = false) {
