@@ -201,7 +201,7 @@ _CORS_ORIGINS = [
     origin.strip()
     for origin in os.getenv(
         "CORS_ALLOWED_ORIGINS",
-        "https://ds.mrme.tech,https://dataservice-site.appwrite.host,http://localhost:9002,http://127.0.0.1:9002",
+        "https://app.mrme.tech,https://ds.mrme.tech,https://dataservice-site.appwrite.host,http://localhost:9002,http://127.0.0.1:9002",
     ).split(",")
     if origin.strip()
 ]

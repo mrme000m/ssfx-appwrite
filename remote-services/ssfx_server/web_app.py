@@ -169,6 +169,7 @@ _CORS_ORIGINS = [
     origin.strip()
     for origin in (
         f"{load_config().admin_site_origin},"
+        "https://app.mrme.tech,"
         "http://localhost:8001,http://127.0.0.1:8001,"
         "http://localhost:3000,http://127.0.0.1:3000,"
         "http://localhost:5000,http://127.0.0.1:5000"
