@@ -183,7 +183,7 @@ Supported `VM_OS_FAMILY` values: `amazonlinux`, `rhel`, `ubuntu`.
 
 ### Historical / deprecated target
 
-The original Azure VM (`ubuntu-server` in `RG-UBUNTU-VM`, `172.171.109.137`, user `m`) has been deallocated. Use `setup_vm.py` (or `setup-vm.sh`) against the current target instead. The older `deploy-azure.sh` is kept for compatibility but is not the recommended path.
+The original Azure VM (`ubuntu-server` in `RG-UBUNTU-VM`, `172.171.109.137`, user `m`) has been deallocated. Use `setup_vm.py` (or `setup-vm.sh`) against the current target instead. The older `deploy-azure.sh` and Azure-specific deployment scripts were removed during consolidation.
 
 ## Public Access: Cloudflare Tunnel on `mrme.tech`
 
