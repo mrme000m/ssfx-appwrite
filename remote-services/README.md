@@ -85,12 +85,12 @@ This rsyncs the changed source, rebuilds the image, and restarts the container.
 ### Full VM deployment (clean + deploy + tunnel)
 
 ```bash
-# Master script: cleans VM, updates CF tunnel, deploys fresh Docker stack
-./remote-services/deploy-master.sh
+# One-shot fresh-VM provision + deploy + tunnel sync
+python3 remote-services/setup_vm.py
 
 # Or step by step:
-./dev.sh deploy-ctrader-remote    # Deploy to Azure VM
-./dev.sh setup-cf-tunnel          # Update Cloudflare tunnel ingress
+./dev.sh deploy-remote aws         # Deploy to AWS VM
+./dev.sh cf-tunnel-update          # Update Cloudflare tunnel ingress
 ```
 
 ## Manual commands on the VM
@@ -133,9 +133,8 @@ When `account_id` is omitted, the CLI auto-discovers the only available account.
 | `pyproject.toml` | Unified Python project with all dependencies |
 | `bin/run-*` | Thin wrappers that invoke each service |
 | `integration_test.py` | Full-stack integration test (health + API + WS checks) |
-| `deploy-master.sh` | Master deployment: VM cleanup → CF tunnel → fresh Docker deploy |
-| `cleanup-vm.sh` | Stops old services, removes old containers, archives old dirs |
-| `setup-cf-tunnel.sh` | Updates CF tunnel ingress and DNS records |
+| `setup_vm.py` | One-shot fresh-VM provision, deploy, and tunnel sync |
+| `sync-and-restart.sh` | Manual rsync + restart helper (moved to dev/scripts/) |
 | `init-tunnel.py` | Clears stale tunnel ingress, ensures DNS records, verifies public reachability |
 | `sync-and-restart.sh` | Manual rsync + restart helper |
 | `config/*.example` | Templates for runtime secrets and YAML config |

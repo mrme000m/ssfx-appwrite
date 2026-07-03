@@ -105,7 +105,7 @@ This syncs both `remote-services/` and `pplx-agent/` to the VM, uploads Appwrite
 bootstrap secrets, mounts Perplexity cookies from `~/.config/perplexity/cookies.json`,
 and starts the container.
 
-Use `remote-services/setup-cf-tunnel.sh` to add/update the Cloudflare ingress rule
+Use `./dev.sh cf-tunnel-update` to add/update the Cloudflare ingress rule
 and CNAME for `pplx-agent.mrme.tech`.
 
 ### Perplexity Cookies

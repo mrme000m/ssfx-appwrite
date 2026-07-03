@@ -499,7 +499,7 @@ Replaces `cf-auth-broker` (Cloudflare Worker) with Appwrite Functions + TablesDB
 
 | Site | Purpose |
 |------|---------|
-| `ctrader-auth-site` | Static SPA (plain HTML/JS) with hash routing: landing, onboarding, login, slave dashboard, master dashboard. Uses Appwrite Web SDK + Realtime. |
+| Static auth/admin SPA (superseded by `ssfx-hq`) | Static SPA (plain HTML/JS) with hash routing: landing, onboarding, login, slave dashboard, master dashboard. Uses Appwrite Web SDK + Realtime. |
 | `ssfx-hq` | Consolidated command/dashboard SPA served at `https://app.mrme.tech`. Calls the SSFX v2 admin API, agent harness, and market data service. |
 
 ### Auth Flow
