@@ -11,7 +11,7 @@ at runtime.
 | `dataservice-daemon` | `9000` | Market-data ingestion / control API | `ds-control.mrme.tech` |
 | `dataservice-sse` | `9001` | MCP SSE server (live prices/tools) | `ds-sse.mrme.tech` |
 | `dataservice-api` | `9002` | OpenPI REST API + admin UI | `dataservice.mrme.tech` |
-| `ssfx-server` | `8000` | Telegram webhook + cTrader follower admin | `ssfx-api.mrme.tech` |
+| `ssfx-server` | `8000` | Telegram webhook + cTrader slave admin | `ssfx-api.mrme.tech` |
 | `agent-harness` | `9003` | AI decision layer (intent, entry, lifecycle) | `agent.mrme.tech` |
 | `pplx-agent` | `9004` | Perplexity + TradingView gold market research | `pplx-agent.mrme.tech` |
 | `ctrader` | `9300` | Unified cTrader service (WS hub + trade exec) | `ctrader.mrme.tech` |
@@ -149,5 +149,5 @@ When `account_id` is omitted, the CLI auto-discovers the only available account.
   set it to `influxdb` to use InfluxDB Cloud Serverless.
 - **MongoDB is legacy** — all configuration and state now lives in Appwrite TablesDB.
   The `ssfx-server` can run without MongoDB using the `NoOpSignalStore` fallback
-  (signal history is skipped; followers still process live signals via Appwrite).
+  (signal history is skipped; slaves still process live signals via Appwrite).
 - All required Appwrite tables are managed by `dev/scripts/init-ctrader-tables.py`.

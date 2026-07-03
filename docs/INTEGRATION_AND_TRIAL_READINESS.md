@@ -197,7 +197,7 @@ Phase B: Demo cTrader (real demo.ctraderapi.com connection)
 
 Phase C: Copy trading trial
   1. Configure master signal source (Telegram channel)
-  2. Configure follower (ssfx_accounts table)
+  2. Configure slave (ssfx_accounts table)
   3. Enable agent harness (optional, with kill-switches)
   4. Monitor signal → intent → execution → position → close cycle
   5. Verify execution history in ssfx_executions
@@ -209,7 +209,7 @@ Phase C: Copy trading trial
 |------|------------|
 | Token encryption key lost | Back up `TOKEN_ENCRYPTION_KEY` to Bitwarden before trial |
 | Accidental live account trade | Use only demo cTrader accounts; verify `isLive: false` in `accounts` table |
-| Signal spam | Start with `copy_enabled: false` on all followers; enable one at a time |
+| Signal spam | Start with `copy_enabled: false` on all slaves; enable one at a time |
 | Agent LLM costs | Keep `AGENT_*_ENABLED=false` initially; enable only `AGENT_INTENT_ENABLED` first |
 | Token refresh failure | Monitor `ctrader-token-refresh-worker` logs; set up alerting |
 

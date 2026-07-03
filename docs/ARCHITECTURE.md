@@ -149,7 +149,7 @@ Containerized Python services on the AWS VM. They read current configuration fro
 
 | Service | Port | Responsibility |
 |---|---|---|
-| `ssfx_server` | 8000 | Telegram webhook receiver, signal parsing, follower routing, admin REST API. |
+| `ssfx_server` | 8000 | Telegram webhook receiver, signal parsing, slave routing, admin REST API. |
 | `market_data_service` | 9000–9002 | cTrader tick ingestion, gold quant engine, control/SSE/OpenPI APIs. |
 | `account_hub` | 9301 | Live cTrader transports, account discovery, WebSocket fan-out. |
 | `ctrader` / `ctrader_cli` | 9300 / CLI | Direct cTrader Open API tooling and unified cTrader service. |
@@ -174,7 +174,7 @@ Containerized Python services on the AWS VM. They read current configuration fro
 | `account_events` | Real-time account state snapshots (positions, orders, balance, equity, margin). |
 | `ctrader_trading_events` | Order fills, position changes, errors. |
 | `master_signals` | Master-to-slave signal broadcast. |
-| `ssfx_accounts` | Telegram signal follower configuration. |
+| `ssfx_accounts` | Telegram signal slave configuration. |
 | `ssfx_executions` | Signal execution history. |
 | `ephemeral_tokens` | OAuth state, PIN reset tokens. |
 | `grant_locks` | Distributed locks for token refresh. |
@@ -209,7 +209,7 @@ User → ssfx-hq → /auth/ctrader/start  → state token in ephemeral_tokens
 ```
 Telegram channel → Telegram Bot Webhook → ssfx_server /webhook
 → SignalIntentAgent → parser → SignalExperienceScorer
-→ per-follower AccountFollower → executor
+→ per-slave AccountSlave → executor
 → ctrader-internal /refresh (if needed) → ctrader-open-api
 → position → account_events / ctrader_trading_events
 ```
@@ -271,7 +271,7 @@ This section records the current names, the proposed names, and the rationale. T
 | `slave_accounts` | `users` | Generic, non-pejorative; Appwrite user is already the real identity. |
 | `accounts` | `ctrader_accounts` | Clarifies relationship to cTrader. |
 | `trade_configs` | `trade_settings` | Simpler; per-user via RLS. |
-| `ssfx_accounts` | `signal_followers` | Explains Telegram follower role. |
+| `ssfx_accounts` | `signal_slaves` | Explains Telegram slave role. |
 | `account_events` | `account_state_history` | Time-series of account snapshots. |
 | `master_signals` | `signal_broadcasts` | Neutral naming. |
 
@@ -313,7 +313,7 @@ Keep the Appwrite-native mode that is already emerging:
 
 ### 5.3. Configuration as data
 
-- All runtime configuration belongs in TablesDB (`service_config`, `trade_settings`, `signal_followers`).
+- All runtime configuration belongs in TablesDB (`service_config`, `trade_settings`, `signal_slaves`).
 - `.env` is reserved for bootstrap secrets: `APPWRITE_ENDPOINT`, `APPWRITE_PROJECT_ID`, `APPWRITE_API_KEY`.
 - Third-party credentials (cTrader OAuth, Resend, Telegram, Perplexity cookies) are written by idempotent `init-scripts/*` into `service_config`, not into `.env` files on the VM.
 
@@ -393,6 +393,6 @@ Appwrite Functions (`auth.mrme.tech`, `pin.mrme.tech`) are reached through Appwr
 |---|---|
 | **grant_id** | Opaque handle for a cTrader token pair. |
 | **ctidTraderAccountId** | cTrader trading account identifier. |
-| **AccountFollower** | Runtime component that routes a signal to one configured cTrader account. |
+| **AccountSlave** | Runtime component that routes a signal to one configured cTrader account. |
 | **GoldQuantEngine** | Real-time XAUUSD multi-timeframe analytics engine. |
 | **SignalExperience** | Scoring system that adjusts execution based on signal-author history. |

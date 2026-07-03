@@ -67,7 +67,7 @@ The project had architecture information split across multiple documents and inl
 | `slave_accounts` | `users` | Neutral, generic; Appwrite `users` is already the real identity. This table becomes the grant/profile extension. | High. Referenced in every auth function, init scripts, Python services, SPA. | Dual-write → cutover → drop old table. |
 | `accounts` | `ctrader_accounts` | Clarifies relationship to cTrader trading accounts. | Medium. Account hub and data service use this. | Rename via migration or create new table and backfill. |
 | `trade_configs` | `trade_settings` | Simpler; row-level security already makes it per-user. | Medium. `ssfx_trader`, `ssfx_server`, functions. | Rename or migrate. |
-| `ssfx_accounts` | `signal_followers` | Explains Telegram follower role. | Medium. `ssfx_server`, `ssfx_trader`. | Rename + update code. |
+| `ssfx_accounts` | `signal_slaves` | Explains Telegram slave role. | Medium. `ssfx_server`, `ssfx_trader`. | Rename + update code. |
 | `account_events` | `account_state_history` | Time-series of account snapshots. | Low/Medium. Account hub writes; dashboard reads. | Rename. |
 | `master_signals` | `signal_broadcasts` | Neutral, clearer. | Low. `ssfx_server` and dashboard. | Rename. |
 | `ssfx_executions` | **keep** or `signal_executions` | Already clear; rename optional. | Low | Optional. |
@@ -157,7 +157,7 @@ The proposed renames are not cosmetic; they are prerequisites for using Appwrite
 ### Phase 3 — Database rename (high risk, needs migration script)
 
 1. Create `slwp_platform` database.
-2. Recreate tables under new names (`users`, `ctrader_accounts`, `trade_settings`, `signal_followers`, `account_state_history`, `signal_broadcasts`).
+2. Recreate tables under new names (`users`, `ctrader_accounts`, `trade_settings`, `signal_slaves`, `account_state_history`, `signal_broadcasts`).
 3. Backfill data, including permissions.
 4. Update all Functions and Python services to dual-write.
 5. Cut reads to new tables.

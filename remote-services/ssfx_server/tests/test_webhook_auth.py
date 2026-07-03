@@ -46,7 +46,7 @@ class _FakeState:
             gold_quant_min_confidence=0.75,
             gold_quant_agent_min_confidence=0.65,
         )
-        self.followers = {}
+        self.slaves = {}
 
 
 def _make_request(admin_key: str = "") -> Request:

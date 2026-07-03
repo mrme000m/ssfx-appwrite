@@ -3,13 +3,14 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from datetime import UTC, datetime
 from typing import Any
 
 from appwrite.services.tables_db import TablesDB
 
+from shared.appwrite_client import create_appwrite_client
 from ssfx_parser import SlaveExecution
-from ssfx_server.appwrite_client import AppwriteClient
 from ssfx_trader.config import AccountConfig
 
 logger = logging.getLogger(__name__)
@@ -69,12 +70,13 @@ class AppwriteAccountStore:
         executions_table_id: str | None = None,
         risk_state_table_id: str | None = None,
     ):
-        client = AppwriteClient()
-        self.tables_db = tables_db or client.tables_db
-        self.database_id = database_id or client.database_id
-        self.table_id = table_id or client.accounts_table
-        self.executions_table_id = executions_table_id or client.executions_table
-        self.risk_state_table_id = risk_state_table_id or client.risk_state_table
+        if tables_db is None:
+            _, tables_db = create_appwrite_client()
+        self.tables_db = tables_db
+        self.database_id = database_id or os.getenv("APPWRITE_DATABASE_ID", "ctrader_auth")
+        self.table_id = table_id or os.getenv("APPWRITE_ACCOUNTS_TABLE", "ssfx_accounts")
+        self.executions_table_id = executions_table_id or os.getenv("APPWRITE_EXECUTIONS_TABLE", "ssfx_executions")
+        self.risk_state_table_id = risk_state_table_id or os.getenv("APPWRITE_RISK_STATE_TABLE", "risk_state")
 
     def list_accounts(self, owner_id: str | None = None) -> list[dict[str, Any]]:
         try:

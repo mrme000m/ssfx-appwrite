@@ -55,7 +55,7 @@ class _FakeAppState:
         self.signal_store = _MemorySignalStore()
         self.parser = _RaisingParser()
         self.experience_scorer = None
-        self.followers = {}
+        self.slaves = {}
 
 
 @pytest.mark.asyncio

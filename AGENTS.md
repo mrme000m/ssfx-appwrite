@@ -219,7 +219,7 @@ Source of truth: `remote-services/config/tunnel-ingress.json`.
 
 | Hostname | Local Service | Purpose |
 |----------|---------------|---------|
-| `ssfx-api.mrme.tech` | `http://localhost:8000` | Telegram webhook + cTrader follower admin |
+| `ssfx-api.mrme.tech` | `http://localhost:8000` | Telegram webhook + cTrader slave admin |
 | `ds-control.mrme.tech` | `http://localhost:9000` | DataService control API |
 | `ds-sse.mrme.tech` | `http://localhost:9001` | MCP SSE live price/tools |
 | `dataservice.mrme.tech` | `http://localhost:9002` | Market data OpenPI REST API |
@@ -480,7 +480,7 @@ Replaces `cf-auth-broker` (Cloudflare Worker) with Appwrite Functions + TablesDB
 | `ctrader_trading_events` | Trading operation event log (order filled, position closed, errors) — written by ctrader service | Runtime |
 | `master_signals` | Signal broadcast table for master-to-slave copy trading (optional) | Trading |
 | `ssfx_accounts` | Telegram signal FOLLOWER configuration (name, enabled, host_type, config_json with symbol filters, SL/TP, lot settings) | Trading |
-| `ssfx_executions` | Signal execution history per follower (account_name, chat_id, message_id, status, order_id, position_id, price, volume) | Trading |
+| `ssfx_executions` | Signal execution history per slave (account_name, chat_id, message_id, status, order_id, position_id, price, volume) | Trading |
 | `ephemeral_tokens` | Short-lived tokens: `oauth_state` and `pin_reset` | Auth |
 | `grant_locks` | Row-level distributed locks for token refresh (row $id = grant_id) | Auth |
 

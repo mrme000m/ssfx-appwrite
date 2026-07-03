@@ -38,7 +38,7 @@ class _FakeExecutor:
         return len(self._active_positions)
 
 
-class _FakeFollower:
+class _FakeSlave:
     def __init__(self) -> None:
         self.received: list[Any] = []
         self._config = _FakeConfig()
@@ -65,7 +65,7 @@ def generator(monkeypatch: pytest.MonkeyPatch) -> GoldQuantSignalGenerator:
         data_service_base_url="http://test",
         data_service_api_key=None,
         agent_harness_base_url="http://test",
-        followers={"f1": _FakeFollower()},
+        slaves={"f1": _FakeSlave()},
     )
     # Patch the real HTTP client with a fake.
     monkeypatch.setattr(gen, "_agent_client", _FakeAgentClient())
@@ -79,7 +79,7 @@ async def test_generator_skips_when_quant_not_enter(generator: GoldQuantSignalGe
 
     generator._fetch_snapshot = _fetch
     await generator._evaluate_once()
-    assert generator._followers["f1"].received == []
+    assert generator._slaves["f1"].received == []
 
 
 @pytest.mark.asyncio
@@ -91,7 +91,7 @@ async def test_generator_skips_low_quant_confidence(generator: GoldQuantSignalGe
 
     generator._fetch_snapshot = _fetch
     await generator._evaluate_once()
-    assert generator._followers["f1"].received == []
+    assert generator._slaves["f1"].received == []
 
 
 @pytest.mark.asyncio
@@ -104,8 +104,8 @@ async def test_generator_injects_signal_on_enter(generator: GoldQuantSignalGener
 
     generator._fetch_snapshot = _fetch
     await generator._evaluate_once()
-    assert len(generator._followers["f1"].received) == 1
-    signal = generator._followers["f1"].received[0]
+    assert len(generator._slaves["f1"].received) == 1
+    signal = generator._slaves["f1"].received[0]
     assert signal.symbol == "XAUUSD"
     assert signal.direction.value == "BUY"
 
@@ -124,4 +124,4 @@ async def test_generator_skips_when_agent_rejects(
 
     generator._fetch_snapshot = _fetch
     await generator._evaluate_once()
-    assert generator._followers["f1"].received == []
+    assert generator._slaves["f1"].received == []
