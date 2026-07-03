@@ -139,41 +139,55 @@ Do not run ad-hoc commands for these operations; add new commands to `dev/script
   3. Upsert configuration rows into Appwrite Database.
   4. Print confirmation with table/row identifiers.
 
-## Remote Deployment Target: Azure VM
+## Remote Deployment
 
-Remote deployments run against the currently running Azure VM in the active Azure CLI account.
+The SSFX backend runs as a single Docker Compose stack on a Linux VM. A single helper script provisions a fresh VM end-to-end and keeps the tunnel ingress in sync.
 
-Current VM (as of last check):
+> **TODO:** Replace the ad-hoc SSH + shell helpers with an Ansible playbook for post-VM configuration. The playbook should cover Docker, cloudflared, and stack deployment so that switching clouds requires only an inventory change. Until then, use `setup_vm.py`.
 
-| Property | Value |
-|----------|-------|
-| Name | `ubuntu-server` |
-| Resource Group | `RG-UBUNTU-VM` |
-| Location | `westus2` |
-| Size | `Standard_D2s_v3` |
-| OS Type | Linux |
-| Admin Username | `m` |
-| Public IP | `172.171.109.137` |
-| Power State | `VM running` |
-
-Commands to verify the VM:
+### One-shot fresh-VM setup
 
 ```bash
-# List running VMs
-az vm list --show-details --output table
+# Copy the example and point at your VM (usually only SSH_HOST changes)
+cp remote-services/config/vm.env.example remote-services/config/vm.env
+# edit remote-services/config/vm.env
 
-# Show details for the deployment target
-az vm show --name ubuntu-server --resource-group RG-UBUNTU-VM --output table
-
-# Get current public IP
-az vm list-ip-addresses --name ubuntu-server --resource-group RG-UBUNTU-VM --output table
+# Provision Docker, cloudflared, and deploy the stack
+python3 remote-services/setup_vm.py
+# or the thin shell wrapper:
+# ./remote-services/setup-vm.sh
 ```
 
-Deployment scripts in `dev/scripts/` use the Azure CLI to discover the target VM and deploy via SSH. Do not hardcode the VM IP in scripts; resolve it dynamically with `az vm list-ip-addresses` or read it from Appwrite Database after it has been persisted by an init script.
+`remote-services/setup_vm.py` is the canonical reference for agents. It:
+1. Installs Docker, Docker Compose plugin, and Docker Buildx.
+2. Installs and registers `cloudflared` for the existing Cloudflare tunnel.
+3. Updates the tunnel ingress from `remote-services/config/tunnel-ingress.json`.
+4. Syncs `remote-services/` and `pplx-agent/` to the VM.
+5. Builds and starts the Docker stack.
+6. Verifies public health endpoints.
+
+### Switching to a new VM (2–3 changes)
+
+Edit `remote-services/config/vm.env`:
+
+```bash
+# 1. SSH target: alias from ~/.ssh/config or user@ip
+SSH_HOST=aws-ssfx
+
+# 2. (only if user is not in the SSH alias) VM_USER=ec2-user
+
+# 3. (only if OS is not auto-detected) VM_OS_FAMILY=amazonlinux
+```
+
+Supported `VM_OS_FAMILY` values: `amazonlinux`, `rhel`, `ubuntu`.
+
+### Historical / deprecated target
+
+The original Azure VM (`ubuntu-server` in `RG-UBUNTU-VM`, `172.171.109.137`, user `m`) has been deallocated. Use `setup_vm.py` (or `setup-vm.sh`) against the current target instead. The older `deploy-azure.sh` is kept for compatibility but is not the recommended path.
 
 ## Public Access: Cloudflare Tunnel on `mrme.tech`
 
-All public access to services running on the Azure VM must go through the Cloudflare Tunnel for the `mrme.tech` domain on account `misterme00@icloud.com`.
+All public access to remote services goes through the Cloudflare Tunnel for the `mrme.tech` domain on account `misterme00@icloud.com`.
 
 ### Cloudflare Identifiers
 
@@ -185,12 +199,11 @@ All public access to services running on the Azure VM must go through the Cloudf
 | Zone ID | `5290d99f626b08c46c1eca6cc7cfa090` |
 | Tunnel Name | `ssfx_azurue` |
 | Tunnel ID | `d1e96e86-a44a-457a-a60c-e7d5d5d675bd` |
-| Remote Host | `172.171.109.137` (user `m`) |
 | CF Dashboard | `https://dash.cloudflare.com/4f6d43db5dbe773f750a2c8f941d0cdc/one/networks/connectors/cloudflare-tunnels/cloudflared/d1e96e86-a44a-457a-a60c-e7d5d5d675bd/edit/overview` |
 
 ### Credentials
 
-Cloudflare API tokens are stored in the Bitwarden vault item **"Cloudflare — mrme.tech"**. Do not commit tokens to git. Scripts should retrieve the token from Bitwarden or from an environment variable set by `.env` / `init-scripts`.
+Cloudflare API tokens are stored in the Bitwarden vault item **"Cloudflare — mrme.tech"**. Do not commit tokens to git. Scripts retrieve the token from `.env` or Bitwarden.
 
 ```bash
 # Retrieve CF API token from Bitwarden
@@ -202,6 +215,8 @@ CF_API_TOKEN=$(bw get item "Cloudflare — mrme.tech" | jq -r '.fields[] | selec
 
 ### Current Tunnel Ingress (Public Hostnames)
 
+Source of truth: `remote-services/config/tunnel-ingress.json`.
+
 | Hostname | Local Service | Purpose |
 |----------|---------------|---------|
 | `ssfx-api.mrme.tech` | `http://localhost:8000` | Telegram webhook + cTrader follower admin |
@@ -209,12 +224,10 @@ CF_API_TOKEN=$(bw get item "Cloudflare — mrme.tech" | jq -r '.fields[] | selec
 | `ds-sse.mrme.tech` | `http://localhost:9001` | MCP SSE live price/tools |
 | `dataservice.mrme.tech` | `http://localhost:9002` | Market data OpenPI REST API |
 | `agent.mrme.tech` | `http://localhost:9003` | AI agent harness (XAUUSD decision layer) |
+| `pplx-agent.mrme.tech` | `http://localhost:9004` | Perplexity gold-market research agent |
 | `ctrader.mrme.tech` | `http://localhost:9300` | cTrader unified service |
 | `account-hub.mrme.tech` | `http://localhost:9301` | Account hub WebSocket server |
-| `admin.mrme.tech` | `http://localhost:8100` | Admin panel |
 | catch-all | `http_status:404` | — |
-
-New public services on the Azure VM must be added as ingress rules on this tunnel and as proxied CNAME records in the `mrme.tech` zone.
 
 ### Commands
 
@@ -222,8 +235,11 @@ New public services on the Azure VM must be added as ingress rules on this tunne
 # Check tunnel status
 ./dev.sh cf-tunnel-status
 
-# Update tunnel ingress rules
+# Update tunnel ingress rules from remote-services/config/tunnel-ingress.json
 ./dev.sh cf-tunnel-update
+
+# One-shot fresh-VM provision + deploy + tunnel sync
+python3 remote-services/setup_vm.py
 
 # Manual: list tunnels
 curl -s "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/cfd_tunnel" \
@@ -241,12 +257,11 @@ curl -s "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records?per_
 ### Adding a New Public Service
 
 1. Decide the subdomain (e.g., `api.mrme.tech`).
-2. Ensure the service is running on the Azure VM and listening on a local port.
-3. Add a tunnel ingress rule mapping the subdomain to the local service.
-4. Add a proxied CNAME record: `api.mrme.tech` → `<tunnel-id>.cfargotunnel.com`.
-5. Verify with `curl https://api.mrme.tech/health`.
-
-Use `dev.sh cf-tunnel-update` (implemented in `dev/scripts/cf_tunnel_update.py`) to apply ingress changes idempotently.
+2. Ensure the service is running on the VM and listening on a local port.
+3. Add a tunnel ingress rule to `remote-services/config/tunnel-ingress.json` mapping the subdomain to the local service.
+4. Ensure a proxied CNAME record exists: `api.mrme.tech` → `<tunnel-id>.cfargotunnel.com` (use the Cloudflare dashboard or API).
+5. Run `python3 remote-services/setup_vm.py` or `./dev.sh cf-tunnel-update` to apply the ingress change.
+6. Verify with `curl https://api.mrme.tech/health`.
 
 ## Email: Resend
 
@@ -641,3 +656,4 @@ A dedicated long-term research service (port `9004`) maintains a persistent pict
 | `.env` | Environment variables (credentials) – **not committed** |
 | `.gitignore` | Excludes `.env`, `.DS_Store`, logs |
 | `AGENTS.md` | This file – project context for all AI agents |
+| `docs/SESSION_FIXES_SUMMARY.md` | Comprehensive record of all fixes implemented |

@@ -1,0 +1,46 @@
+[
+  {
+    "hostname": "ssfx-api.mrme.tech",
+    "service": "http://localhost:8000",
+    "originRequest": {}
+  },
+  {
+    "hostname": "ds-control.mrme.tech",
+    "service": "http://localhost:9000",
+    "originRequest": {}
+  },
+  {
+    "hostname": "ds-sse.mrme.tech",
+    "service": "http://localhost:9001",
+    "originRequest": {}
+  },
+  {
+    "hostname": "dataservice.mrme.tech",
+    "service": "http://localhost:9002",
+    "originRequest": {}
+  },
+  {
+    "hostname": "agent.mrme.tech",
+    "service": "http://localhost:9003",
+    "originRequest": {}
+  },
+  {
+    "hostname": "pplx-agent.mrme.tech",
+    "service": "http://localhost:9004",
+    "originRequest": {}
+  },
+  {
+    "hostname": "ctrader.mrme.tech",
+    "service": "http://localhost:9300",
+    "originRequest": {}
+  },
+  {
+    "hostname": "account-hub.mrme.tech",
+    "service": "http://localhost:9301",
+    "originRequest": {}
+  },
+  {
+    "service": "http_status:404",
+    "originRequest": {}
+  }
+]
