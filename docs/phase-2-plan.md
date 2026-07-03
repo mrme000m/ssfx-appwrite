@@ -31,7 +31,7 @@ critical and medium-priority issues before live autonomous trading can be enable
 ### 2. Per-account risk kill-switches
 
 **Priority:** critical  
-**Files:** `ssfx_trader/config.py`, `ssfx_trader/risk_monitor.py` (new), `ssfx_trader/follower.py`, `ssfx_trader/executor.py`, `ssfx_trader/backends/*.py`, `ssfx_trader/stores/*`, `dev/scripts/init_ctrader_tables.py`, `appwrite.config.json`
+**Files:** `ssfx_trader/config.py`, `ssfx_trader/risk_monitor.py` (new), `ssfx_trader/follower.py`, `ssfx_trader/executor.py`, `ssfx_trader/backends/*.py`, `ssfx_trader/stores/*`, `dev/scripts/init/init_ctrader_tables.py`, `appwrite.config.json`
 
 - Add `max_daily_loss_pct`, `max_drawdown_pct`, `panic_stop`, `risk_reset_utc_hour` to account config.
 - Create a new `ssfx_risk_state` table for daily PnL/drawdown state.
@@ -57,7 +57,7 @@ critical and medium-priority issues before live autonomous trading can be enable
 ### 4. Schema gaps
 
 **Priority:** medium  
-**Files:** `appwrite.config.json`, `dev/scripts/init_ctrader_tables.py`, `account_events_persister.py`, `functions/ctrader-internal/src/main.js`
+**Files:** `appwrite.config.json`, `dev/scripts/init/init_ctrader_tables.py`, `account_events_persister.py`, `functions/ctrader-internal/src/main.js`
 
 - Add missing `ssfx_presets` table (referenced by command-center site).
 - Add `updated_at` to `accounts` and `ssfx_accounts`.

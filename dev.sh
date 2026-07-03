@@ -63,7 +63,7 @@ done
 
 if [[ -z "${SCRIPT}" ]]; then
   echo "Error: no script for command '${COMMAND}' in ${SCRIPTS_DIR}" >&2
-  echo "Add dev/scripts/${COMMAND//-/_}.py (preferred for complex logic) or dev/scripts/${COMMAND}.sh and make it executable." >&2
+  echo "Add dev/scripts/${COMMAND//-/_}.py (or dev/scripts/<category>/${COMMAND//-/_}.py) and make it executable." >&2
   exit 1
 fi
 

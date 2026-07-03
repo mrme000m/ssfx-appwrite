@@ -555,8 +555,8 @@ Deployment is fully automated via **GitHub Actions** on push to the `develop` br
 **Deployment flow**:
 1. Developer pushes to `develop` branch
 2. GitHub Actions runs `deploy-tables` first, then `deploy-functions` and `deploy-site` in parallel
-3. `deploy-functions` calls `dev/scripts/deploy_auth.py --functions`, which creates each function deployment with `appwrite functions create-deployment`, upserts variables by variable ID, activates the deployment, and sets the worker cron schedule
-4. `deploy-site` calls `dev/scripts/deploy_auth.py --site`, which upserts site build variables, creates the site deployment with `appwrite sites create-deployment`, and activates it
+3. `deploy-functions` calls `dev/scripts/deploy/deploy_auth.py --functions`, which creates each function deployment with `appwrite functions create-deployment`, upserts variables by variable ID, activates the deployment, and sets the worker cron schedule
+4. `deploy-site` calls `dev/scripts/deploy/deploy_auth.py --site`, which upserts site build variables, creates the site deployment with `appwrite sites create-deployment`, and activates it
 5. `smoke-test` verifies all endpoints are healthy
 6. `cleanup` removes old deployments
 
@@ -603,7 +603,7 @@ Deployment is fully automated via **GitHub Actions** on push to the `develop` br
 
 ### Function Variables (secrets)
 
-Variables are upserted by `dev/scripts/deploy_auth.py` from environment values (local `.env` or GitHub Secrets). They are not read from per-function `.env` files.
+Variables are upserted by `dev/scripts/deploy/deploy_auth.py` from environment values (local `.env` or GitHub Secrets). They are not read from per-function `.env` files.
 
 - `CTRADER_CLIENT_ID`, `CTRADER_CLIENT_SECRET`, `TOKEN_ENCRYPTION_KEY`, `SESSION_HMAC_KEY`, `SITES_URL` → `auth-oauth`
 - `INTERNAL_API_KEY` → `api-internal`
@@ -613,7 +613,7 @@ Variables are upserted by `dev/scripts/deploy_auth.py` from environment values (
 
 ### Site Variables (secrets)
 
-Site build variables are upserted by `dev/scripts/deploy_auth.py` before each site deployment:
+Site build variables are upserted by `dev/scripts/deploy/deploy_auth.py` before each site deployment:
 
 - `ADMIN_API_KEY` → `ssfx-hq` (build-time; injected into `config.js` as `v2AdminKey` for `x-admin-key` authentication against `ssfx-api`)
 

@@ -36,9 +36,9 @@ jobs:
       - name: Login
         run: appwrite client --endpoint "$APPWRITE_ENDPOINT" --project-id "$APPWRITE_PROJECT_ID" --key "$APPWRITE_API_KEY"
       - name: Sync shared module
-        run: python3 dev/scripts/sync_shared.py
+        run: python3 dev/scripts/ops/sync_shared.py
       - name: Lint
-        run: bash dev/scripts/lint.sh
+        run: bash dev/scripts/testing/lint.sh
       - name: Deploy functions
         env:
           CTRADER_CLIENT_ID: ${{ secrets.CTRADER_CLIENT_ID }}
@@ -47,7 +47,7 @@ jobs:
           SESSION_HMAC_KEY: ${{ secrets.SESSION_HMAC_KEY }}
           INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
         run: |
-          python3 dev/scripts/deploy_auth.py \
+          python3 dev/scripts/deploy/deploy_auth.py \
             --functions --no-tables --no-site --no-domains --no-smoke \
             --no-sync --no-lint
 
@@ -68,7 +68,7 @@ jobs:
           DATA_SERVICE_API_KEY: ${{ secrets.DATA_SERVICE_API_KEY }}
           AGENT_HARNESS_BASE: ${{ secrets.AGENT_HARNESS_BASE }}
         run: |
-          python3 dev/scripts/deploy_auth.py \
+          python3 dev/scripts/deploy/deploy_auth.py \
             --site --no-tables --no-functions --no-domains --no-smoke \
             --no-sync --no-lint
 
@@ -86,7 +86,7 @@ jobs:
       - name: Login
         run: appwrite client --endpoint "$APPWRITE_ENDPOINT" --project-id "$APPWRITE_PROJECT_ID" --key "$APPWRITE_API_KEY"
       - name: Verify custom domains
-        run: python3 dev/scripts/setup_function_domains.py --status
+        run: python3 dev/scripts/tunnel/setup_function_domains.py --status
 
   smoke-test:
     needs: [deploy-functions, deploy-site]
@@ -122,5 +122,5 @@ jobs:
       - name: Login
         run: appwrite client --endpoint "$APPWRITE_ENDPOINT" --project-id "$APPWRITE_PROJECT_ID" --key "$APPWRITE_API_KEY"
       - name: Cleanup orphaned resources
-        run: python3 dev/scripts/cleanup_appwrite_resources.py
+        run: python3 dev/scripts/cleanup/cleanup_appwrite_resources.py
         continue-on-error: true

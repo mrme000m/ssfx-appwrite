@@ -37,16 +37,16 @@ Commands are discovered automatically; hyphens in command names map to underscor
 
 | Command | Script | Status at review |
 |---------|--------|------------------|
-| `start` | `dev/scripts/start.sh` | Stub |
-| `stop` | `dev/scripts/stop.sh` | Stub |
-| `status` | `dev/scripts/status.py` | Partial (only Azure VM) |
-| `logs` | `dev/scripts/logs.sh` | Stub |
+| `start` | `dev/scripts/ops/start.sh` | Stub |
+| `stop` | `dev/scripts/ops/stop.sh` | Stub |
+| `status` | `dev/scripts/ops/status.py` | Partial (only Azure VM) |
+| `logs` | `dev/scripts/ops/logs.sh` | Stub |
 | `test` | `dev/scripts/test.sh` | Stub |
-| `lint` | `dev/scripts/lint.sh` | Implemented |
+| `lint` | `dev/scripts/testing/lint.sh` | Implemented |
 | `integration-test` | `dev/scripts/integration_test.py` | Implemented |
-| `deploy` | `dev/scripts/deploy.sh` | Implemented (delegates to `remote-services/deploy-azure.sh`) |
-| `deploy-remote <target>` | `dev/scripts/deploy-remote.sh` | Stub for Azure |
-| `deploy-status` | `dev/scripts/deploy-status.sh` | Implemented |
+| `deploy` | `dev/scripts/deploy/deploy.sh` | Implemented (delegates to `remote-services/deploy-azure.sh`) |
+| `deploy-remote <target>` | `dev/scripts/deploy/deploy-remote.sh` | Stub for Azure |
+| `deploy-status` | `dev/scripts/deploy/deploy-status.sh` | Implemented |
 | `init` | `dev/scripts/init.sh` | Implemented |
 
 ### Cloudflare tunnel commands
@@ -79,7 +79,7 @@ Commands are discovered automatically; hyphens in command names map to underscor
 
 ### Shared module
 
-`functions/_shared/index.js` is copied into every function package at deploy time by `dev/scripts/sync_shared.py`. It provides:
+`functions/_shared/index.js` is copied into every function package at deploy time by `dev/scripts/ops/sync_shared.py`. It provides:
 
 - AES-GCM-256 token encryption/decryption (`encrypt`/`decrypt`).
 - HMAC state signing/verification (`signState`/`verifyState`).
@@ -135,7 +135,7 @@ Commands are discovered automatically; hyphens in command names map to underscor
 
 ## 6. Deployment pipelines
 
-### Appwrite auth layer (`dev/scripts/deploy_auth.py`)
+### Appwrite auth layer (`dev/scripts/deploy/deploy_auth.py`)
 
 Called via `./dev.sh deploy-auth`.
 
@@ -180,7 +180,7 @@ Two competing paths exist:
 | `remote-services/setup_vm.py` | `~/ssfx-remote-services` | **Canonical** AWS VM provision + sync + build + deploy |
 | `remote-services/deploy-azure.sh` | `~/ssfx-remote-services` | **Deprecated** — kept for Azure compatibility only |
 | `remote-services/deploy-master.sh` | `~/ssfx-remote-services` | **Deprecated** — Azure-specific orchestrator |
-| `dev/scripts/remote-services-sync.py` | `~/ctrader-services` | **Deprecated** — stale target directory |
+| `dev/scripts/ops/remote-services-sync.py` | `~/ctrader-services` | **Deprecated** — stale target directory |
 
 The VM runs a single Docker container via `docker-compose.yml` exposing ports 8000, 9000, 9001, 9002, 9003, 9300, 9301.
 

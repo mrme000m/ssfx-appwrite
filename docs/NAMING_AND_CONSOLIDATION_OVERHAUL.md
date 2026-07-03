@@ -136,7 +136,7 @@ The proposed renames are not cosmetic; they are prerequisites for using Appwrite
 - [x] Renamed `ctrader-pin-auth` → `auth-pin`
 - [x] Renamed `ctrader-internal` → `api-internal`
 - [x] Renamed `ctrader-token-refresh-worker` → `token-refresh`
-- [x] Updated `appwrite/functions.json`, directory names, `dev/scripts/_config.py`, `dev/scripts/deploy_auth.py`, CI workflow, and all doc references.
+- [x] Updated `appwrite/functions.json`, directory names, `dev/scripts/_config.py`, `dev/scripts/deploy/deploy_auth.py`, CI workflow, and all doc references.
 
 **Remaining:** Merge `auth-pin` routes into `auth-oauth` behind `auth.mrme.tech` (single auth domain) — deferred until post-trial.
 
