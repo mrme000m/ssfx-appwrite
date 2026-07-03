@@ -1,1093 +1,398 @@
-# SSFX v2 Architecture Documentation
+# SSFX / slwp Architecture
 
-## Table of Contents
+> **Scope:** single source of truth for the logical and physical architecture of the cTrader copy-trading platform. This document consolidates content previously spread across `RESOURCE_CONFIGURATION.md` and `AUTHENTICATION_ARCHITECTURE.md`; authentication is treated as an integral plane rather than a separate document.
+>
+> **Target state:** Appwrite Cloud as the control plane. All user, system, and runtime configuration lives in TablesDB. Long-running execution happens in Python services behind a Cloudflare Tunnel. SPAs are served by Appwrite Sites.
 
-1. [System Overview](#system-overview)
-2. [Component Architecture](#component-architecture)
-3. [Data Flow](#data-flow)
-4. [Authentication Layer](#authentication-layer)
-5. [Signal Processing Pipeline](#signal-processing-pipeline)
-6. [Agent Integration](#agent-integration)
-7. [Deployment Topology](#deployment-topology)
-8. [Resource Configuration](#resource-configuration)
-9. [Security Considerations](#security-considerations)
-10. [Naming Conventions and Best Practices](#naming-conventions-and-best-practices)
+---
 
-## System Overview
+## 1. Architecture Principles
 
-SSFX v2 is a cTrader copy trading platform built on Appwrite as the backend foundation. The system receives trading signals from Telegram channels, processes them through AI agents, and executes trades across multiple cTrader accounts.
+| # | Principle | How we apply it |
+|---|---|---|
+| 1 | **Appwrite is the source of truth** | Users, config, permissions, session state, and audit data are authoritative in TablesDB. Runtime services hydrate their local caches from Appwrite on startup and on change. |
+| 2 | **Use Appwrite primitives by default** | Auth, TablesDB, Realtime, Functions, Sites, Storage, Messaging, and Webhooks are preferred over self-hosted alternatives. |
+| 3 | **Least privilege at every boundary** | Row-level security, role/label-based permissions, HMAC-signed state, encrypted tokens, and scoped internal keys. |
+| 4 | **Stateless, horizontally-scalable execution** | Functions are stateless; Python services hold only transient TCP connections and refresh them from Appwrite. |
+| 5 | **Graceful degradation** | AI agents and market-data enrichments can fail back to deterministic rules. |
+| 6 | **Typed, versioned contracts** | API contracts, table schemas, and environment contracts are checked in; drift is detected by CI. |
 
-### Key Capabilities
+---
 
-- **Multi-account copy trading**: Execute signals across multiple cTrader slave accounts
-- **AI-powered signal processing**: Intent classification, entry decision, and lifecycle planning
-- **Real-time market data**: Gold quant analysis and multi-timeframe confluence
-- **Web-based administration**: Dashboard for monitoring accounts, signals, and executions
-- **Secure authentication**: OAuth2 with cTrader, PIN-based login, and session management
-
-## Component Architecture
-
-The system consists of four main layers:
-
-### 1. Frontend Layer (sites/ssfx-hq)
-
-**Location**: `/Volumes/ExMac/code/ssfx/appwrite-auth/sites/ssfx-hq/`
-
-**Technology Stack**:
-- Vanilla JavaScript (ES6+)
-- Appwrite Web SDK
-- HTML5/CSS3
-- Hash-based routing
-
-**Key Components**:
-
-- `index.html`: Main entry point with loading screen
-- `config.js`: Runtime configuration (endpoints, project ID, domains)
-- `js/api.js`: API clients for auth, v2 server, agent harness, and data service
-- `js/auth.js`: Authentication state management
-- `js/router.js`: Client-side routing
-- `js/components/*`: UI components (landing, login, dashboard, onboarding, etc.)
-
-**API Clients**:
-- `AuthAPI`: Session management, login/logout, admin operations
-- `V2API`: Account management, signal injection, execution tracking
-- `AgentAPI`: Signal intent classification, entry decisions, lifecycle planning
-- `DataAPI`: Market data, gold quant analysis, feed status
-
-### 2. Authentication Layer (Appwrite Functions)
-
-**Location**: `/Volumes/ExMac/code/ssfx/appwrite-auth/functions/`
-
-**Technology Stack**:
-- Node.js 22
-- Appwrite JavaScript SDK
-- AES-GCM-256 encryption for token storage
-
-**Key Functions**:
-
-#### ctrader-auth
-- **Endpoints**: `/auth/ctrader/start`, `/callback`, `/session`, `/logout`, `/admin/slaves`
-- **Purpose**: OAuth2 flow with cTrader, session management, master/slave administration
-- **Key Features**:
-  - Rate-limited OAuth start endpoint
-  - State token verification with HMAC
-  - Automatic Appwrite user creation for new slaves
-  - Grant ID generation and encrypted token storage
-  - Session cookie management (`a_session_<PROJECT_ID>`)
-  - Master role verification via service_config table
-
-#### ctrader-pin-auth
-- **Endpoints**: `/pin-login`, `/set-credentials`, `/pin-reset/request`, `/pin-reset/confirm`
-- **Purpose**: PIN-based authentication and credential management
-- **Key Features**:
-  - BCrypt password hashing
-  - PIN reset token generation
-  - Email-based PIN reset (via Resend API)
-  - Username uniqueness validation
-
-#### ctrader-internal
-- **Endpoints**: `/internal/ctrader/refresh`, `/internal/grant/latest`, `/internal/grant/:grant_id/accounts`
-- **Purpose**: Server-to-server API for Python backends
-- **Key Features**:
-  - x-internal-key authentication
-  - Token refresh with distributed locking
-  - Account discovery and persistence
-  - Grant-based access control
-
-#### ctrader-token-refresh-worker
-- **Endpoints**: Cron-triggered token refresh
-- **Purpose**: Scheduled refresh of near-expiry cTrader tokens
-- **Key Features**:
-  - Daily cron execution (03:00 UTC)
-  - Ephemeral token cleanup
-  - Graceful handling of expired refresh tokens
-
-### 3. Runtime Services Layer (remote-services)
-
-**Location**: `/Volumes/ExMac/code/ssfx/appwrite-auth/remote-services/`
-
-**Technology Stack**:
-- Python 3.12
-- FastAPI
-- ctrader-open-api
-- MongoDB (legacy, optional)
-- Appwrite TablesDB (primary datastore)
-
-**Key Services**:
-
-#### ssfx_server
-- **File**: `ssfx_server/web_app.py`
-- **Purpose**: Telegram webhook receiver and signal processor
-- **Key Features**:
-  - Telegram Bot API webhook endpoint
-  - Signal parsing with AI intent classification
-  - Account follower management
-  - Signal experience scoring
-  - Background task processing
-  - Long-polling fallback mode
-
-#### market_data_service
-- **Purpose**: Real-time market data feed and gold quant analysis
-- **Key Features**:
-  - cTrader tick data subscription
-  - Multi-timeframe analysis (M15/H1/H4/D1)
-  - Order flow and volume analysis
-  - Key level detection (S/R, FVG, order blocks)
-  - REST API endpoints for market data
-
-#### agent_harness
-- **File**: `agent_harness/`
-- **Purpose**: AI decision making service
-- **Key Features**:
-  - SignalIntentAgent (Mistral Small 3.2)
-  - EntryDecisionAgent (Hermes 3)
-  - LifecyclePlannerAgent (Kimi K2.7)
-  - PplxResearchAgent (Perplexity integration)
-  - OpenAI-compatible API endpoints
-  - Configurable model selection
-
-#### account_hub
-- **Purpose**: Account state management
-- **Key Features**:
-  - Real-time account state tracking
-  - WebSocket notifications
-  - Balance and equity monitoring
-  - Position and order tracking
-
-### 4. Data Storage Layer
-
-**Primary Datastore**: Appwrite TablesDB
-
-**Database**: `ctrader_auth`
-
-**Key Tables**:
-
-- `slave_accounts`: User identities, encrypted tokens, grant mappings
-- `trade_configs`: Per-account trading configuration
-- `accounts`: Discovered cTrader trading accounts
-- `account_events`: Real-time account state events
-- `ctrader_trading_events`: Trading operation event log
-- `master_signals`: Master-to-slave signal broadcast
-- `ssfx_accounts`: Telegram signal follower configuration
-- `ssfx_executions`: Signal execution history
-- `ephemeral_tokens`: Short-lived tokens (OAuth state, PIN reset)
-- `grant_locks`: Distributed locks for token refresh
-- `service_config`: System configuration (OAuth, master auth, etc.)
-
-**Secondary Datastore**: MongoDB (legacy)
-- Used for signal history when Appwrite is unavailable
-- Gradually being migrated to Appwrite
-
-**Time-Series Data**: InfluxDB Cloud Serverless
-- Market data storage
-- Performance metrics
-- Historical analysis
-
-## Data Flow
-
-### 1. Authentication Flow
+## 2. Logical Planes
 
 ```
-User → SPA → ctrader-auth/start → cTrader OAuth → /callback → 
-Appwrite user creation → slave_accounts row → Session cookie → Dashboard
+┌──────────────────────────────────────────────────────────────────────────┐
+│ Experience Plane                                                          │
+│  Appwrite Sites: ssfx-hq (app.mrme.tech)                                  │
+│  Vanilla JS SPA → Appwrite Web SDK + REST clients                         │
+├──────────────────────────────────────────────────────────────────────────┤
+│ Identity & Access Plane                                                   │
+│  Appwrite Functions + Appwrite Auth + TablesDB                            │
+│  ctrader-auth / ctrader-pin-auth / ctrader-internal / refresh-worker      │
+├──────────────────────────────────────────────────────────────────────────┤
+│ Intelligence Plane                                                        │
+│  agent_harness (Python) + pplx-agent (Python)                             │
+│  Signal intent, entry decisions, lifecycle planning, market research      │
+├──────────────────────────────────────────────────────────────────────────┤
+│ Operations Plane                                                          │
+│  ssfx_server, market_data_service, account_hub, ctrader CLI/runtime       │
+│  Containerized on AWS VM, exposed via Cloudflare Tunnel                   │
+├──────────────────────────────────────────────────────────────────────────┤
+│ Data Plane                                                                │
+│  TablesDB (authority)  |  InfluxDB (time-series)  |  Storage (artifacts)  │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 2. Signal Ingestion Flow
+### 2.1. Experience Plane
+
+**Primary site:** `ssfx-hq` served by Appwrite Sites at `https://app.mrme.tech`.
+
+**Key files:**
+
+- `sites/ssfx-hq/index.html` — shell and hash-router mount point.
+- `sites/ssfx-hq/config.js` — runtime endpoints, project ID, database IDs.
+- `sites/ssfx-hq/js/api.js` — API clients (`AuthAPI`, `V2API`, `AgentAPI`, `DataAPI`).
+- `sites/ssfx-hq/js/auth.js` — session manager.
+- `sites/ssfx-hq/js/router.js` — hash-based client routing.
+- `sites/ssfx-hq/js/components/*` — landing, login, onboarding, dashboard.
+
+**Appwrite Cloud leverage:**
+
+- Serve the SPA from **Appwrite Sites** with custom domain and automatic TLS.
+- Use the **Appwrite Web SDK** for session cookies, account status, and Realtime subscriptions.
+- Subscribe to **Realtime** for account events, execution updates, and signal lifecycle changes instead of polling.
+
+**Cleanup note:** `sites/ctrader-auth-site` and `sites/ctrader-command-center` are deprecated; `ssfx-hq` is the only deployed site. Remove them from the working tree once references in `AGENTS.md` and scripts are migrated.
+
+### 2.2. Identity & Access Plane
+
+This plane is implemented entirely with Appwrite primitives: Functions, Auth, and TablesDB.
+
+#### 2.2.1. Functions
+
+| Function | Current ID | Responsibility | Public domain |
+|---|---|---|---|
+| cTrader OAuth | `ctrader-auth` | OAuth2 initiation & callback, session creation, master admin operations. | `auth.mrme.tech` |
+| PIN Auth | `ctrader-pin-auth` | Username+PIN login, PIN setup, PIN reset via email. | `pin.mrme.tech` |
+| Internal API | `ctrader-internal` | Server-to-server token refresh and grant account persistence. | internal only |
+| Refresh worker | `ctrader-token-refresh-worker` | Proactive refresh of near-expiry tokens and stale ephemeral-token sweep. | scheduled + on-demand HTTP |
+
+#### 2.2.2. Authentication paths
+
+**Primary path: cTrader OAuth2**
 
 ```
-Telegram Channel → Telegram Bot Webhook → ssfx_server/webhook → 
-SignalIntentAgent → Parser → SignalExperienceScorer → 
-AccountFollowers → cTrader Execution → account_events
+User → SPA → GET /auth/ctrader/start → cTrader consent
+→ GET /callback → verify state → exchange code → create Appwrite user
+→ create/upsert slave_accounts row → set session cookie → redirect to dashboard
 ```
 
-### 3. Trading Execution Flow
+- State token: HMAC-signed, single-use, 10-minute TTL, stored in `ephemeral_tokens`.
+- Tokens at rest: AES-GCM-256 encrypted in `slave_accounts`.
+- Session cookie: `a_session_<PROJECT_ID>`, HTTP-only, Secure, SameSite=Lax.
+
+**Secondary path: Username + PIN**
 
 ```
-Signal → EntryDecisionAgent → AccountFollower → 
-ctrader-open-api → cTrader Platform → Position → 
-LifecyclePlannerAgent → Follow-up Actions
+User → SPA → POST /pin-login → verify username + BCrypt pin_hash
+→ create Appwrite session → set cookie → dashboard
 ```
 
-### 4. Market Data Flow
+- PIN setup happens after first OAuth login via `POST /set-credentials`.
+- Master login uses username `admin`; role is looked up in `service_config` (`master_auth`).
+- PIN reset uses Resend (migrate to Appwrite Messaging when native email templates mature).
+
+**Background path: Token refresh**
 
 ```
-ctrader-open-api → market_data_service → 
-GoldQuantEngine → DataAPI → AgentHarness → 
-EntryDecisionAgent/LifecyclePlannerAgent
+Python service → POST /internal/ctrader/refresh (x-internal-key)
+→ acquire grant_locks row → decrypt refresh token → refresh with cTrader
+→ encrypt + store new tokens → release lock → return access_token
 ```
 
-## Authentication Layer
+#### 2.2.3. Identity and permission tables
 
-### OAuth2 Flow
+| Table | Purpose | Permission model |
+|---|---|---|
+| `slave_accounts` | Link between Appwrite user, cTrader grant, username, PIN hash, encrypted tokens. | Row-level security per Appwrite user. |
+| `trade_configs` | Per-user trading settings (lot size, multipliers, risk kill-switches). | Row-level security per Appwrite user. |
+| `ephemeral_tokens` | Short-lived OAuth state and PIN-reset tokens. | Server-only writes; TTL cleanup. |
+| `grant_locks` | Distributed locks for token refresh. Row `$id` is the grant ID. | Server-only. |
+| `service_config` | System config: `ctrader_oauth`, `master_auth`, `pplx_agent`. | Server-only writes; controlled read. |
 
-1. User clicks "Connect cTrader" in SPA
-2. SPA redirects to `/auth/ctrader/start`
-3. Function generates state token, stores in `ephemeral_tokens`
-4. Function redirects to cTrader OAuth consent page
-5. User authorizes access
-6. cTrader redirects to `/callback` with code
-7. Function exchanges code for tokens
-8. Function creates/updates Appwrite user
-9. Function creates/updates `slave_accounts` row with encrypted tokens
-10. Function creates Appwrite session
-11. Function sets session cookie and redirects to dashboard
+**Appwrite Cloud leverage:**
 
-### PIN Authentication
+- Create a native **Appwrite user** for every cTrader grant. Store the Appwrite `userId` in `slave_accounts.appwrite_user_id`; this gives you labels, teams, sessions, and audit for free.
+- Replace the custom `master_auth` `service_config` entry with an **Appwrite Team/Label** (`label:master`) and use table-level label permissions where appropriate.
+- Replace `pin.mrme.tech` with route prefixes under `auth.mrme.tech` (`/auth/pin/*`, `/oauth/*`) once the `ctrader-auth` function is split or re-routed. Until then, keep the separate domain documented in config.
+- Use **Appwrite Realtime** to push session invalidation, role changes, and account selection updates to the SPA.
 
-1. User enters username + PIN in SPA
-2. SPA calls `/pin-login` with credentials
-3. Function verifies PIN hash against `slave_accounts`
-4. Function creates Appwrite session
-5. Function returns session cookie
-6. SPA stores cookie and redirects to dashboard
+### 2.3. Intelligence Plane
 
-### Session Management
+Python FastAPI services that make trading decisions.
 
-- Session cookie: `a_session_<PROJECT_ID>`
-- Cookie is HTTP-only, Secure, SameSite=Lax
-- Session validation via `/session` endpoint
-- Logout via `/logout` endpoint (clears cookie and Appwrite session)
+| Service | Port | Role | Model |
+|---|---|---|---|
+| `agent_harness` | 9003 | Signal intent, entry validation, lifecycle planning. | Mistral Small 3.2 / Hermes 3 / Kimi K2.7 |
+| `pplx_agent` | 9004 | Long-term gold market research and Perplexity Space maintenance. | Perplexity + TradingView scans |
 
-## Signal Processing Pipeline
+**Integration:**
 
-### 1. Webhook Reception
+- `ssfx_server` calls `/agent/v1/signal/intent` before parsing.
+- `ssfx_trader/executor.py` calls `/agent/v1/entry/decision` for new XAUUSD signals and `/agent/v1/lifecycle/plan` for follow-ups.
+- Kill-switches (`AGENT_*_ENABLED`) allow deterministic fallback.
 
-- Telegram Bot API posts to `/webhook`
-- Webhook secret token verification (X-Telegram-Bot-Api-Secret-Token)
-- Source chat ID filtering
-- Background task processing
+### 2.4. Operations Plane
 
-### 2. Intent Classification
+Containerized Python services on the AWS VM. They read current configuration from Appwrite and use short-lived access tokens from `ctrader-internal`.
 
-- SignalIntentAgent analyzes message text
-- Classifies as: new_signal, update, orphan, or noise
-- Links to prior messages when applicable
-- Confidence scoring
+| Service | Port | Responsibility |
+|---|---|---|
+| `ssfx_server` | 8000 | Telegram webhook receiver, signal parsing, follower routing, admin REST API. |
+| `market_data_service` | 9000–9002 | cTrader tick ingestion, gold quant engine, control/SSE/OpenPI APIs. |
+| `account_hub` | 9301 | Live cTrader transports, account discovery, WebSocket fan-out. |
+| `ctrader` / `ctrader_cli` | 9300 / CLI | Direct cTrader Open API tooling and unified cTrader service. |
 
-### 3. Signal Parsing
+**Connection model:**
 
-- ChainedParser (LLM → regex fallback)
-- Extracts: symbol, direction, entry price, SL, TP levels
-- Context-aware parsing with recent messages
-- Confidence scoring
+- One `grant_id` ≡ one cTID ≡ one access token ≡ one persistent TCP connection in the live pool.
+- `account_hub` v2 discovers active grants from TablesDB and maintains exactly two transport endpoints (live + demo).
+- Trading services request `/internal/ctrader/refresh` when a token is missing or near expiry.
 
-### 4. Experience Scoring
+### 2.5. Data Plane
 
-- SignalExperienceScorer evaluates historical performance
-- Adjusts lot size based on author track record
-- Actions: normal, reduce, block
-- Persists to signal_experience table
+#### 2.5.1. TablesDB
 
-### 5. Execution Routing
+**Database: `ctrader_auth`**
 
-- Signal distributed to all configured AccountFollowers
-- Each follower applies account-specific filters
-- Executes via ctrader-open-api
-- Records execution in ssfx_executions table
+| Table | Responsibility |
+|---|---|
+| `slave_accounts` | User identity, encrypted cTrader tokens, grant handle. |
+| `trade_configs` | Per-grant trading configuration and kill-switches. |
+| `accounts` | Discovered cTrader trading accounts (populated by account hub). |
+| `account_events` | Real-time account state snapshots (positions, orders, balance, equity, margin). |
+| `ctrader_trading_events` | Order fills, position changes, errors. |
+| `master_signals` | Master-to-slave signal broadcast. |
+| `ssfx_accounts` | Telegram signal follower configuration. |
+| `ssfx_executions` | Signal execution history. |
+| `ephemeral_tokens` | OAuth state, PIN reset tokens. |
+| `grant_locks` | Distributed locks for token refresh. |
+| `service_config` | Third-party and system configuration. |
+| `ssfx_presets` / `ssfx_risk_state` | Preset and runtime risk state. |
 
-## Agent Integration
+**Database: `market_data`**
 
-### SignalIntentAgent
+- Signal experience tables (`signal_experience_authors`, `sessions`, `patterns`, `overall`, `signal_quality_log`).
+- Symbol-quality and derived analytics.
 
-- **Model**: Mistral Small 3.2
-- **Purpose**: Classify incoming messages
-- **Endpoint**: `/agent/v1/signal/intent`
-- **Input**: Raw text, message context, recent messages
-- **Output**: Intent classification, confidence, reasoning, linked message
+#### 2.5.2. Time-series and object storage
 
-### EntryDecisionAgent
+- **InfluxDB Cloud Serverless** for tick and OHLC time-series; SQLite as explicit fallback.
+- **Appwrite Storage** (not currently used) for exported reports, trade journals, and snapshot archives.
 
-- **Model**: Hermes 3
-- **Purpose**: Approve/reject/modify trade entries
-- **Endpoint**: `/agent/v1/entry/decision`
-- **Input**: Signal details, gold quant snapshot, account state
-- **Output**: Approval decision, modified parameters, confidence
+---
 
-### LifecyclePlannerAgent
+## 3. Data Flows
 
-- **Model**: Kimi K2.7
-- **Purpose**: In-trade management suggestions
-- **Endpoint**: `/agent/v1/lifecycle/plan`
-- **Input**: Open position, market conditions, signal experience
-- **Output**: Action recommendations (partial close, breakeven, hold, close)
+### 3.1. Authentication
 
-### PplxResearchAgent
-
-- **Service**: Perplexity Space
-- **Purpose**: Long-term gold market research
-- **Integration**: Enriches agent decisions with macro context
-- **Data Sources**: Perplexity knowledge, TradingView scans
-
-## Deployment Topology
-
-### Cloud Infrastructure
-
-- **Cloud Provider**: Azure VM (primary), with Cloudflare Tunnel
-- **Domain**: mrme.tech
-- **Public Services**:
-  - `auth.mrme.tech`: ctrader-auth function
-  - `pin.mrme.tech`: ctrader-pin-auth function
-  - `ssfx-api.mrme.tech`: ssfx_server webhook
-  - `dataservice.mrme.tech`: market_data_service API
-  - `agent.mrme.tech`: agent_harness API
-  - `app.mrme.tech`: SSFX HQ SPA
-
-### Containerized Services
-
-Docker Compose stack includes:
-- ssfx_server (port 8000)
-- market_data_service (ports 9000-9002)
-- agent_harness (port 9003)
-- pplx_agent (port 9004)
-- account_hub (port 9301)
-
-### CI/CD Pipeline
-
-- **Branch Strategy**: develop → main (protected)
-- **Deployment**: GitHub Actions on push to develop
-- **Process**:
-  1. Push TablesDB schema
-  2. Deploy Appwrite Functions
-  3. Deploy Appwrite Site
-  4. Verify custom domains
-  5. Smoke test endpoints
-  6. Cleanup old deployments
-
-## Resource Configuration
-
-### Host and Domain Configuration
-
-#### Public Hostnames
-
-The system uses the following public hostnames under the `mrme.tech` domain:
-
-| Hostname | Service | Port | Purpose |
-|----------|---------|------|---------|
-| `auth.mrme.tech` | ctrader-auth Function | N/A | OAuth2 authentication, session management |
-| `pin.mrme.tech` | ctrader-pin-auth Function | N/A | PIN-based authentication |
-| `ssfx-api.mrme.tech` | ssfx_server | 8000 | Telegram webhook, admin API |
-| `dataservice.mrme.tech` | market_data_service | 9002 | Market data REST API |
-| `agent.mrme.tech` | agent_harness | 9003 | AI decision making API |
-| `pplx-agent.mrme.tech` | pplx_agent | 9004 | Perplexity research agent |
-| `app.mrme.tech` | ssfx-hq Site | N/A | Main dashboard SPA |
-
-#### Cloudflare Tunnel Ingress
-
-Source: `remote-services/config/tunnel-ingress.json`
-
-```json
-{
-  "ingress": [
-    {
-      "hostname": "ssfx-api.mrme.tech",
-      "service": "http://localhost:8000"
-    },
-    {
-      "hostname": "dataservice.mrme.tech",
-      "service": "http://localhost:9002"
-    },
-    {
-      "hostname": "agent.mrme.tech",
-      "service": "http://localhost:9003"
-    },
-    {
-      "hostname": "pplx-agent.mrme.tech",
-      "service": "http://localhost:9004"
-    },
-    {
-      "service": "http_status:404"
-    }
-  ]
-}
+```
+User → ssfx-hq → /auth/ctrader/start  → state token in ephemeral_tokens
+→ cTrader OAuth consent → /callback
+→ exchange code → Appwrite Users.create → slave_accounts.upsert
+→ Appwrite Account.createSession → cookie → dashboard
 ```
 
-#### Legacy Hostnames (Deprecated)
+### 3.2. Signal ingestion → execution
 
-- `hq.mrme.tech` - Merged into `app.mrme.tech`
-- `command.mrme.tech` - Merged into `app.mrme.tech`
-- `auth-ctrader.mrme0.store` - Replaced by `auth.mrme.tech`
-
-### API Endpoints and Paths
-
-#### Authentication Functions
-
-##### ctrader-auth Function (`auth.mrme.tech`)
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/auth/ctrader/start` | Start OAuth2 flow with cTrader |
-| GET | `/callback` | OAuth2 callback handler |
-| GET | `/session` | Check current session |
-| POST | `/logout` | Logout and clear session |
-| GET | `/admin/slaves` | List all slave accounts (master only) |
-| GET | `/echo` | Debug endpoint |
-| GET | `/session-debug` | Session debugging |
-
-##### ctrader-pin-auth Function (`pin.mrme.tech`)
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| POST | `/pin-login` | Login with username + PIN |
-| POST | `/set-credentials` | Set username + PIN for new slave |
-| POST | `/pin-reset/request` | Request PIN reset email |
-| POST | `/pin-reset/confirm` | Confirm PIN reset with token |
-
-##### ctrader-internal Function
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| POST | `/internal/ctrader/refresh` | Refresh cTrader access token |
-| GET | `/internal/grant/latest` | Get latest grant for user |
-| POST | `/internal/grant/:grant_id/accounts` | Persist discovered accounts |
-| GET | `/internal/grant/:grant_id/accounts` | Get accounts for grant |
-
-#### Runtime Services
-
-##### ssfx_server (`ssfx-api.mrme.tech`)
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| POST | `/webhook` | Telegram Bot API webhook |
-| GET | `/health` | Health check |
-| POST | `/api/signals/inject` | Direct signal injection |
-| GET | `/api/accounts` | List configured accounts |
-| GET | `/api/accounts/:name/state` | Get account state |
-| PATCH | `/api/accounts/:name` | Update account |
-| GET | `/api/signals` | List signals |
-| GET | `/api/signals/:chatId/:messageId/executions` | Get signal executions |
-| GET | `/api/executions` | List executions |
-| GET | `/api/executions/stream` | SSE execution stream |
-| GET | `/api/agent-logs` | Get agent logs |
-| GET | `/api/signal-experience` | Get signal experience |
-
-##### market_data_service (`dataservice.mrme.tech`)
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/api/v1/health` | Health check |
-| GET | `/api/v1/gold/quant` | Gold quant analysis |
-| GET | `/api/v1/gold/mtf` | Multi-timeframe analysis |
-| GET | `/api/v1/feed/status` | Feed status |
-| GET | `/api/v1/symbols` | List symbols |
-| GET | `/api/v1/quality/:symbol` | Symbol quality data |
-
-##### agent_harness (`agent.mrme.tech`)
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/health` | Health check |
-| POST | `/agent/v1/signal/intent` | Signal intent classification |
-| POST | `/agent/v1/entry/decision` | Entry decision |
-| POST | `/agent/v1/lifecycle/plan` | Lifecycle planning |
-
-### SPA Configuration
-
-#### ssfx-hq (`app.mrme.tech`)
-
-**config.js endpoints:**
-```javascript
-window.APP_CONFIG = {
-  "endpoint": "https://sgp.cloud.appwrite.io/v1",
-  "projectId": "6a22a362002b9ae880bb",
-  "authDomain": "https://auth.mrme.tech",
-  "pinDomain": "https://pin.mrme.tech",
-  "v2ApiBase": "https://ssfx-api.mrme.tech",
-  "dataserviceBase": "https://dataservice.mrme.tech",
-  "agentHarnessBase": "https://agent.mrme.tech",
-  "databaseId": "ctrader_auth",
-  "marketDatabaseId": "market_data",
-  "siteUrl": "https://app.mrme.tech"
-};
+```
+Telegram channel → Telegram Bot Webhook → ssfx_server /webhook
+→ SignalIntentAgent → parser → SignalExperienceScorer
+→ per-follower AccountFollower → executor
+→ ctrader-internal /refresh (if needed) → ctrader-open-api
+→ position → account_events / ctrader_trading_events
 ```
 
-### Database Schema
+### 3.3. Market data → decision support
 
-#### Appwrite TablesDB
-
-##### Database: `ctrader_auth`
-
-**Tables:**
-
-1. **slave_accounts**
-   - Primary user identity table
-   - Stores Appwrite user mappings, grant IDs, encrypted tokens
-   - Row-level security enabled
-
-2. **trade_configs**
-   - Per-slave trading configuration
-   - Lot size, multipliers, risk settings
-   - Row-level security enabled
-
-3. **accounts**
-   - Discovered cTrader trading accounts
-   - Account IDs, broker info, balance data
-   - Row-level security disabled
-
-4. **account_events**
-   - Real-time account state events
-   - Positions, orders, balance changes
-   - Row-level security disabled
-
-5. **ctrader_trading_events**
-   - Trading operation event log
-   - Order fills, position changes, errors
-
-6. **master_signals**
-   - Master-to-slave signal broadcast
-
-7. **ssfx_accounts**
-   - Telegram signal follower configuration
-   - Symbol filters, SL/TP settings
-
-8. **ssfx_executions**
-   - Signal execution history
-   - Per-follower execution status
-
-9. **ephemeral_tokens**
-   - Short-lived tokens (OAuth state, PIN reset)
-
-10. **grant_locks**
-    - Distributed locks for token refresh
-
-11. **service_config**
-    - System configuration (OAuth, master auth)
-
-##### Database: `market_data`
-
-**Tables:**
-- Market data storage
-- Time-series data for analysis
-- Symbol quality metrics
-
-#### Detailed Table Schemas
-
-##### slave_accounts
-
-```json
-{
-  "appwrite_user_id": "varchar(64)",
-  "grant_id": "varchar(64)",
-  "username": "varchar(32)",
-  "email": "varchar(255)",
-  "role": "varchar(16)",
-  "pin_hash": "varchar(255)",
-  "access_token_enc": "text",
-  "refresh_token_enc": "text",
-  "access_token_expires_at": "datetime",
-  "ctrader_account_ids": "text",
-  "selected_account_id": "varchar(64)",
-  "status": "varchar(32)",
-  "active": "boolean",
-  "last_heartbeat_at": "datetime"
-}
+```
+cTrader tick stream → market_data_service → GoldQuantEngine
+→ /api/v1/gold/* endpoints → agent_harness / agent entry/lifecycle endpoints
+→ ssfx_trader executor
 ```
 
-##### accounts
+### 3.4. Account state fan-out
 
-```json
-{
-  "grant_id": "varchar(255)",
-  "ctidTraderAccountId": "integer",
-  "isLive": "boolean",
-  "traderLogin": "varchar(64)",
-  "brokerTitleShort": "varchar(255)",
-  "brokerName": "varchar(255)",
-  "lastClosingDealTimestamp": "datetime",
-  "lastBalanceUpdateTimestamp": "datetime",
-  "balance": "double",
-  "moneyDigits": "integer",
-  "accountType": "varchar(64)",
-  "depositAssetId": "varchar(64)",
-  "leverageInCents": "integer",
-  "registrationTimestamp": "datetime",
-  "selected": "boolean"
-}
+```
+account_hub live transport → account_events write
+→ Appwrite Realtime subscription → ssfx-hq dashboard update
 ```
 
-##### account_events
-
-```json
-{
-  "grant_id": "varchar(255)",
-  "ctid_trader_account_id": "integer",
-  "is_live": "boolean",
-  "event_type": "varchar(100)",
-  "event_data": "json",
-  "timestamp": "datetime"
-}
-```
-
-### Infrastructure Configuration
-
-#### Cloud Provider
-
-- **Primary**: Azure VM
-- **Backup**: Local development with Docker Compose
-- **Public Access**: Cloudflare Tunnel
-
-#### Cloudflare Configuration
-
-- **Account ID**: `4f6d43db5dbe773f750a2c8f941d0cdc`
-- **Zone ID**: `5290d99f626b08c46c1eca6cc7cfa090`
-- **Tunnel Name**: `ssfx_azurue`
-- **Tunnel ID**: `d1e96e86-a44a-457a-a60c-e7d5d5d675bd`
-
-#### Docker Services
-
-**docker-compose.yml services:**
-
-```yaml
-services:
-  ssfx-server:
-    image: ssfx-server
-    ports:
-      - "8000:8000"
-    environment:
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - WEBHOOK_HOST=https://ssfx-api.mrme.tech
-      - WEBHOOK_PATH=/webhook
-
-  dataservice-api:
-    image: dataservice
-    ports:
-      - "9002:9002"
-    environment:
-      - DATA_SERVICE_API_KEY=${DATA_SERVICE_API_KEY}
-
-  agent-harness:
-    image: agent-harness
-    ports:
-      - "9003:9003"
-
-  pplx-agent:
-    image: pplx-agent
-    ports:
-      - "9004:9004"
-```
-
-### Environment Variables
-
-#### Shared Configuration
-
-**`.env` (project root):**
-```bash
-APPWRITE_PROJECT_ID=6a22a362002b9ae880bb
-APPWRITE_API_KEY=your_api_key
-APPWRITE_ENDPOINT=https://sgp.cloud.appwrite.io/v1
-CTRADER_AUTH_DATABASE_ID=ctrader_auth
-TOKEN_ENCRYPTION_KEY=your_encryption_key
-SESSION_HMAC_KEY=your_hmac_key
-INTERNAL_API_KEY=your_internal_key
-```
-
-#### Function-Specific Variables
-
-**ctrader-auth:**
-```bash
-CTRADER_CLIENT_ID=your_client_id
-CTRADER_CLIENT_SECRET=your_client_secret
-CTRADER_REDIRECT_URI=https://auth.mrme.tech/callback
-SITES_URL=https://app.mrme.tech
-```
-
-**ctrader-pin-auth:**
-```bash
-BCRYPT_SALT_ROUNDS=12
-PIN_RESET_BASE_URL=https://app.mrme.tech
-```
-
-**ctrader-internal:**
-```bash
-INTERNAL_API_KEY=your_internal_key
-```
-
-**ctrader-token-refresh-worker:**
-```bash
-REFRESH_BUFFER_HOURS=2
-```
-
-#### Runtime Services Configuration
+---
 
-**remote-services/config/v2.env:**
-```bash
-# Telegram
-TELEGRAM_BOT_TOKEN=your_bot_token
-SOURCE_CHAT_ID=-1001661400724
-WEBHOOK_HOST=https://ssfx-api.mrme.tech
-WEBHOOK_PATH=/webhook
-TELEGRAM_WEBHOOK_SECRET_TOKEN=your_secret
+## 4. Naming & Consolidation Overhaul
 
-# Appwrite
-APPWRITE_API_KEY=your_api_key
-APPWRITE_PROJECT_ID=6a22a362002b9ae880bb
-APPWRITE_ENDPOINT=https://sgp.cloud.appwrite.io/v1
-CTRADER_AUTH_DATABASE_ID=ctrader_auth
-
-# Data Service
-DATA_SERVICE_API_KEY=your_key
-DATA_SERVICE_URL=https://dataservice.mrme.tech
-
-# Agent Harness
-AGENT_HARNESS_URL=https://agent.mrme.tech
-AGENT_INTENT_ENABLED=true
-AGENT_ENTRY_ENABLED=true
-AGENT_LIFECYCLE_ENABLED=true
-
-# cTrader
-CTRADER_CLIENT_ID=your_client_id
-CTRADER_CLIENT_SECRET=your_client_secret
-CTRADER_AUTH_BROKER_URL=https://auth.mrme.tech
-CTRADER_AUTH_INTERNAL_KEY=your_internal_key
-```
-
-## Security Considerations
-
-### Authentication Security
-
-- **OAuth State Tokens**: HMAC-signed, single-use, short-lived
-- **Session Cookies**: HTTP-only, Secure, SameSite=Lax
-- **Token Encryption**: AES-GCM-256 for cTrader tokens at rest
-- **Rate Limiting**: OAuth start endpoint (10 requests/minute)
-- **Webhook Verification**: Telegram secret token required
-
-### Data Security
-
-- **Encryption at Rest**: cTrader tokens encrypted in database
-- **Row-Level Permissions**: Appwrite TablesDB permissions enforced
-- **No Plaintext Logging**: Sensitive data never logged
-- **Secret Management**: Environment variables, never in git
-
-### API Security
-
-- **Internal API**: x-internal-key required
-- **Admin API**: x-admin-key required
-- **CORS**: Restricted to known origins
-- **Input Validation**: All endpoints validate input
-- **Error Handling**: Generic error messages, detailed logs server-side
-
-### Operational Security
-
-- **Distributed Locks**: Prevent concurrent token refresh
-- **Status Monitoring**: Health endpoints on all services
-- **Graceful Degradation**: Fallback to deterministic rules when agents fail
-- **Kill Switches**: Feature flags for agent enablement
-
-## Naming Conventions and Best Practices
-
-### Current Naming Issues
-
-1. **Inconsistent Hostname Patterns**
-   - `auth.mrme.tech` vs `pin.mrme.tech` (separate functions)
-   - Could be unified under `auth.mrme.tech` with paths
-
-2. **Function Name Redundancy**
-   - `ctrader-auth`, `ctrader-pin-auth`, `ctrader-internal` all have "ctrader" prefix
-   - Internal function name doesn't clearly indicate it's for server-to-server
-
-3. **Database Table Naming**
-   - `slave_accounts` vs `accounts` (confusing relationship)
-   - `trade_configs` vs `ssfx_accounts` (overlap in purpose)
-
-4. **Endpoint Path Inconsistency**
-   - `/auth/ctrader/start` vs `/pin-login` (different patterns)
-   - `/internal/ctrader/refresh` vs `/internal/grant/latest` (mixed naming)
-
-### Suggested Improvements
-
-#### Hostname Improvements
-
-| Current | Suggested | Reason |
-|---------|-----------|--------|
-| `auth.mrme.tech` | `auth.mrme.tech` | Keep (primary auth) |
-| `pin.mrme.tech` | `auth.mrme.tech` | Merge under auth domain |
-| `ssfx-api.mrme.tech` | `api.mrme.tech` | More generic |
-| `dataservice.mrme.tech` | `market.mrme.tech` | More descriptive |
-| `agent.mrme.tech` | `ai.mrme.tech` | Shorter |
-| `pplx-agent.mrme.tech` | `research.mrme.tech` | More descriptive |
-
-#### Function Name Improvements
-
-| Current | Suggested | Reason |
-|---------|-----------|--------|
-| `ctrader-auth` | `auth-oauth` | Clarify OAuth purpose |
-| `ctrader-pin-auth` | `auth-pin` | Simpler, under auth |
-| `ctrader-internal` | `api-internal` | Clarify server-to-server |
-| `ctrader-token-refresh-worker` | `token-refresh` | Remove redundancy |
-
-#### Database Table Improvements
-
-| Current | Suggested | Reason |
-|---------|-----------|--------|
-| `slave_accounts` | `users` | More generic, less pejorative |
-| `accounts` | `ctrader_accounts` | Clarify relationship |
-| `trade_configs` | `user_trade_settings` | More descriptive |
-| `ssfx_accounts` | `signal_followers` | Clarify purpose |
-| `account_events` | `account_state_history` | More descriptive |
-
-#### Endpoint Path Improvements
-
-**Current:**
-- `/auth/ctrader/start`
-- `/pin-login`
-- `/internal/ctrader/refresh`
-
-**Suggested:**
-- `/oauth/start`
-- `/auth/pin/login`
-- `/api/internal/token/refresh`
-
-### Code Duplication Analysis
-
-#### Identified Duplications
-
-1. **CORS Header Functions**
-   - Location: `functions/_shared/index.js`
-   - Issue: Multiple functions define similar CORS handling
-   - Solution: Consolidate into single utility function
-
-2. **Database Client Creation**
-   - Location: Multiple function files
-   - Issue: Each function creates admin DB client separately
-   - Solution: Centralize in shared module
-
-3. **Configuration Loading**
-   - Location: `ctrader-auth/src/main.js` and `ctrader-internal/src/main.js`
-   - Issue: Both have identical `getOAuthConfig()` functions
-   - Solution: Move to shared module
-
-4. **Error Handling**
-   - Location: Across all functions
-   - Issue: Inconsistent error response formats
-   - Solution: Standardize error handling utility
-
-5. **Session Management**
-   - Location: `ctrader-auth/src/main.js` and SPA code
-   - Issue: Session cookie handling duplicated
-   - Solution: Centralize session utilities
-
-#### Specific Code Overlaps
-
-##### 1. OAuth Configuration Loading
-
-**ctrader-auth/src/main.js (lines 32-49):**
-```javascript
-async function getOAuthConfig() {
-  const db = makeAdminDb();
-  const svc = await getServiceConfig(db, 'ctrader_oauth', 'CTRADER_OAUTH_JSON');
-  if (svc && typeof svc === 'object' && svc.client_id) {
-    return {
-      clientId: svc.client_id,
-      clientSecret: svc.client_secret,
-      redirectUri: svc.redirect_uri,
-      environment: svc.environment,
-    };
-  }
-  return {
-    clientId: process.env.CTRADER_CLIENT_ID,
-    clientSecret: process.env.CTRADER_CLIENT_SECRET,
-    redirectUri: process.env.CTRADER_REDIRECT_URI || `${process.env.SITES_URL}/callback`,
-    environment: process.env.CTRADER_ENVIRONMENT || 'demo',
-  };
-}
-```
-
-**ctrader-internal/src/main.js (lines 28-45):**
-```javascript
-async function getOAuthConfig() {
-  const db = makeAdminDb();
-  const svc = await getServiceConfig(db, 'ctrader_oauth', 'CTRADER_OAUTH_JSON');
-  if (svc && typeof svc === 'object' && svc.client_id) {
-    return {
-      clientId: svc.client_id,
-      clientSecret: svc.client_secret,
-      redirectUri: svc.redirect_uri,
-      environment: svc.environment,
-    };
-  }
-  return {
-    clientId: process.env.CTRADER_CLIENT_ID,
-    clientSecret: process.env.CTRADER_CLIENT_SECRET,
-    redirectUri: process.env.CTRADER_REDIRECT_URI,
-    environment: process.env.CTRADER_ENVIRONMENT || 'demo',
-  };
-}
-```
-
-**Solution:** Move to `functions/_shared/index.js` and import
-
-##### 2. CORS Header Functions
-
-**functions/_shared/index.js (lines 285-300):**
-```javascript
-function corsHeaders(origin) {
-  const allowed = CORS_ORIGINS.includes(origin) ? origin : CORS_ORIGINS[0] || 'https://app.mrme.tech';
-  return {
-    'Access-Control-Allow-Origin': allowed,
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-internal-key',
-    'Access-Control-Allow-Credentials': 'true',
-    'Vary': 'Origin'
-  };
-}
-```
-
-**Issue:** Each function imports and uses this, but some have slight variations
-
-**Solution:** Standardize and ensure all functions use the same implementation
-
-##### 3. Token Encryption/Decryption
-
-**functions/_shared/index.js:**
-```javascript
-function encrypt(text) {
-  // AES-GCM-256 encryption
-}
-
-function decrypt(encrypted) {
-  // AES-GCM-256 decryption
-}
-```
-
-**Issue:** Used across multiple functions but not consistently imported
-
-**Solution:** Ensure all functions use the shared utilities
-
-### Recommended Refactoring
-
-1. **Create Shared Configuration Module**
-   - Move OAuth config, CORS headers, encryption to shared module
-   - Standardize error handling
-   - Centralize database client creation
-
-2. **Consolidate Authentication Logic**
-   - Merge OAuth and PIN auth under single domain
-   - Standardize session management
-   - Unify error responses
-
-3. **Database Schema Cleanup**
-   - Rename tables for clarity
-   - Consolidate overlapping functionality
-   - Standardize column naming
-
-4. **API Endpoint Standardization**
-   - Use consistent path patterns
-   - Standardize response formats
-   - Document all endpoints uniformly
-
-## Key Integration Points
-
-### Appwrite Integration
-
-- **Database**: TablesDB as primary datastore
-- **Authentication**: Appwrite sessions and users
-- **Functions**: Node.js runtime for auth logic
-- **Realtime**: WebSocket notifications for account state
-
-### cTrader Integration
-
-- **OAuth2**: Standard authorization code flow
-- **Open API**: Protobuf over WebSocket
-- **Token Management**: Automatic refresh with distributed locking
-- **Account Discovery**: Real-time account enumeration
-
-### Telegram Integration
-
-- **Bot API**: Webhook for channel posts
-- **Secret Token**: Webhook verification
-- **Long Polling**: Fallback for development
-- **Message Parsing**: Context-aware signal extraction
-
-### AI Agent Integration
-
-- **Model Selection**: Configurable per agent
-- **Fallback Behavior**: Deterministic rules on failure
-- **Confidence Thresholds**: Minimum scores for action
-- **Context Enrichment**: Market data and signal history
-
-## Configuration Management
-
-### Environment Variables
-
-Primary configuration via `.env` files:
-- `remote-services/config/v2.env`: Runtime services
-- `remote-services/config/v2.env.example`: Template
-- Project root `.env`: Development secrets
-
-### Appwrite Configuration
-
-- **Service Config**: `service_config` table
-- **OAuth Settings**: `ctrader_oauth` config key
-- **Master Auth**: `master_auth` config key
-- **Feature Flags**: Agent enablement, signal experience
-
-### Deployment Configuration
-
-- **GitHub Secrets**: CI/CD credentials
-- **Cloudflare Tunnel**: Ingress rules in `remote-services/config/tunnel-ingress.json`
-- **Docker Compose**: Service definitions and networking
-
-## Monitoring and Observability
-
-### Health Endpoints
-
-- `/health` on all services
-- Status includes: trading_enabled, active_positions, account counts
-- Response time monitoring
-
-### Logging
-
-- Structured JSON logs
-- Error-level logging for critical failures
-- Warning-level for recoverable issues
-- Info-level for normal operation
-- Debug-level for development
-
-### Metrics
-
-- Execution latency
-- Signal processing time
-- Agent response times
-- Token refresh success/failure rates
-- Webhook delivery statistics
-
-## Future Evolution
-
-### Planned Improvements
-
-1. **Complete MongoDB Migration**: Move all signal history to Appwrite
-2. **Enhanced Agent Orchestration**: Dynamic model selection based on performance
-3. **Multi-Symbol Support**: Expand beyond XAUUSD
-4. **Risk Management Dashboard**: Visualize exposure across accounts
-5. **Mobile App**: Native iOS/Android clients
-6. **Performance Optimization**: Caching and batch processing
-7. **Enhanced Security**: IP allow-listing, rate limiting improvements
-8. **Multi-Region Deployment**: Geographic redundancy
-
-### Architecture Principles
-
-1. **Appwrite as Source of Truth**: All configuration in Appwrite Database
-2. **Stateless Services**: Horizontal scalability
-3. **Graceful Degradation**: Fallback mechanisms for all critical paths
-4. **Security First**: Encryption, validation, and verification at every layer
-5. **Observability**: Comprehensive logging and monitoring
-6. **Automation**: CI/CD for all deployments
-7. **Documentation**: Architecture decisions captured in docs/
-
-## Conclusion
-
-SSFX v2 represents a modern, AI-enhanced copy trading platform built on Appwrite's scalable backend. The architecture separates concerns across authentication, signal processing, execution, and monitoring layers while maintaining tight security and operational reliability. The system is designed for continuous evolution with clear migration paths from legacy components.
-
-This document now consolidates the resource configuration details previously found in `RESOURCE_CONFIGURATION.md`, including comprehensive host and domain configuration, API endpoints, database schemas, infrastructure setup, environment variables, and naming convention analysis.
-
-For detailed component-specific documentation, see:
-- `docs/AUTHENTICATION_ARCHITECTURE.md` - Comprehensive authentication system documentation
-- `docs/account-hub-and-dataservice.md` - Account hub and data service architecture
-- `cpr00.md` - Signal ingestion guide
-- `AGENTS.md` - Project context and development operations
-
-Key recommendations for future improvements:
-1. Standardize naming conventions across hosts, functions, and database tables
-2. Centralize shared utilities (OAuth config, CORS, encryption)
-3. Consolidate authentication under a single domain
-4. Clean up database schema for clarity
-5. Document all endpoints consistently
+This section records the current names, the proposed names, and the rationale. The detailed migration plan is in `docs/NAMING_AND_CONSOLIDATION_OVERHAUL.md`.
+
+### 4.1. What has already been consolidated
+
+- `docs/RESOURCE_CONFIGURATION.md` was folded into this document; resource configuration is now a first-class part of each plane.
+- `docs/AUTHENTICATION_ARCHITECTURE.md` is condensed to a focused identity reference; the full auth flow lives in §2.2.
+
+### 4.2. Proposed name changes
+
+#### Hostnames / public surface
+
+| Current | Proposed | Rationale |
+|---|---|---|
+| `auth.mrme.tech` | `auth.mrme.tech` | Keep; primary auth domain. |
+| `pin.mrme.tech` | merge to `auth.mrme.tech` | Single auth domain with paths `/auth/pin/*`. |
+| `ssfx-api.mrme.tech` | `api.mrme.tech` | Generic, shorter, service-agnostic. |
+| `dataservice.mrme.tech` | `market.mrme.tech` | Matches market-data purpose. |
+| `agent.mrme.tech` | `ai.mrme.tech` | Shorter, describes function. |
+| `pplx-agent.mrme.tech` | `research.mrme.tech` | Describes long-term research role. |
+| `account-hub.mrme.tech` | keep | Clear purpose. |
+
+#### Functions
+
+| Current | Proposed | Rationale |
+|---|---|---|
+| `ctrader-auth` | `auth-oauth` | Clear responsibility. |
+| `ctrader-pin-auth` | `auth-pin` | Sibling to `auth-oauth`; mergeable under one auth domain. |
+| `ctrader-internal` | `api-internal` | Server-to-server API, not cTrader-specific. |
+| `ctrader-token-refresh-worker` | `token-refresh` | Remove redundant prefix. |
+
+#### Databases & tables
+
+| Current | Proposed | Rationale |
+|---|---|---|
+| `ctrader_auth` | `slwp_platform` | Platform-wide database, not only cTrader auth. |
+| `slave_accounts` | `users` | Generic, non-pejorative; Appwrite user is already the real identity. |
+| `accounts` | `ctrader_accounts` | Clarifies relationship to cTrader. |
+| `trade_configs` | `trade_settings` | Simpler; per-user via RLS. |
+| `ssfx_accounts` | `signal_followers` | Explains Telegram follower role. |
+| `account_events` | `account_state_history` | Time-series of account snapshots. |
+| `master_signals` | `signal_broadcasts` | Neutral naming. |
+
+#### Code paths / endpoints
+
+| Current | Proposed |
+|---|---|
+| `/auth/ctrader/start` | `/oauth/start` |
+| `/callback` | `/oauth/callback` |
+| `/pin-login` | `/auth/pin/login` |
+| `/set-credentials` | `/auth/pin/credentials` |
+| `/pin-reset/*` | `/auth/pin/reset/*` |
+| `/internal/ctrader/refresh` | `/api/internal/token/refresh` |
+
+---
+
+## 5. Leveraging Appwrite Cloud Optimally
+
+### 5.1. Do more with Appwrite primitives
+
+| Instead of | Use Appwrite Cloud primitive | Benefit |
+|---|---|---|
+| Custom session cookie wrangling in Functions | Appwrite Account sessions + SDK cookie handling | Correct SameSite/Secure/HttpOnly defaults, expiry, revocation. |
+| Manual master-auth flag in `service_config` | Appwrite **Teams/Labels** (`label:master`) + table permissions | Built-in RBAC, audit, membership UI. |
+| Resend-only email PIN reset | Appwrite **Messaging** for email/SMS/Push (when templates are available) | Unified messaging, retries, delivery status. |
+| SPA polling for account updates | Appwrite **Realtime** subscriptions on `account_events` | Lower latency, less compute. |
+| Manual function invocation for table-change side effects | Appwrite **Webhooks** + Functions events | Event-driven refresh, audit, notifications. |
+| Self-hosted file/artifact handling | Appwrite **Storage** | Signed URLs, compression, CDN, permissions. |
+| One custom refresh worker per grant | Appwrite **Scheduled Functions** + a single sweep function | Native scheduling, no cron infra. |
+| Ad-hoc deployments | Appwrite **CLI + GitHub Actions** from `develop` | Repeatable, audited, secret-free repo. |
+
+### 5.2. Connection model recommendation
+
+Keep the Appwrite-native mode that is already emerging:
+
+- Appwrite `users` table owns identity; `slave_accounts` (renamed `users` or `ctrader_grants`) owns only the cTrader grant handle and encrypted tokens.
+- Python services never receive refresh tokens; they call `/api/internal/token/refresh` with `x-internal-key`.
+- Use **grant-level distributed locks** via `grant_locks` row IDs to avoid thundering-herd refresh.
+
+### 5.3. Configuration as data
+
+- All runtime configuration belongs in TablesDB (`service_config`, `trade_settings`, `signal_followers`).
+- `.env` is reserved for bootstrap secrets: `APPWRITE_ENDPOINT`, `APPWRITE_PROJECT_ID`, `APPWRITE_API_KEY`.
+- Third-party credentials (cTrader OAuth, Resend, Telegram, Perplexity cookies) are written by idempotent `init-scripts/*` into `service_config`, not into `.env` files on the VM.
+
+---
+
+## 6. Deployment Topology
+
+### 6.1. Public access via Cloudflare Tunnel
+
+Current ingress (source of truth: `remote-services/config/tunnel-ingress.json`):
+
+| Hostname | Local service | Purpose |
+|---|---|---|
+| `ssfx-api.mrme.tech` | `localhost:8000` | Telegram webhook + admin API |
+| `ds-control.mrme.tech` | `localhost:9000` | Data service control API |
+| `ds-sse.mrme.tech` | `localhost:9001` | MCP SSE live price/tools |
+| `dataservice.mrme.tech` | `localhost:9002` | Market data REST API |
+| `agent.mrme.tech` | `localhost:9003` | AI agent harness |
+| `pplx-agent.mrme.tech` | `localhost:9004` | Perplexity research agent |
+| `ctrader.mrme.tech` | `localhost:9300` | cTrader unified service |
+| `account-hub.mrme.tech` | `localhost:9301` | Account hub WebSocket |
+| `app.mrme.tech` | Appwrite Site | SSFX HQ SPA |
+
+Appwrite Functions (`auth.mrme.tech`, `pin.mrme.tech`) are reached through Appwrite custom domains, not the tunnel.
+
+### 6.2. CI/CD
+
+- Push to `develop` triggers `.github/workflows/deploy.yml`.
+- Jobs: `deploy-tables` → parallel `deploy-functions` + `deploy-site` → `verify-domains` → `smoke-test` → `cleanup`.
+- Functions are deployed with `appwrite functions create-deployment/activate`, not VCS git auto-deploy.
+- Secrets are set via `dev.sh setup-gh-secrets`.
+
+### 6.3. Local development
+
+- Use `dev.sh <command>` (maps to `dev/scripts/<command>.py`).
+- Docker Compose stack in `remote-services/docker-compose.yml`.
+
+---
+
+## 7. Security Model
+
+| Layer | Control |
+|---|---|
+| External ingress | Cloudflare Tunnel; no direct VM public IP exposure. |
+| Function authentication | Appwrite session cookies; `x-internal-key` for server-to-server; `x-admin-key` for admin API. |
+| OAuth CSRF | HMAC-signed state tokens, single-use, TTL 10 min. |
+| Tokens at rest | AES-GCM-256 encrypted in TablesDB; encryption key in function variables, never in code. |
+| PINs | BCrypt hashed in `slave_accounts.pin_hash`; plaintext never logged. |
+| Permissions | Row-level security on user tables; label-based permissions on `master_signals`; server-only writes on config. |
+| Webhooks | Telegram secret-token verification; reject unknown senders. |
+| Secrets | Bitwarden + GitHub Secrets + Appwrite function variables; nothing in git. |
+
+---
+
+## 8. Monitoring & Observability
+
+- Health endpoints: `/health` or `/api/v1/health` on every service.
+- Appwrite Function logs via Console and CLI.
+- Trading metrics: execution latency, signal processing time, agent response time, token refresh success/failure.
+- Realtime subscriptions in `ssfx-hq` for live account state and execution updates.
+
+---
+
+## 9. Related Documentation
+
+- `docs/NAMING_AND_CONSOLIDATION_OVERHAUL.md` — detailed rename matrix and migration roadmap.
+- `docs/AUTHENTICATION_ARCHITECTURE.md` — condensed identity & access reference.
+- `docs/account-hub-and-dataservice.md` — account hub, data service, and InfluxDB details.
+- `AGENTS.md` — project operations, dev commands, and conventions.
+- `docs/SESSION_FIXES_SUMMARY.md` — record of production security fixes.
+
+---
+
+## 10. Glossary
+
+| Term | Meaning |
+|---|---|
+| **grant_id** | Opaque handle for a cTrader token pair. |
+| **ctidTraderAccountId** | cTrader trading account identifier. |
+| **AccountFollower** | Runtime component that routes a signal to one configured cTrader account. |
+| **GoldQuantEngine** | Real-time XAUUSD multi-timeframe analytics engine. |
+| **SignalExperience** | Scoring system that adjusts execution based on signal-author history. |

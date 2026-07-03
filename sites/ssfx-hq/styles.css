@@ -333,6 +333,14 @@ h3 { font-size: 1.05rem; }
 
 .btn-sm { padding: 7px 12px; font-size: 0.75rem; }
 .btn-lg { padding: 14px 24px; font-size: 0.9375rem; }
+.btn-xs { padding: 4px 8px; font-size: 0.6875rem; }
+
+.btn-danger {
+  background: var(--accent-red-dim);
+  color: var(--accent-red);
+  border-color: rgba(248, 113, 113, 0.25);
+}
+.btn-danger:hover { background: rgba(248, 113, 113, 0.2); box-shadow: 0 0 12px rgba(248, 113, 113, 0.2); }
 
 .btn:disabled, .btn[disabled] {
   opacity: 0.5;

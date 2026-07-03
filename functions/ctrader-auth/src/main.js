@@ -92,6 +92,17 @@ module.exports = async function main({ req, res, log, error }) {
     if (path === '/admin/slaves' && method === 'GET') {
       return await handleAdminSlaves(req, res, log, error);
     }
+    if (path === '/admin/slaves/unlink' && method === 'POST') {
+      return await handleAdminUnlinkSlave(req, res, log, error);
+    }
+    const adminAccountsGet = path.match(/^\/admin\/slaves\/([^/]+)\/accounts$/);
+    if (adminAccountsGet && method === 'GET') {
+      return await handleAdminSlaveAccounts(req, res, adminAccountsGet[1], log, error);
+    }
+    const adminAccountDelete = path.match(/^\/admin\/slaves\/([^/]+)\/accounts\/([^/]+)$/);
+    if (adminAccountDelete && method === 'DELETE') {
+      return await handleAdminDeleteAccount(req, res, adminAccountDelete[1], adminAccountDelete[2], log, error);
+    }
     if (path === '/echo' && method === 'GET') {
       return res.json({ cookie: req.headers['cookie'] || '', origin: req.headers['origin'] || '' }, 200, corsHeaders(origin));
     }
@@ -416,7 +427,7 @@ async function handleSession(req, res, log) {
           tableId: 'service_config',
           queries: [Query.equal('config_key', 'master_auth')],
         });
-        const masterConfig = masterConfigList.rows[0] || null;
+        const masterConfig = rowData(masterConfigList.rows[0]) || null;
         if (masterConfig && masterConfig.config_value) {
           const config = JSON.parse(masterConfig.config_value);
           if (config.appwrite_user_id === user.$id) {
@@ -546,23 +557,9 @@ async function getSessionUser(req) {
 // ─── GET /admin/slaves ──────────────────────────────────────────────
 
 async function handleAdminSlaves(req, res, log, error) {
-  const user = await getSessionUser(req);
-  if (!user) {
-    return res.json({ error: 'Unauthorized' }, 401, corsHeaders(req.headers['origin'] || ''));
-  }
-
-  const db = makeAdminDb();
-
-  // Verify caller is a master
-  const callerList = await db.listRows({
-    databaseId: DB_ID,
-    tableId: 'slave_accounts',
-    queries: [Query.equal('appwrite_user_id', user.$id)],
-  });
-  const caller = callerList.rows[0] || null;
-  if (!caller || caller.role !== 'master') {
-    return res.json({ error: 'Forbidden' }, 403, corsHeaders(req.headers['origin'] || ''));
-  }
+  const auth = await requireMaster(req, res);
+  if (auth.error) return auth.error;
+  const { db } = auth;
 
   try {
     const list = await db.listRows({
@@ -589,5 +586,205 @@ async function handleAdminSlaves(req, res, log, error) {
   } catch (err) {
     error(`Admin slaves query failed: ${err.message}`);
     return res.json({ error: 'Failed to load slaves' }, 500, corsHeaders(req.headers['origin'] || ''));
+  }
+}
+
+// ─── Admin helpers ──────────────────────────────────────────────────
+
+async function requireMaster(req, res) {
+  const user = await getSessionUser(req);
+  if (!user) {
+    return { error: res.json({ error: 'Unauthorized' }, 401, corsHeaders(req.headers['origin'] || '')) };
+  }
+  const db = makeAdminDb();
+
+  // Allow either a slave_accounts row with role master or the service_config master_auth record.
+  const callerList = await db.listRows({
+    databaseId: DB_ID,
+    tableId: 'slave_accounts',
+    queries: [Query.equal('appwrite_user_id', user.$id)],
+  });
+  const caller = rowData(callerList.rows[0]) || null;
+  if (caller && caller.role === 'master') {
+    return { user, db };
+  }
+
+  const masterConfigList = await db.listRows({
+    databaseId: DB_ID,
+    tableId: 'service_config',
+    queries: [Query.equal('config_key', 'master_auth')],
+  });
+  const masterConfig = rowData(masterConfigList.rows[0]) || null;
+  if (masterConfig && masterConfig.config_value) {
+    try {
+      const config = JSON.parse(masterConfig.config_value);
+      if (config.appwrite_user_id === user.$id) {
+        return { user, db };
+      }
+    } catch {
+      // ignore parse error
+    }
+  }
+
+  return { error: res.json({ error: 'Forbidden' }, 403, corsHeaders(req.headers['origin'] || '')) };
+}
+
+// ─── GET /admin/slaves/:grant_id/accounts ───────────────────────────
+
+async function handleAdminSlaveAccounts(req, res, grantId, log, error) {
+  const auth = await requireMaster(req, res);
+  if (auth.error) return auth.error;
+  const { db } = auth;
+
+  try {
+    const accountList = await db.listRows({
+      databaseId: DB_ID,
+      tableId: 'accounts',
+      queries: [Query.equal('grant_id', grantId)],
+    });
+    const accounts = (accountList.rows || []).map((row) => {
+      const acc = rowData(row) || {};
+      return {
+        ctid_trader_account_id: acc.ctidTraderAccountId,
+        is_live: acc.isLive,
+        trader_login: acc.traderLogin,
+        broker_title_short: acc.brokerTitleShort,
+        broker_name: acc.brokerName,
+        last_closing_deal_timestamp: acc.lastClosingDealTimestamp,
+        last_balance_update_timestamp: acc.lastBalanceUpdateTimestamp,
+        balance: typeof acc.balance === 'number' ? acc.balance : null,
+        money_digits: acc.moneyDigits,
+        account_type: acc.accountType,
+        deposit_asset_id: acc.depositAssetId,
+        leverage_in_cents: acc.leverageInCents,
+        registration_timestamp: acc.registrationTimestamp,
+        selected: acc.selected,
+      };
+    });
+    return res.json({ success: true, grant_id: grantId, accounts }, 200, corsHeaders(req.headers['origin'] || ''));
+  } catch (err) {
+    error(`Admin slave accounts query failed: ${err.message}`);
+    return res.json({ error: 'Failed to load accounts' }, 500, corsHeaders(req.headers['origin'] || ''));
+  }
+}
+
+// ─── DELETE /admin/slaves/:grant_id/accounts/:account_id ────────────
+
+async function handleAdminDeleteAccount(req, res, grantId, accountId, log, error) {
+  const auth = await requireMaster(req, res);
+  if (auth.error) return auth.error;
+  const { db } = auth;
+
+  try {
+    const numericId = Number(accountId);
+    const accountList = await db.listRows({
+      databaseId: DB_ID,
+      tableId: 'accounts',
+      queries: [
+        Query.equal('grant_id', grantId),
+        Query.equal('ctidTraderAccountId', numericId),
+      ],
+    });
+    if (!accountList.rows || accountList.rows.length === 0) {
+      return res.json({ error: 'Account not found' }, 404, corsHeaders(req.headers['origin'] || ''));
+    }
+    const row = accountList.rows[0];
+    await db.deleteRow({
+      databaseId: DB_ID,
+      tableId: 'accounts',
+      rowId: row.$id,
+    });
+
+    // Update slave row to remove the account id from its list and clear selection if needed.
+    const slaveList = await db.listRows({
+      databaseId: DB_ID,
+      tableId: 'slave_accounts',
+      queries: [Query.equal('grant_id', grantId)],
+    });
+    if (slaveList.rows && slaveList.rows.length > 0) {
+      const slaveRow = slaveList.rows[0];
+      const slave = rowData(slaveRow) || {};
+      const ids = String(slave.ctrader_account_ids || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .filter((id) => id !== String(numericId));
+      const update = { ctrader_account_ids: ids.join(',') };
+      if (String(slave.selected_account_id) === String(numericId)) {
+        update.selected_account_id = '';
+      }
+      await db.updateRow({
+        databaseId: DB_ID,
+        tableId: 'slave_accounts',
+        rowId: slaveRow.$id,
+        data: update,
+      });
+    }
+
+    log(`Admin deleted account ${accountId} for grant ${grantId}`);
+    return res.json({ success: true, deleted_account_id: numericId }, 200, corsHeaders(req.headers['origin'] || ''));
+  } catch (err) {
+    error(`Admin delete account failed: ${err.message}`);
+    return res.json({ error: 'Failed to delete account' }, 500, corsHeaders(req.headers['origin'] || ''));
+  }
+}
+
+// ─── POST /admin/slaves/unlink ──────────────────────────────────────
+
+async function handleAdminUnlinkSlave(req, res, log, error) {
+  const auth = await requireMaster(req, res);
+  if (auth.error) return auth.error;
+  const { db } = auth;
+
+  const body = req.bodyJson || {};
+  const grantId = String(body.grant_id || '').trim();
+  if (!grantId) {
+    return res.json({ error: 'grant_id required' }, 400, corsHeaders(req.headers['origin'] || ''));
+  }
+
+  try {
+    // Delete all persisted accounts for this grant.
+    const accountList = await db.listRows({
+      databaseId: DB_ID,
+      tableId: 'accounts',
+      queries: [Query.equal('grant_id', grantId)],
+    });
+    for (const row of accountList.rows || []) {
+      await db.deleteRow({
+        databaseId: DB_ID,
+        tableId: 'accounts',
+        rowId: row.$id,
+      });
+    }
+
+    // Clear tokens and account references on the slave row.
+    const slaveList = await db.listRows({
+      databaseId: DB_ID,
+      tableId: 'slave_accounts',
+      queries: [Query.equal('grant_id', grantId)],
+    });
+    if (slaveList.rows && slaveList.rows.length > 0) {
+      const slaveRow = slaveList.rows[0];
+      await db.updateRow({
+        databaseId: DB_ID,
+        tableId: 'slave_accounts',
+        rowId: slaveRow.$id,
+        data: {
+          access_token_enc: null,
+          refresh_token_enc: null,
+          access_token_expires_at: null,
+          ctrader_account_ids: '',
+          selected_account_id: '',
+          status: 'unlinked',
+          active: false,
+        },
+      });
+    }
+
+    log(`Admin unlinked grant ${grantId}`);
+    return res.json({ success: true, grant_id: grantId }, 200, corsHeaders(req.headers['origin'] || ''));
+  } catch (err) {
+    error(`Admin unlink slave failed: ${err.message}`);
+    return res.json({ error: 'Failed to unlink slave' }, 500, corsHeaders(req.headers['origin'] || ''));
   }
 }

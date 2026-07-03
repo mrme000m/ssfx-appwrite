@@ -180,6 +180,186 @@ window.DashboardComponent = (function () {
       </div>`;
   }
 
+  // ─── Master: linked slaves management ───────────────────────────────
+
+  const linkedSlavesState = {
+    slaves: [],
+    accounts: {}, // grantId -> accounts array
+    expanded: new Set(),
+    loading: new Set(),
+  };
+
+  async function loadLinkedSlaves(container) {
+    const wrapper = container.querySelector('#linked-slaves-container');
+    const refreshBtn = container.querySelector('#refresh-linked-slaves');
+    if (!wrapper) return;
+    if (refreshBtn) refreshBtn.disabled = true;
+    try {
+      const data = await window.API.AuthAPI.adminSlaves();
+      linkedSlavesState.slaves = data.slaves || [];
+    } catch (err) {
+      linkedSlavesState.slaves = [];
+      window.UI.toast('error', 'Could not load linked slaves', 'Admin');
+    }
+    renderLinkedSlaves(wrapper);
+    if (refreshBtn) {
+      refreshBtn.disabled = false;
+      refreshBtn.onclick = () => loadLinkedSlaves(container);
+    }
+  }
+
+  async function toggleSlaveAccounts(grantId, wrapper) {
+    const expanded = linkedSlavesState.expanded;
+    if (expanded.has(grantId)) {
+      expanded.delete(grantId);
+      renderLinkedSlaves(wrapper);
+      return;
+    }
+    expanded.add(grantId);
+    if (!linkedSlavesState.accounts[grantId]) {
+      linkedSlavesState.loading.add(grantId);
+      renderLinkedSlaves(wrapper);
+      try {
+        const data = await window.API.AuthAPI.adminSlaveAccounts(grantId);
+        linkedSlavesState.accounts[grantId] = data.accounts || [];
+      } catch (err) {
+        linkedSlavesState.accounts[grantId] = [];
+        window.UI.toast('error', `Could not load accounts for ${grantId}`, 'Admin');
+      } finally {
+        linkedSlavesState.loading.delete(grantId);
+      }
+    }
+    renderLinkedSlaves(wrapper);
+  }
+
+  async function deleteSlaveAccount(grantId, accountId, wrapper) {
+    if (!confirm(`Delete account ${accountId} for grant ${grantId}? This cannot be undone.`)) return;
+    try {
+      await window.API.AuthAPI.adminDeleteSlaveAccount(grantId, accountId);
+      window.UI.toast('success', `Account ${accountId} deleted`, 'Admin');
+      linkedSlavesState.accounts[grantId] = (linkedSlavesState.accounts[grantId] || [])
+        .filter((a) => String(a.ctid_trader_account_id) !== String(accountId));
+    } catch (err) {
+      window.UI.toast('error', err.message || 'Could not delete account', 'Admin');
+    }
+    renderLinkedSlaves(wrapper);
+  }
+
+  async function unlinkSlave(grantId, wrapper) {
+    if (!confirm(`Unlink all cTrader accounts for grant ${grantId}? This will clear tokens and account links.`)) return;
+    try {
+      await window.API.AuthAPI.adminUnlinkSlave(grantId);
+      window.UI.toast('success', `Grant ${grantId} unlinked`, 'Admin');
+      linkedSlavesState.expanded.delete(grantId);
+      delete linkedSlavesState.accounts[grantId];
+      await loadLinkedSlaves(wrapper.closest('#app-main') || wrapper);
+      return;
+    } catch (err) {
+      window.UI.toast('error', err.message || 'Could not unlink slave', 'Admin');
+    }
+    renderLinkedSlaves(wrapper);
+  }
+
+  function renderAccountMiniCard(acc) {
+    const id = String(acc.ctid_trader_account_id || acc.ctidTraderAccountId || '');
+    const broker = String(acc.broker_title_short || acc.brokerTitleShort || acc.broker_name || acc.brokerName || 'Unknown Broker');
+    const isLive = acc.is_live === true || acc.isLive === true;
+    const balance = typeof acc.balance === 'number' ? acc.balance : null;
+    const moneyDigits = acc.money_digits || acc.moneyDigits || 0;
+    const formattedBalance = balance !== null ? fmtMoney(balance, moneyDigits > 0 ? moneyDigits : 2) : '—';
+    const currency = String(acc.deposit_asset_id || acc.depositAssetId || '');
+    const leverageCents = acc.leverage_in_cents || acc.leverageInCents || 0;
+    return `
+      <div class="account-card" style="flex:1 1 260px;min-width:260px">
+        <div class="account-card-header">
+          <span class="account-card-broker">${window.UI.esc(broker)}</span>
+          <span class="badge ${isLive ? 'badge-green' : 'badge-amber'}">${isLive ? 'Live' : 'Demo'}</span>
+        </div>
+        <div class="account-card-balance">
+          ${formattedBalance}<span class="account-card-currency">${window.UI.esc(currency)}</span>
+        </div>
+        <div class="account-card-meta">
+          <span class="text-dim">${window.UI.esc(accountTypeLabel(acc.account_type || acc.accountType))}</span>
+          <span class="text-dim">${leverageDisplay(leverageCents)}</span>
+          <span class="text-dim mono">Login ${window.UI.esc(acc.trader_login || acc.traderLogin || '')}</span>
+        </div>
+      </div>`;
+  }
+
+  function renderLinkedSlaves(wrapper) {
+    const slaves = linkedSlavesState.slaves || [];
+    if (slaves.length === 0) {
+      wrapper.innerHTML = '<p class="text-dim">No linked slaves found.</p>';
+      return;
+    }
+
+    wrapper.innerHTML = `
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Grant ID</th>
+            <th>Status</th>
+            <th>Accounts</th>
+            <th style="text-align:right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${slaves.map((s) => {
+            const grantId = window.UI.esc(s.grant_id || '');
+            const expanded = linkedSlavesState.expanded.has(s.grant_id);
+            const loading = linkedSlavesState.loading.has(s.grant_id);
+            const accounts = linkedSlavesState.accounts[s.grant_id] || [];
+            const ids = String(s.ctrader_account_ids || '').split(',').filter(Boolean);
+            return `
+              <tr data-grant="${grantId}">
+                <td>${window.UI.esc(s.username || '—')}</td>
+                <td class="cell-mono">${grantId}</td>
+                <td><span class="badge ${s.status === 'active' ? 'badge-green' : 'badge-amber'}">${window.UI.esc(s.status || 'unknown')}</span></td>
+                <td>${ids.length}</td>
+                <td style="text-align:right">
+                  <button type="button" class="btn btn-sm btn-ghost toggle-accounts-btn" data-grant="${grantId}">
+                    ${expanded ? 'Hide accounts' : 'Show accounts'}
+                  </button>
+                  <button type="button" class="btn btn-sm btn-danger unlink-slave-btn" data-grant="${grantId}">Unlink</button>
+                </td>
+              </tr>
+              ${expanded ? `
+                <tr class="linked-slave-accounts-row">
+                  <td colspan="5" style="padding:0;border:none">
+                    <div style="padding:var(--sp-4)">
+                      ${loading ? '<p class="text-dim">Loading accounts...</p>' : accounts.length === 0 ? '<p class="text-dim">No accounts discovered for this grant.</p>' : `
+                        <div class="account-grid" style="margin-bottom:12px">
+                          ${accounts.map(renderAccountMiniCard).join('')}
+                        </div>
+                        <div style="display:flex;flex-wrap:wrap;gap:8px">
+                          ${accounts.map((a) => {
+                            const accId = String(a.ctid_trader_account_id || a.ctidTraderAccountId || '');
+                            return `<button type="button" class="btn btn-xs btn-danger delete-account-btn" data-grant="${grantId}" data-account="${window.UI.esc(accId)}">Delete account ${window.UI.esc(accId)}</button>`;
+                          }).join('')}
+                        </div>
+                      `}
+                    </div>
+                  </td>
+                </tr>
+              ` : ''}
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
+
+    wrapper.querySelectorAll('.toggle-accounts-btn').forEach((btn) => {
+      btn.addEventListener('click', () => toggleSlaveAccounts(btn.dataset.grant, wrapper));
+    });
+    wrapper.querySelectorAll('.unlink-slave-btn').forEach((btn) => {
+      btn.addEventListener('click', () => unlinkSlave(btn.dataset.grant, wrapper));
+    });
+    wrapper.querySelectorAll('.delete-account-btn').forEach((btn) => {
+      btn.addEventListener('click', () => deleteSlaveAccount(btn.dataset.grant, btn.dataset.account, wrapper));
+    });
+  }
+
   function renderMasterDashboard(container) {
     const fleetAccounts = window.appState.fleetAccounts || [];
     const accounts = window.appState.accounts || [];
@@ -205,7 +385,7 @@ window.DashboardComponent = (function () {
       <div class="data-grid data-grid-4">
         <div class="stat-card">
           <div class="stat-label">Accounts</div>
-          <div class="stat-value">${accounts.length}</div>
+          <div class="stat-value">${fleetAccounts.length}</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Running</div>
@@ -227,7 +407,7 @@ window.DashboardComponent = (function () {
 
       <div class="card mt-6">
         <h3 class="mb-4">Fleet Snapshot</h3>
-        ${accounts.length === 0 ? '<p class="text-dim">No accounts configured.</p>' : `
+        ${fleetAccounts.length === 0 ? '<p class="text-dim">No accounts configured.</p>' : `
           <table class="data-table">
             <thead>
               <tr><th>Name</th><th>Host</th><th>Status</th><th>Positions</th></tr>
@@ -245,7 +425,17 @@ window.DashboardComponent = (function () {
           </table>
         `}
       </div>
+
+      <div class="card mt-6">
+        <div class="flex" style="justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h3 style="margin:0">Linked Slaves</h3>
+          <button type="button" class="btn btn-sm btn-ghost" id="refresh-linked-slaves">Refresh</button>
+        </div>
+        <div id="linked-slaves-container"><p class="text-dim">Loading linked slaves...</p></div>
+      </div>
     `;
+
+    loadLinkedSlaves(container);
   }
 
   function renderSlaveDashboard(container) {
