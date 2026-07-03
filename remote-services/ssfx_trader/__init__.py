@@ -1,22 +1,19 @@
-"""SSFX trade execution — per-account follower and trade lifecycle management."""
+"""SSFX trade execution — per-account slave and trade lifecycle management."""
 from __future__ import annotations
 
 from .backends.base import ExecutionBackend
 from .backends.simulated import SimulatedBackend
 from .config import AccountConfig, CTraderConfig, PerAccountTradingConfig
 from .executor import TradeExecutor
-from .follower import AccountFollower
+from .slave import AccountSlave
 from .stores.base import AccountStore, SignalStore
-from .stores.mongo_store import MongoAccountStore, MongoSignalStore
 
 __all__ = [
     "AccountConfig",
-    "AccountFollower",
+    "AccountSlave",
     "AccountStore",
     "CTraderConfig",
     "ExecutionBackend",
-    "MongoAccountStore",
-    "MongoSignalStore",
     "PerAccountTradingConfig",
     "SignalStore",
     "SimulatedBackend",

@@ -13,8 +13,6 @@ from ssfx_parser import AgentConfig
 class ServerConfig:
     telegram_bot_token: str
     telegram_webhook_secret_token: str
-    mongo_uri: str
-    mongo_database: str
     source_chat_id: str
     webhook_host: str
     webhook_port: int
@@ -98,8 +96,6 @@ def load_config(env_file: str | None = None) -> ServerConfig:
     return ServerConfig(
         telegram_bot_token=_env("TELEGRAM_BOT_TOKEN"),
         telegram_webhook_secret_token=_env("TELEGRAM_WEBHOOK_SECRET_TOKEN", ""),
-        mongo_uri=_env("MONGODB_URI", "mongodb://localhost:27017"),
-        mongo_database=_env("MONGODB_DATABASE", "ssfx_v2"),
         source_chat_id=_env("SOURCE_CHAT_ID", "-1001661400724"),
         webhook_host=_env("WEBHOOK_HOST", "https://example.com"),
         webhook_port=int(_env("SSFX_SERVER_PORT") or _env("PORT") or "8000"),
@@ -120,7 +116,7 @@ def load_config(env_file: str | None = None) -> ServerConfig:
         dataservice_api_key=_env("DATA_SERVICE_API_KEY"),
         agent_harness_base_url=_env("AGENT_HARNESS_URL", "http://127.0.0.1:9003"),
         agent_intent_enabled=_env("AGENT_INTENT_ENABLED", "true").lower() == "true",
-        ctrader_broker_url=_env("CTRADER_BROKER_URL", "https://auth-ctrader.mrme0.store"),
+        ctrader_broker_url=_env("CTRADER_BROKER_URL", ""),
         admin_site_origin=_env("ADMIN_SITE_ORIGIN", "https://app.mrme.tech"),
         admin_api_key=_env("ADMIN_API_KEY", ""),
         signal_experience_enabled=_env("SIGNAL_EXPERIENCE_ENABLED", "true").lower() == "true",

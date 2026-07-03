@@ -136,7 +136,7 @@ class TradeExecutor:
 
     def __init__(
         self,
-        follower_id: str,
+        slave_id: str,
         backend: ExecutionBackend,
         resolver: SymbolResolver,
         signal_store: SignalStore,
@@ -148,7 +148,7 @@ class TradeExecutor:
         risk_monitor: RiskMonitor | None = None,
         autonomy_enabled: bool | None = None,
     ):
-        self._follower_id = follower_id
+        self._slave_id = slave_id
         self._backend = backend
         self._resolver = resolver
         self._signal_store = signal_store
@@ -183,12 +183,12 @@ class TradeExecutor:
             self._risk_monitor._limits.max_open_risk_pct = trading.max_open_risk_pct
             self._risk_monitor._limits.panic_stop = trading.panic_stop
             self._risk_monitor._limits.risk_reset_utc_hour = trading.risk_reset_utc_hour
-        logger.info("[%s] TradeExecutor config updated", self._follower_id)
+        logger.info("[%s] TradeExecutor config updated", self._slave_id)
 
     def set_autonomy_enabled(self, enabled: bool) -> None:
         """Runtime toggle for the autonomous lifecycle re-evaluation loop."""
         self._autonomy_enabled = enabled
-        logger.info("[%s] Autonomy %s", self._follower_id, "enabled" if enabled else "disabled")
+        logger.info("[%s] Autonomy %s", self._slave_id, "enabled" if enabled else "disabled")
 
     async def get_account_summary(self) -> dict[str, float]:
         return await self._backend.get_account_summary()
@@ -218,7 +218,7 @@ class TradeExecutor:
                 result = await self._execute_follow_up_signal(synthetic)
                 results.append({"key": key, "action": result.get("code"), "accepted": result.get("accepted")})
             except Exception as exc:
-                logger.warning("[%s] Autonomy cycle failed for %s: %s", self._follower_id, key, exc)
+                logger.warning("[%s] Autonomy cycle failed for %s: %s", self._slave_id, key, exc)
         return results
 
     async def execute_signal(self, signal: TradeSignal) -> dict[str, Any]:
@@ -231,7 +231,7 @@ class TradeExecutor:
                 passed, code, reason, _context = await self._check_market_context(signal)
                 if not passed:
                     self._account_store.mark_skipped(
-                        self._follower_id,
+                        self._slave_id,
                         signal.chat_id or "",
                         signal.message_id or 0,
                         reason=f"{code}: {reason}",
@@ -251,7 +251,7 @@ class TradeExecutor:
                     logger.warning(
                         "[%s] Cannot buffer signal %s: missing chat_id or message_id. "
                         "Executing immediately instead.",
-                        self._follower_id,
+                        self._slave_id,
                         signal.message_id
                     )
                     return await self._execute_follow_up_signal(signal)
@@ -267,9 +267,9 @@ class TradeExecutor:
 
             return await self._execute_follow_up_signal(signal)
         except Exception as exc:
-            logger.error("[%s] Error executing signal: %s", self._follower_id, exc, exc_info=True)
+            logger.error("[%s] Error executing signal: %s", self._slave_id, exc, exc_info=True)
             self._account_store.update_execution(
-                self._follower_id,
+                self._slave_id,
                 signal.chat_id or "",
                 signal.message_id or 0,
                 signal_type=signal.signal_type.value,
@@ -331,7 +331,7 @@ class TradeExecutor:
                     pips,
                 )
             except Exception as exc:
-                logger.warning("[%s] Experience update failed: %s", self._follower_id, exc)
+                logger.warning("[%s] Experience update failed: %s", self._slave_id, exc)
 
         return result
 
@@ -374,7 +374,7 @@ class TradeExecutor:
         plan = plan_result.get("plan", {})
         logger.info(
             "[%s] Agent lifecycle plan for %s: %s (%s)",
-            self._follower_id,
+            self._slave_id,
             signal.signal_type.value,
             plan.get("action"),
             plan.get("reasoning", ""),
@@ -458,13 +458,13 @@ class TradeExecutor:
             reason = "market data is stale"
             if mode == "strict":
                 return False, "stale_market_data", reason, context
-            logger.warning("[%s] %s", self._follower_id, reason)
+            logger.warning("[%s] %s", self._slave_id, reason)
 
         if not context.quality_ok():
             reason = "market data quality check failed"
             if mode == "strict":
                 return False, "data_quality_failed", reason, context
-            logger.warning("[%s] %s", self._follower_id, reason)
+            logger.warning("[%s] %s", self._slave_id, reason)
 
         pip_size = self._pip_size_for(signal.symbol)
 
@@ -484,7 +484,7 @@ class TradeExecutor:
                 reason = f"spread {spread_pips:.1f} pips exceeds max {self._trading.max_spread_pips}"
                 if mode == "strict":
                     return False, "spread_too_high", reason, context
-                logger.warning("[%s] %s", self._follower_id, reason)
+                logger.warning("[%s] %s", self._slave_id, reason)
 
         # Risk guardrails require account balance; leave to volume/risk resolver.
         return True, "", "", context
@@ -543,7 +543,7 @@ class TradeExecutor:
             try:
                 volume_lots = await self._volume_resolver.resolve_volume(signal)
             except Exception as exc:
-                logger.error("[%s] Volume resolution failed, rejecting signal: %s", self._follower_id, exc)
+                logger.error("[%s] Volume resolution failed, rejecting signal: %s", self._slave_id, exc)
                 return {
                     "accepted": False,
                     "code": "volume_resolution_error",
@@ -561,15 +561,15 @@ class TradeExecutor:
                 allowed, reason = self._risk_monitor.check_new_signal(equity, open_risk_pct=open_risk_pct)
                 if not allowed:
                     self._account_store.mark_skipped(
-                        self._follower_id,
+                        self._slave_id,
                         signal.chat_id or "",
                         signal.message_id or 0,
                         f"risk:{reason}",
                     )
-                    logger.warning("[%s] New signal blocked by risk check: %s", self._follower_id, reason)
+                    logger.warning("[%s] New signal blocked by risk check: %s", self._slave_id, reason)
                     return {"accepted": False, "code": "risk_kill_switch", "reason": reason}
             except Exception as exc:
-                logger.error("[%s] Risk check failed, rejecting signal: %s", self._follower_id, exc)
+                logger.error("[%s] Risk check failed, rejecting signal: %s", self._slave_id, exc)
                 return {
                     "accepted": False,
                     "code": "risk_check_error",
@@ -603,7 +603,7 @@ class TradeExecutor:
                     open_positions=[{"symbol": p["signal"].symbol, "direction": p["signal"].direction.value} for p in self._active_positions.values()],
                 )
                 if not agent_result:
-                    logger.error("[%s] Entry agent returned no decision; rejecting signal", self._follower_id)
+                    logger.error("[%s] Entry agent returned no decision; rejecting signal", self._slave_id)
                     return {
                         "accepted": False,
                         "code": "agent_unavailable",
@@ -612,7 +612,7 @@ class TradeExecutor:
                 agent_decision = agent_result.get("decision", {})
                 logger.info(
                     "[%s] Agent entry decision: %s (confidence %.2f) — %s",
-                    self._follower_id,
+                    self._slave_id,
                     agent_decision.get("action"),
                     agent_decision.get("confidence", 0.0),
                     agent_decision.get("suggested_action", ""),
@@ -621,7 +621,7 @@ class TradeExecutor:
                 if action == "REJECT":
                     reason = f"agent_reject: {'; '.join(agent_decision.get('reasons', []))}"
                     self._account_store.mark_skipped(
-                        self._follower_id,
+                        self._slave_id,
                         signal.chat_id or "",
                         signal.message_id or 0,
                         reason=reason,
@@ -630,7 +630,7 @@ class TradeExecutor:
                 if action in ("WAIT", "HOLD"):
                     reason = f"agent_wait: {'; '.join(agent_decision.get('reasons', []))}"
                     self._account_store.mark_skipped(
-                        self._follower_id,
+                        self._slave_id,
                         signal.chat_id or "",
                         signal.message_id or 0,
                         reason=reason,
@@ -656,7 +656,7 @@ class TradeExecutor:
                     passed, code, reason, _context = await self._check_market_context(signal)
                     if not passed:
                         self._account_store.mark_skipped(
-                            self._follower_id,
+                            self._slave_id,
                             signal.chat_id or "",
                             signal.message_id or 0,
                             reason=f"modify_{code}: {reason}",
@@ -669,14 +669,14 @@ class TradeExecutor:
                         allowed, reason = self._risk_monitor.check_new_signal(equity, open_risk_pct=open_risk_pct)
                         if not allowed:
                             self._account_store.mark_skipped(
-                                self._follower_id,
+                                self._slave_id,
                                 signal.chat_id or "",
                                 signal.message_id or 0,
                                 f"modify_risk:{reason}",
                             )
                             return {"accepted": False, "code": "modify_risk_kill_switch", "reason": reason}
                     except Exception as exc:
-                        logger.error("[%s] Post-modify risk check failed, rejecting signal: %s", self._follower_id, exc)
+                        logger.error("[%s] Post-modify risk check failed, rejecting signal: %s", self._slave_id, exc)
                         return {
                             "accepted": False,
                             "code": "modify_risk_check_error",
@@ -705,7 +705,7 @@ class TradeExecutor:
                 self._circuit_opened_at = time.time()
             error_msg = f"Backend error after retries: {exc}"
             self._account_store.update_execution(
-                self._follower_id,
+                self._slave_id,
                 signal.chat_id or "",
                 signal.message_id or 0,
                 signal_type=signal.signal_type.value,
@@ -717,7 +717,7 @@ class TradeExecutor:
         if not result.get("accepted"):
             error_msg = result.get("error", "backend rejected open")
             self._account_store.update_execution(
-                self._follower_id,
+                self._slave_id,
                 signal.chat_id or "",
                 signal.message_id or 0,
                 signal_type=signal.signal_type.value,
@@ -744,7 +744,7 @@ class TradeExecutor:
         )
 
         self._account_store.update_execution(
-            self._follower_id,
+            self._slave_id,
             signal.chat_id or "",
             signal.message_id or 0,
             signal_type=signal.signal_type.value,
@@ -775,7 +775,7 @@ class TradeExecutor:
         if not allowed:
             logger.warning(
                 "[%s] Position limits changed after order fill; closing %s/order %s (%s)",
-                self._follower_id,
+                self._slave_id,
                 position_id,
                 order_id,
                 reason,
@@ -784,12 +784,12 @@ class TradeExecutor:
                 try:
                     await self._backend.close_position(position_id, volume_lots=None)
                 except Exception as exc:
-                    logger.error("[%s] Failed to close rejected position %s: %s", self._follower_id, position_id, exc)
+                    logger.error("[%s] Failed to close rejected position %s: %s", self._slave_id, position_id, exc)
             elif order_id:
                 try:
                     await self._backend.cancel_order(order_id)
                 except Exception as exc:
-                    logger.error("[%s] Failed to cancel rejected order %s: %s", self._follower_id, order_id, exc)
+                    logger.error("[%s] Failed to cancel rejected order %s: %s", self._slave_id, order_id, exc)
             return {"accepted": False, "code": code, "reason": reason}
 
         if (
@@ -800,7 +800,7 @@ class TradeExecutor:
             try:
                 await self._backend.amend_position_sltp(position_id, signal.entry_price, None)
             except Exception as exc:
-                logger.warning("[%s] Could not move SL to breakeven: %s", self._follower_id, exc)
+                logger.warning("[%s] Could not move SL to breakeven: %s", self._slave_id, exc)
 
         final_result = {
             "accepted": True,
@@ -817,7 +817,7 @@ class TradeExecutor:
             "agent_decision": agent_decision,
         }
         self._signal_store.record_trade(signal, final_result)
-        logger.info("[%s] Executed signal: %s", self._follower_id, final_result["reason"])
+        logger.info("[%s] Executed signal: %s", self._slave_id, final_result["reason"])
         return final_result
 
     async def _handle_tp_hit(self, signal: TradeSignal) -> dict[str, Any]:
@@ -886,14 +886,14 @@ class TradeExecutor:
             try:
                 await self._backend.cancel_order(order_id)
             except Exception as exc:
-                logger.warning("[%s] Cancel order failed: %s", self._follower_id, exc)
+                logger.warning("[%s] Cancel order failed: %s", self._slave_id, exc)
 
             # For pending orders the position record is removed here because _close_position was not called.
             self._signal_store.update_signal_status(
                 original.chat_id or "", original.message_id or 0, SignalStatus.CLOSED.value
             )
             self._account_store.update_execution(
-                self._follower_id,
+                self._slave_id,
                 original.chat_id or "",
                 original.message_id or 0,
                 signal_type=signal.signal_type.value,
@@ -1042,7 +1042,7 @@ class TradeExecutor:
                         signal.chat_id or "", signal.message_id or 0, SignalStatus.CLOSED.value
                     )
                     self._account_store.update_execution(
-                        self._follower_id,
+                        self._slave_id,
                         signal.chat_id or "",
                         signal.message_id or 0,
                         signal_type=signal_type or signal.signal_type.value,
@@ -1051,7 +1051,7 @@ class TradeExecutor:
                     self._active_positions.pop(f"{signal.chat_id}:{signal.message_id}", None)
                 elif signal:
                     self._account_store.update_execution(
-                        self._follower_id,
+                        self._slave_id,
                         signal.chat_id or "",
                         signal.message_id or 0,
                         signal_type=signal_type or signal.signal_type.value,
@@ -1068,7 +1068,7 @@ class TradeExecutor:
                 summary = await self.get_account_summary()
                 self._risk_monitor.record_closed_pnl(float(closed_pnl), summary.get("equity", 0.0))
             except Exception as exc:
-                logger.warning("[%s] Failed to record closed PnL: %s", self._follower_id, exc)
+                logger.warning("[%s] Failed to record closed PnL: %s", self._slave_id, exc)
 
         return {"accepted": True, "code": code, "reason": reason}
 
@@ -1088,7 +1088,7 @@ class TradeExecutor:
         if fallback is not None and not self._signals_compatible(signal, fallback):
             logger.warning(
                 "[%s] Rejecting fallback original-signal match: symbols differ (%s vs %s)",
-                self._follower_id,
+                self._slave_id,
                 signal.symbol,
                 fallback.symbol,
             )
@@ -1165,11 +1165,11 @@ class TradeExecutor:
                 continue
 
             if self._trading.close_stale_positions:
-                logger.warning("[%s] Position %s stale; closing", self._follower_id, key)
+                logger.warning("[%s] Position %s stale; closing", self._slave_id, key)
                 await self._close_position(pos, volume_pct=100.0, reason="stale position timeout", signal_type="stale_timeout", code="stale_closed")
                 cleaned.append(key)
             else:
-                logger.warning("[%s] Position %s stale (close_stale_positions disabled)", self._follower_id, key)
+                logger.warning("[%s] Position %s stale (close_stale_positions disabled)", self._slave_id, key)
 
         return cleaned
 
@@ -1201,7 +1201,7 @@ class TradeExecutor:
             if elapsed > _CIRCUIT_RESET_SECONDS:
                 self._api_circuit_open = False
                 self._consecutive_api_failures = 0
-                logger.info("[%s] Circuit breaker auto-recovered after %.0fs", self._follower_id, elapsed)
+                logger.info("[%s] Circuit breaker auto-recovered after %.0fs", self._slave_id, elapsed)
 
     @property
     def active_position_count(self) -> int:
@@ -1211,7 +1211,7 @@ class TradeExecutor:
         try:
             broker_position_ids = await self._backend.get_open_position_ids()
         except Exception as exc:
-            logger.warning("[%s] Could not fetch open positions for reconciliation: %s", self._follower_id, exc)
+            logger.warning("[%s] Could not fetch open positions for reconciliation: %s", self._slave_id, exc)
             return
 
         async with self._positions_lock:
@@ -1224,7 +1224,7 @@ class TradeExecutor:
                 pos = self._active_positions.pop(key)
                 signal = pos.get("signal")
                 if signal:
-                    logger.info("[%s] Position %s closed externally; reconciling", self._follower_id, key)
+                    logger.info("[%s] Position %s closed externally; reconciling", self._slave_id, key)
                     self._signal_store.update_signal_status(
                         signal.chat_id or "", signal.message_id or 0, SignalStatus.CLOSED.value
                     )
@@ -1240,7 +1240,7 @@ class TradeExecutor:
 
             volume_lots = self._trading.volume_value
             exec_record = self._account_store.get_execution(
-                self._follower_id, signal.chat_id or "", signal.message_id or 0
+                self._slave_id, signal.chat_id or "", signal.message_id or 0
             )
             if exec_record and exec_record.volume is not None:
                 volume_lots = exec_record.volume
@@ -1256,4 +1256,4 @@ class TradeExecutor:
         async with self._positions_lock:
             self._active_positions.update(recovered)
         if recovered:
-            logger.info("[%s] Recovered %d active positions from store", self._follower_id, len(recovered))
+            logger.info("[%s] Recovered %d active positions from store", self._slave_id, len(recovered))

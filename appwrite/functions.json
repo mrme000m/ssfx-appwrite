@@ -1,7 +1,7 @@
 [
     {
-        "$id": "ctrader-auth",
-        "name": "ctrader-auth",
+        "$id": "auth-oauth",
+        "name": "auth-oauth",
         "enabled": true,
         "logging": true,
         "runtime": "node-22",
@@ -19,11 +19,11 @@
         "entrypoint": "src/main.js",
         "commands": "npm install",
         "ignore": "node_modules\n.tmp\n.env",
-        "path": "../functions/ctrader-auth"
+        "path": "../functions/auth-oauth"
     },
     {
-        "$id": "ctrader-pin-auth",
-        "name": "ctrader-pin-auth",
+        "$id": "auth-pin",
+        "name": "auth-pin",
         "enabled": true,
         "logging": true,
         "runtime": "node-22",
@@ -41,11 +41,11 @@
         "entrypoint": "src/main.js",
         "commands": "npm install",
         "ignore": "node_modules\n.tmp\n.env",
-        "path": "../functions/ctrader-pin-auth"
+        "path": "../functions/auth-pin"
     },
     {
-        "$id": "ctrader-internal",
-        "name": "ctrader-internal",
+        "$id": "api-internal",
+        "name": "api-internal",
         "enabled": true,
         "logging": true,
         "runtime": "node-22",
@@ -62,11 +62,11 @@
         "entrypoint": "src/main.js",
         "commands": "npm install",
         "ignore": "node_modules\n.tmp\n.env",
-        "path": "../functions/ctrader-internal"
+        "path": "../functions/api-internal"
     },
     {
-        "$id": "ctrader-token-refresh-worker",
-        "name": "ctrader-token-refresh-worker",
+        "$id": "token-refresh",
+        "name": "token-refresh",
         "enabled": true,
         "logging": true,
         "runtime": "node-22",
@@ -83,6 +83,6 @@
         "entrypoint": "src/main.js",
         "commands": "npm install",
         "ignore": "node_modules\n.tmp\n.env",
-        "path": "../functions/ctrader-token-refresh-worker"
+        "path": "../functions/token-refresh"
     }
 ]

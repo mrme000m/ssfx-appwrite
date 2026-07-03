@@ -1,4 +1,4 @@
-"""SSFX webhook server — receives Telegram bot updates and routes to followers."""
+"""SSFX webhook server — receives Telegram bot updates and routes to slaves."""
 from __future__ import annotations
 
 __all__ = ["app", "main"]

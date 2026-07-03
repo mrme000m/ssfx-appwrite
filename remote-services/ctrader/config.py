@@ -47,7 +47,6 @@ class CTRADERConfig:
     # Account Hub (persistent cTrader connections)
     account_hub_port: int = 9301
     account_hub_enabled: bool = True
-    account_hub_environment_mode: bool = True
     account_hub_poll_interval: float = 30.0
     account_hub_reconnect_base: float = 5.0
     account_hub_reconnect_max: float = 60.0
@@ -84,7 +83,6 @@ class CTRADERConfig:
             data_poll_interval_ms=int(os.getenv("DATA_POLL_INTERVAL_MS", "250")),
             account_hub_port=int(os.getenv("ACCOUNT_HUB_PORT", "9301")),
             account_hub_enabled=os.getenv("ACCOUNT_HUB_ENABLED", "true").lower() == "true",
-            account_hub_environment_mode=os.getenv("ACCOUNT_HUB_ENVIRONMENT_MODE", "true").lower() == "true",
             account_hub_poll_interval=float(os.getenv("ACCOUNT_HUB_POLL_INTERVAL", "30.0")),
             account_hub_reconnect_base=float(os.getenv("ACCOUNT_HUB_RECONNECT_BASE", "5.0")),
             account_hub_reconnect_max=float(os.getenv("ACCOUNT_HUB_RECONNECT_MAX", "60.0")),

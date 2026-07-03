@@ -25,10 +25,10 @@ GH_DEFAULT_BRANCH = "develop"
 
 # Function -> custom domain mappings (native Appwrite Proxy Rules)
 FUNCTION_DOMAINS = {
-    "ctrader-auth":              "auth.mrme.tech",
-    "ctrader-pin-auth":          "pin.mrme.tech",
-    "ctrader-internal":          "internal.mrme.tech",
-    "ctrader-token-refresh-worker": "refresh.mrme.tech",
+    "auth-oauth":   "auth.mrme.tech",
+    "auth-pin":     "pin.mrme.tech",
+    "api-internal": "internal.mrme.tech",
+    "token-refresh": "refresh.mrme.tech",
 }
 
 # Site -> custom domain mappings

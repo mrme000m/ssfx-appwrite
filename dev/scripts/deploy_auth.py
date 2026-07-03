@@ -66,7 +66,7 @@ SITE_VARIABLES = {
 }
 
 FUNCTION_VARIABLES = {
-    "ctrader-auth": {
+    "auth-oauth": {
         "APPWRITE_ENDPOINT": "{APPWRITE_ENDPOINT}",
         "APPWRITE_PROJECT_ID": "{APPWRITE_PROJECT_ID}",
         "APPWRITE_API_KEY": "{APPWRITE_API_KEY}",
@@ -78,7 +78,7 @@ FUNCTION_VARIABLES = {
         "SESSION_HMAC_KEY": "{SESSION_HMAC_KEY}",
         "SITES_URL": "https://app.mrme.tech",
     },
-    "ctrader-pin-auth": {
+    "auth-pin": {
         "APPWRITE_ENDPOINT": "{APPWRITE_ENDPOINT}",
         "APPWRITE_PROJECT_ID": "{APPWRITE_PROJECT_ID}",
         "APPWRITE_API_KEY": "{APPWRITE_API_KEY}",
@@ -89,7 +89,7 @@ FUNCTION_VARIABLES = {
         "RESEND_FROM_EMAIL": "{RESEND_FROM_EMAIL}",
         "PIN_RESET_BASE_URL": "https://app.mrme.tech",
     },
-    "ctrader-internal": {
+    "api-internal": {
         "APPWRITE_ENDPOINT": "{APPWRITE_ENDPOINT}",
         "APPWRITE_PROJECT_ID": "{APPWRITE_PROJECT_ID}",
         "APPWRITE_API_KEY": "{APPWRITE_API_KEY}",
@@ -100,7 +100,7 @@ FUNCTION_VARIABLES = {
         "TOKEN_ENCRYPTION_KEY": "{TOKEN_ENCRYPTION_KEY}",
         "SITES_URL": "https://app.mrme.tech",
     },
-    "ctrader-token-refresh-worker": {
+    "token-refresh": {
         "APPWRITE_ENDPOINT": "{APPWRITE_ENDPOINT}",
         "APPWRITE_PROJECT_ID": "{APPWRITE_PROJECT_ID}",
         "APPWRITE_API_KEY": "{APPWRITE_API_KEY}",
@@ -632,11 +632,11 @@ def main() -> None:
         for fn in functions:
             deploy_function(fn)
 
-        log("Setting cron schedule on token-refresh-worker...")
+        log("Setting cron schedule on token-refresh...")
         run_cli([
             "appwrite", "functions", "update",
-            "--function-id", "ctrader-token-refresh-worker",
-            "--name", "ctrader-token-refresh-worker",
+            "--function-id", "token-refresh",
+            "--name", "token-refresh",
             "--schedule", "0 3 * * *",
         ])
 

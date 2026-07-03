@@ -97,6 +97,54 @@ Python service → POST /internal/ctrader/refresh (x-internal-key)
 
 ---
 
+## Account Discovery & Sync Process
+
+### AccountHub v2 Architecture
+
+The AccountHub v2 maintains persistent cTrader connections and syncs account data:
+
+```
+AccountHubV2 → AccountDiscovery → Appwrite slave_accounts
+                    ↓
+          EnvironmentConnection (live/demo) 
+                    ↓
+          authorize_account() → sync_accounts_to_broker()
+                    ↓
+          POST /internal/grant/:grant_id/accounts
+                    ↓
+          Appwrite accounts table
+```
+
+### Key Components
+
+1. **AccountDiscovery**: Polls `slave_accounts` table for active slaves and discovers their cTrader accounts
+2. **EnvironmentConnection**: Shared transport per environment (live/demo) with multi-account authorization
+3. **Account Sync**: After authorization, calls `sync_accounts_to_broker()` to persist account details
+
+### Account Sync Flow
+
+1. **Discovery**: AccountHubV2 polls Appwrite every 30 seconds for active slaves
+2. **Authorization**: For each discovered account, calls `conn.authorize_account(grant_id, ctid)`
+3. **Data Fetch**: Uses cTrader protocol to fetch account details (balance, broker, type, leverage)
+4. **Sync to Broker**: POSTs enriched account data to `/internal/grant/:grant_id/accounts`
+5. **Database Update**: ctrader-internal function updates the `accounts` table with rich account data
+
+### Troubleshooting
+
+**Issue: Accounts not showing in dashboard**
+- Check AccountHubV2 logs for sync errors
+- Verify `/internal/grant/:grant_id/accounts` endpoint is accessible
+- Confirm `accounts` table has data for the grant_id
+- Check that `ctrader_account_ids` field is populated in `slave_accounts`
+
+**Issue: Account sync failures**
+- Verify `TOKEN_ENCRYPTION_KEY` matches between functions and services
+- Check cTrader API connectivity and token validity
+- Ensure `INTERNAL_API_KEY` is correctly configured
+- Validate Appwrite database permissions
+
+---
+
 ## Proposed Renames
 
 The canonical rename matrix lives in `docs/NAMING_AND_CONSOLIDATION_OVERHAUL.md`. Identity-specific highlights:
@@ -105,9 +153,9 @@ The canonical rename matrix lives in `docs/NAMING_AND_CONSOLIDATION_OVERHAUL.md`
 |---|---|---|
 | `slave_accounts` | `users` | Appwrite `users` is the real identity; this table becomes the cTrader grant/profile extension. |
 | `pin.mrme.tech` | merge into `auth.mrme.tech` | Paths such as `/auth/pin/login`, `/oauth/callback`. |
-| `ctrader-auth` | `auth-oauth` | Clearer function responsibility. |
-| `ctrader-pin-auth` | `auth-pin` | Sibling to `auth-oauth`. |
-| `ctrader-internal` | `api-internal` | Generic server-to-server API. |
+| `ctrader-auth` → `auth-oauth` | ✅ Applied | Clearer function responsibility. |
+| `ctrader-pin-auth` → `auth-pin` | ✅ Applied | Sibling to `auth-oauth`. |
+| `ctrader-internal` → `api-internal` | ✅ Applied | Generic server-to-server API. |
 
 ---
 
@@ -116,3 +164,4 @@ The canonical rename matrix lives in `docs/NAMING_AND_CONSOLIDATION_OVERHAUL.md`
 - `docs/ARCHITECTURE.md` — full platform architecture and Appwrite Cloud optimization patterns.
 - `docs/NAMING_AND_CONSOLIDATION_OVERHAUL.md` — rename matrix, consolidation decisions, and migration order.
 - `AGENTS.md` — operations, conventions, and project context.
+- `docs/account-hub-and-dataservice.md` — AccountHub v2 and DataService integration details

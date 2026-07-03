@@ -8,7 +8,7 @@ from typing import Any
 
 from appwrite.services.tables_db import TablesDB
 
-from ssfx_parser import FollowerExecution
+from ssfx_parser import SlaveExecution
 from ssfx_server.appwrite_client import AppwriteClient
 
 logger = logging.getLogger(__name__)
@@ -115,7 +115,7 @@ class AppwriteAccountStore:
             return None
 
     def save_account(self, account: Any) -> None:
-        doc = account.to_mongo() if hasattr(account, "to_mongo") else dict(account)
+        doc = account.to_doc() if hasattr(account, "to_doc") else dict(account)
         row = _account_doc_to_appwrite(doc)
         row_id = row["name"]
         try:
@@ -174,21 +174,21 @@ class AppwriteAccountStore:
             "updated_at": _now_iso(),
         }
 
-    def has_execution(self, follower_id: str, chat_id: str, message_id: int) -> bool:
-        return self.get_execution(follower_id, chat_id, message_id) is not None
+    def has_execution(self, slave_id: str, chat_id: str, message_id: int) -> bool:
+        return self.get_execution(slave_id, chat_id, message_id) is not None
 
     def get_execution(
-        self, follower_id: str, chat_id: str, message_id: int
-    ) -> FollowerExecution | None:
+        self, slave_id: str, chat_id: str, message_id: int
+    ) -> SlaveExecution | None:
         try:
             row = self.tables_db.get_row(
                 database_id=self.database_id,
                 table_id=self.executions_table_id,
-                row_id=self._execution_row_id(follower_id, chat_id, message_id),
+                row_id=self._execution_row_id(slave_id, chat_id, message_id),
             )
             data = getattr(row, "data", row)
-            return FollowerExecution(
-                follower_id=data.get("account_name", follower_id),
+            return SlaveExecution(
+                slave_id=data.get("account_name", slave_id),
                 signal_chat_id=data.get("chat_id", chat_id),
                 signal_message_id=int(data.get("message_id", message_id)),
                 signal_type=data.get("signal_type", "NEW"),
@@ -202,12 +202,12 @@ class AppwriteAccountStore:
                 skip_reason=data.get("skip_reason"),
             )
         except Exception as exc:
-            logger.error("Failed to get execution %s:%s:%s: %s", follower_id, chat_id, message_id, exc)
+            logger.error("Failed to get execution %s:%s:%s: %s", slave_id, chat_id, message_id, exc)
             return None
 
     def update_execution(
         self,
-        follower_id: str,
+        slave_id: str,
         chat_id: str,
         message_id: int,
         signal_type: str,
@@ -221,7 +221,7 @@ class AppwriteAccountStore:
         skip_reason: str | None = None,
     ) -> None:
         row = self._execution_to_row(
-            account_name=follower_id,
+            account_name=slave_id,
             chat_id=chat_id,
             message_id=message_id,
             signal_type=signal_type,
@@ -238,16 +238,16 @@ class AppwriteAccountStore:
             self.tables_db.upsert_row(
                 database_id=self.database_id,
                 table_id=self.executions_table_id,
-                row_id=self._execution_row_id(follower_id, chat_id, message_id),
+                row_id=self._execution_row_id(slave_id, chat_id, message_id),
                 data=row,
             )
         except Exception as exc:
-            logger.error("Failed to update execution %s:%s:%s: %s", follower_id, chat_id, message_id, exc)
+            logger.error("Failed to update execution %s:%s:%s: %s", slave_id, chat_id, message_id, exc)
             raise
 
-    def mark_skipped(self, follower_id: str, chat_id: str, message_id: int, reason: str) -> None:
+    def mark_skipped(self, slave_id: str, chat_id: str, message_id: int, reason: str) -> None:
         self.update_execution(
-            follower_id=follower_id,
+            slave_id=slave_id,
             chat_id=chat_id,
             message_id=message_id,
             signal_type="NEW",
@@ -255,23 +255,23 @@ class AppwriteAccountStore:
             skip_reason=reason,
         )
 
-    def get_active_executions(self, follower_id: str) -> list[FollowerExecution]:
+    def get_active_executions(self, slave_id: str) -> list[SlaveExecution]:
         try:
             result = self.tables_db.list_rows(
                 database_id=self.database_id,
                 table_id=self.executions_table_id,
             )
             rows = getattr(result, "rows", [])
-            executions: list[FollowerExecution] = []
+            executions: list[SlaveExecution] = []
             for row in rows:
                 data = getattr(row, "data", row)
-                if data.get("account_name") != follower_id:
+                if data.get("account_name") != slave_id:
                     continue
                 if data.get("status") != "executed":
                     continue
                 executions.append(
-                    FollowerExecution(
-                        follower_id=data.get("account_name", follower_id),
+                    SlaveExecution(
+                        slave_id=data.get("account_name", slave_id),
                         signal_chat_id=data.get("chat_id", ""),
                         signal_message_id=int(data.get("message_id", 0)),
                         signal_type=data.get("signal_type", "NEW"),
@@ -287,24 +287,24 @@ class AppwriteAccountStore:
                 )
             return executions
         except Exception as exc:
-            logger.error("Failed to list active executions for %s: %s", follower_id, exc)
+            logger.error("Failed to list active executions for %s: %s", slave_id, exc)
             return []
 
-    def list_recent_executions(self, follower_id: str, limit: int = 50) -> list[FollowerExecution]:
+    def list_recent_executions(self, slave_id: str, limit: int = 50) -> list[SlaveExecution]:
         try:
             result = self.tables_db.list_rows(
                 database_id=self.database_id,
                 table_id=self.executions_table_id,
             )
             rows = getattr(result, "rows", [])
-            executions: list[FollowerExecution] = []
+            executions: list[SlaveExecution] = []
             for row in rows:
                 data = getattr(row, "data", row)
-                if data.get("account_name") != follower_id:
+                if data.get("account_name") != slave_id:
                     continue
                 executions.append(
-                    FollowerExecution(
-                        follower_id=data.get("account_name", follower_id),
+                    SlaveExecution(
+                        slave_id=data.get("account_name", slave_id),
                         signal_chat_id=data.get("chat_id", ""),
                         signal_message_id=int(data.get("message_id", 0)),
                         signal_type=data.get("signal_type", "NEW"),
@@ -321,7 +321,7 @@ class AppwriteAccountStore:
             executions.sort(key=lambda e: e.updated_at or e.created_at, reverse=True)
             return executions[:limit]
         except Exception as exc:
-            logger.error("Failed to list recent executions for %s: %s", follower_id, exc)
+            logger.error("Failed to list recent executions for %s: %s", slave_id, exc)
             return []
 
     def _risk_state_row_id(self, account_name: str, date_str: str) -> str:

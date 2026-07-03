@@ -60,7 +60,7 @@ class ExecutorWorker:
             )
 
         self._executor = TradeExecutor(
-            follower_id=self._cfg.name,
+            slave_id=self._cfg.name,
             backend=backend,
             resolver=SymbolResolver(),
             signal_store=_NoOpSignalStore(),
@@ -87,7 +87,7 @@ class ExecutorWorker:
             logger.error("Failed to initialize executor for %s: %s", self._cfg.name, exc)
             return ExecutionResponse(
                 status="error",
-                follower_id=self._cfg.name,
+                slave_id=self._cfg.name,
                 message=f"Session setup failed: {exc}",
             )
 
@@ -108,7 +108,7 @@ class ExecutorWorker:
             )
             return ExecutionResponse(
                 status="ok",
-                follower_id=self._cfg.name,
+                slave_id=self._cfg.name,
                 message="Signal processed",
                 details=result,
             )
@@ -122,7 +122,7 @@ class ExecutorWorker:
             )
             return ExecutionResponse(
                 status="error",
-                follower_id=self._cfg.name,
+                slave_id=self._cfg.name,
                 message=str(exc),
             )
 

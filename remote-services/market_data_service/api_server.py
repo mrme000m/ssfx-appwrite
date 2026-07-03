@@ -1040,7 +1040,7 @@ async def get_auth_status():
         except Exception:
             pass
 
-    broker_url = settings.ctrader_auth_broker_url or "https://auth-ctrader.mrme0.store"
+    broker_url = settings.ctrader_auth_broker_url or ""
     grant_id = settings.ctrader_auth_grant_id
     selected_account_id: int | None = None
     account_balance: float | None = None
@@ -1164,7 +1164,7 @@ async def set_auth_direct(data: AuthDirectRequest):
 async def get_broker_start_url():
     """Get the URL to start the broker OAuth flow in a browser."""
     settings = get_settings()
-    broker_url = (settings.ctrader_auth_broker_url or "https://auth-ctrader.mrme0.store").rstrip("/")
+    broker_url = (settings.ctrader_auth_broker_url or "").rstrip("/")
     user_id = "cds_admin"
     auth_url = f"{broker_url}/auth/ctrader/start?user_id={user_id}"
     return AuthBrokerStartUrlResponse(

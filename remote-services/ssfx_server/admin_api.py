@@ -1,7 +1,7 @@
 """Admin API surface for the cTrader AI Copy-Trading Command Center.
 
 The router is mounted by ssfx_server.web_app and consumes the global
-application state (followers, signal_store, account_store, parser).
+application state (slaves, signal_store, account_store, parser).
 """
 from __future__ import annotations
 
@@ -96,7 +96,7 @@ def _serialize_signal(signal: TradeSignal) -> dict[str, Any]:
 
 def _serialize_execution(exec_: Any) -> dict[str, Any]:
     return {
-        "follower_id": exec_.follower_id,
+        "slave_id": exec_.slave_id,
         "signal_chat_id": exec_.signal_chat_id,
         "signal_message_id": exec_.signal_message_id,
         "signal_type": exec_.signal_type,
@@ -139,14 +139,14 @@ async def list_accounts(request: Request) -> JSONResponse:
     results = []
     for doc in accounts:
         name = doc.get("name", "")
-        follower = state.followers.get(name)
+        get_slave = state.slaves.get(name)
         runtime = {"running": False, "connected": False, "active_positions": 0}
-        if follower is not None:
-            task = getattr(follower, "_watch_task", None)
+        if slave is not None:
+            task = getattr(slave, "_watch_task", None)
             runtime["running"] = task is not None and not task.done()
-            backend = getattr(follower._executor, "_backend", None)
+            backend = getattr(slave._executor, "_backend", None)
             runtime["connected"] = getattr(backend, "_connected", True)
-            runtime["active_positions"] = follower._executor.active_position_count
+            runtime["active_positions"] = slave._executor.active_position_count
         config = copy.deepcopy(doc)
         ctrader = config.get("ctrader", {})
         if isinstance(ctrader, dict):
@@ -160,11 +160,11 @@ async def list_accounts(request: Request) -> JSONResponse:
 async def account_state(name: str, request: Request) -> JSONResponse:
     _require_admin_key(request)
     state = _state()
-    follower = state.followers.get(name)
-    if follower is None:
+    slave = state.slaves.get(name)
+    if slave is None:
         raise HTTPException(status_code=404, detail=f"account {name} not found")
 
-    executor = follower._executor
+    executor = slave._executor
     backend = executor._backend
     connected = getattr(backend, "_connected", True)
     summary = {"balance": None, "equity": None}
@@ -199,7 +199,7 @@ async def account_state(name: str, request: Request) -> JSONResponse:
     return JSONResponse(
         {
             "name": name,
-            "running": getattr(follower, "_watch_task", None) is not None and not follower._watch_task.done(),
+            "running": getattr(slave, "_watch_task", None) is not None and not slave._watch_task.done(),
             "connected": connected,
             "summary": summary,
             "active_positions": executor.active_position_count,
@@ -229,8 +229,8 @@ async def update_account(name: str, request: Request) -> JSONResponse:
         merged = {**existing, **patch["config"]}
         merged.pop("_id", None)
         try:
-            validated_config = TraderAccountConfig.from_mongo(merged)
-            serialized = validated_config.to_mongo()
+            validated_config = TraderAccountConfig.from_doc(merged)
+            serialized = validated_config.to_doc()
         except (ValueError, TypeError) as e:
             raise HTTPException(
                 status_code=400,
@@ -257,7 +257,7 @@ async def signal_executions(chat_id: str, message_id: int, request: Request) -> 
     _require_admin_key(request)
     state = _state()
     results = []
-    for name in state.followers:
+    for name in state.slaves:
         exec_ = state.account_store.get_execution(name, chat_id, message_id)
         if exec_ is not None:
             results.append(_serialize_execution(exec_))
@@ -315,8 +315,8 @@ async def inject_signal(payload: InjectSignalRequest, request: Request) -> JSONR
         signal.entry_price,
     )
 
-    for follower in state.followers.values():
-        await follower.on_signal(signal)
+    for slave in state.slaves.values():
+        await slave.on_signal(signal)
 
     return JSONResponse({"ok": True, "signal": _serialize_signal(signal)})
 
@@ -326,7 +326,7 @@ async def list_executions(request: Request, limit: int = 50) -> JSONResponse:
     _require_admin_key(request)
     state = _state()
     results = []
-    for name in state.followers:
+    for name in state.slaves:
         for ex in state.account_store.list_recent_executions(name, limit=limit):
             results.append(_serialize_execution(ex))
     results.sort(key=lambda e: e.get("updated_at") or e.get("created_at", ""), reverse=True)
@@ -395,7 +395,7 @@ async def agent_logs(request: Request, limit: int = 50) -> JSONResponse:
     logs = []
     for signal in signals:
         executions = []
-        for name in state.followers:
+        for name in state.slaves:
             exec_ = state.account_store.get_execution(name, signal.chat_id or "", signal.message_id or 0)
             if exec_ is not None:
                 executions.append(_serialize_execution(exec_))
@@ -406,7 +406,7 @@ async def agent_logs(request: Request, limit: int = 50) -> JSONResponse:
                 "agents": [
                     {"agent": "parser", "status": "done", "detail": signal.parser_used},
                     {"agent": "risk", "status": "done", "detail": f"confidence {signal.parse_confidence:.2f}"},
-                    {"agent": "router", "status": "done", "detail": f"routed to {len(state.followers)} followers"},
+                    {"agent": "router", "status": "done", "detail": f"routed to {len(state.slaves)} slaves"},
                     {"agent": "executor", "status": "done", "detail": f"{sum(1 for e in executions if e['status'] == 'executed')} executed"},
                 ],
             }

@@ -1,0 +1,7 @@
+{
+  "name": "@slwp/api-internal",
+  "version": "1.0.0",
+  "dependencies": {
+    "node-appwrite": "^26.2.0"
+  }
+}

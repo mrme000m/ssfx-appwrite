@@ -29,7 +29,7 @@
 ├──────────────────────────────────────────────────────────────────────────┤
 │ Identity & Access Plane                                                   │
 │  Appwrite Functions + Appwrite Auth + TablesDB                            │
-│  ctrader-auth / ctrader-pin-auth / ctrader-internal / refresh-worker      │
+│  auth-oauth / auth-pin / api-internal / token-refresh                     │
 ├──────────────────────────────────────────────────────────────────────────┤
 │ Intelligence Plane                                                        │
 │  agent_harness (Python) + pplx-agent (Python)                             │
@@ -73,10 +73,10 @@ This plane is implemented entirely with Appwrite primitives: Functions, Auth, an
 
 | Function | Current ID | Responsibility | Public domain |
 |---|---|---|---|
-| cTrader OAuth | `ctrader-auth` | OAuth2 initiation & callback, session creation, master admin operations. | `auth.mrme.tech` |
-| PIN Auth | `ctrader-pin-auth` | Username+PIN login, PIN setup, PIN reset via email. | `pin.mrme.tech` |
-| Internal API | `ctrader-internal` | Server-to-server token refresh and grant account persistence. | internal only |
-| Refresh worker | `ctrader-token-refresh-worker` | Proactive refresh of near-expiry tokens and stale ephemeral-token sweep. | scheduled + on-demand HTTP |
+| cTrader OAuth | `auth-oauth` | OAuth2 initiation & callback, session creation, master admin operations. | `auth.mrme.tech` |
+| PIN Auth | `auth-pin` | Username+PIN login, PIN setup, PIN reset via email. | `pin.mrme.tech` |
+| Internal API | `api-internal` | Server-to-server token refresh and grant account persistence. | internal only |
+| Refresh worker | `token-refresh` | Proactive refresh of near-expiry tokens and stale ephemeral-token sweep. | scheduled + on-demand HTTP |
 
 #### 2.2.2. Authentication paths
 
@@ -125,7 +125,7 @@ Python service → POST /internal/ctrader/refresh (x-internal-key)
 
 - Create a native **Appwrite user** for every cTrader grant. Store the Appwrite `userId` in `slave_accounts.appwrite_user_id`; this gives you labels, teams, sessions, and audit for free.
 - Replace the custom `master_auth` `service_config` entry with an **Appwrite Team/Label** (`label:master`) and use table-level label permissions where appropriate.
-- Replace `pin.mrme.tech` with route prefixes under `auth.mrme.tech` (`/auth/pin/*`, `/oauth/*`) once the `ctrader-auth` function is split or re-routed. Until then, keep the separate domain documented in config.
+- Replace `pin.mrme.tech` with route prefixes under `auth.mrme.tech` (`/auth/pin/*`, `/oauth/*`) once the `auth-oauth` and `auth-pin` functions are merged. Until then, keep the separate domain documented in config.
 - Use **Appwrite Realtime** to push session invalidation, role changes, and account selection updates to the SPA.
 
 ### 2.3. Intelligence Plane
@@ -258,10 +258,10 @@ This section records the current names, the proposed names, and the rationale. T
 
 | Current | Proposed | Rationale |
 |---|---|---|
-| `ctrader-auth` | `auth-oauth` | Clear responsibility. |
-| `ctrader-pin-auth` | `auth-pin` | Sibling to `auth-oauth`; mergeable under one auth domain. |
-| `ctrader-internal` | `api-internal` | Server-to-server API, not cTrader-specific. |
-| `ctrader-token-refresh-worker` | `token-refresh` | Remove redundant prefix. |
+| `ctrader-auth` → `auth-oauth` | ✅ Applied | Clear responsibility. |
+| `ctrader-pin-auth` → `auth-pin` | ✅ Applied | Sibling to `auth-oauth`; mergeable under one auth domain. |
+| `ctrader-internal` → `api-internal` | ✅ Applied | Server-to-server API, not cTrader-specific. |
+| `ctrader-token-refresh-worker` → `token-refresh` | ✅ Applied | Remove redundant prefix. |
 
 #### Databases & tables
 
@@ -308,7 +308,7 @@ This section records the current names, the proposed names, and the rationale. T
 Keep the Appwrite-native mode that is already emerging:
 
 - Appwrite `users` table owns identity; `slave_accounts` (renamed `users` or `ctrader_grants`) owns only the cTrader grant handle and encrypted tokens.
-- Python services never receive refresh tokens; they call `/api/internal/token/refresh` with `x-internal-key`.
+- Python services never receive refresh tokens; they call `api-internal` `/api/internal/token/refresh` with `x-internal-key`.
 - Use **grant-level distributed locks** via `grant_locks` row IDs to avoid thundering-herd refresh.
 
 ### 5.3. Configuration as data

@@ -29,7 +29,7 @@ class CliConfig:
     client_secret: str = ""
     account_id: int = 0
     use_live: bool = False
-    broker_url: str = ""  # ctrader-internal / auth broker URL
+    broker_url: str = ""  # api-internal / auth broker URL
     grant_id: str = ""
     internal_api_key: str = ""
 
@@ -72,7 +72,7 @@ def load_config(
     Args:
         use_live: Override to live environment.
         account_id: Override account ID.
-        broker_url: Override auth broker / ctrader-internal URL.
+        broker_url: Override auth broker / api-internal URL.
         grant_id: Override grant ID.
     """
     dotenv_path = _find_dotenv()

@@ -1,7 +1,8 @@
-"""No-op signal store for when MongoDB is unavailable.
+"""No-op signal store — logs warnings so operators know signal history is
+not persisted, but execution continues for webhooks and dashboard API.
 
-Logs warnings so operators know signal history is not persisted,
-but the server keeps running for webhook processing and dashboard API.
+Planned replacement: Appwrite-native signal store for history persistence
+and duplicate-after-restart protection.
 """
 from __future__ import annotations
 
@@ -17,9 +18,8 @@ logger = logging.getLogger(__name__)
 class NoOpSignalStore:
     """Signal store that logs warnings and returns empty results.
 
-    Used as a fallback when MongoDB is not available. Webhooks are still
-    processed and followers still execute trades; only signal history
-    and analytics queries are disabled.
+    Webhooks are still processed and slaves still execute trades;
+    only signal history and analytics queries are disabled.
     """
 
     def __init__(self) -> None:

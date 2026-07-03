@@ -36,15 +36,15 @@ class MemoryAccountStore:
         self.risk_states: dict[tuple[str, str], dict[str, Any]] = {}
         self.accounts: dict[str, dict[str, Any]] = {}
 
-    def has_execution(self, follower_id: str, chat_id: str, message_id: int) -> bool:
-        return (follower_id, chat_id, message_id) in self.executions
+    def has_execution(self, slave_id: str, chat_id: str, message_id: int) -> bool:
+        return (slave_id, chat_id, message_id) in self.executions
 
-    def get_execution(self, follower_id: str, chat_id: str, message_id: int) -> _Execution | None:
-        return self.executions.get((follower_id, chat_id, message_id))
+    def get_execution(self, slave_id: str, chat_id: str, message_id: int) -> _Execution | None:
+        return self.executions.get((slave_id, chat_id, message_id))
 
     def update_execution(
         self,
-        follower_id: str,
+        slave_id: str,
         chat_id: str,
         message_id: int,
         signal_type: str = "",
@@ -57,7 +57,7 @@ class MemoryAccountStore:
         error: str | None = None,
         skip_reason: str | None = None,
     ) -> None:
-        self.executions[(follower_id, chat_id, message_id)] = _Execution(
+        self.executions[(slave_id, chat_id, message_id)] = _Execution(
             signal_type=signal_type,
             status=status,
             order_id=order_id,
@@ -68,8 +68,8 @@ class MemoryAccountStore:
             skip_reason=skip_reason,
         )
 
-    def mark_skipped(self, follower_id: str, chat_id: str, message_id: int, reason: str) -> None:
-        self.executions[(follower_id, chat_id, message_id)] = _Execution(
+    def mark_skipped(self, slave_id: str, chat_id: str, message_id: int, reason: str) -> None:
+        self.executions[(slave_id, chat_id, message_id)] = _Execution(
             signal_type="NEW", status="skipped", skip_reason=reason
         )
 
@@ -88,10 +88,10 @@ class MemoryAccountStore:
     def save_account(self, account: dict[str, Any]) -> None:
         self.accounts[account.get("name", "")] = account
 
-    def get_active_executions(self, follower_id: str) -> list[Any]:
+    def get_active_executions(self, slave_id: str) -> list[Any]:
         return []
 
-    def list_recent_executions(self, follower_id: str, limit: int = 50) -> list[Any]:
+    def list_recent_executions(self, slave_id: str, limit: int = 50) -> list[Any]:
         return []
 
 
@@ -183,7 +183,7 @@ def executor() -> TradeExecutor:
         store=store,
     )
     executor = TradeExecutor(
-        follower_id="test",
+        slave_id="test",
         backend=backend,
         resolver=SymbolResolver(),
         signal_store=NoOpSignalStore(),

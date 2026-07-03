@@ -223,7 +223,7 @@ def main() -> int:
     print(f"       pin:              {'*' * len(args.pin)}")
     print()
     print("If login still fails immediately, wait 15 minutes for any warm function")
-    print("lockout to clear, or redeploy the ctrader-pin-auth function.")
+    print("lockout to clear, or redeploy the auth-pin function.")
     return 0
 
 

@@ -41,6 +41,10 @@ functions/*/src/_shared/
 # Python
 __pycache__/
 *.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
 
 # Agent skill symlinks (canonical source is ~/.claude/plugins/appwrite-ctrader/skills)
 .agents/skills/

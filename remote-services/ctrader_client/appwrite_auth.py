@@ -1,9 +1,9 @@
-"""Appwrite-based token management — fetches tokens from ctrader-internal Appwrite Function.
+"""Appwrite-based token management — fetches tokens from api-internal Appwrite Function.
 
 This is the unified auth module for services that need cTrader access tokens
 managed through the Appwrite auth layer. Tokens are encrypted at rest in
 Appwrite TablesDB (slave_accounts table) and decrypted only inside the
-ctrader-internal function. The Python side receives only short-lived access
+api-internal function. The Python side receives only short-lived access
 tokens and grant_ids.
 """
 
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 class AppwriteTokenManager:
-    """Token manager that delegates refresh to the ctrader-internal Appwrite Function.
+    """Token manager that delegates refresh to the api-internal Appwrite Function.
 
     Compatible with the BrokerTokenManager interface so it can be dropped into
     CTraderSession or anywhere a TokenManager/BrokerTokenManager is expected.
@@ -66,7 +66,7 @@ class AppwriteTokenManager:
         return self._grant_id
 
     async def refresh(self) -> TokenData:
-        """Refresh the access token via ctrader-internal.
+        """Refresh the access token via api-internal.
 
         POST /internal/ctrader/refresh with grant_id, receives
         {access_token, expires_at} from the Appwrite function.
@@ -147,7 +147,7 @@ class AppwriteTokenManager:
 
 
 class AppwriteMultiTokenClient:
-    """Multi-grant token client backed by Appwrite ctrader-internal.
+    """Multi-grant token client backed by Appwrite api-internal.
 
     Maintains a cache of access tokens for multiple grant_ids with
     per-grant locking to avoid thundering-herd refreshes.

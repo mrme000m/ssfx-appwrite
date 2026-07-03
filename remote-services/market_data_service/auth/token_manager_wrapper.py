@@ -14,7 +14,7 @@ class AuthManager:
     """Manages authentication lifecycle with support for multiple token modes.
 
     Supports:
-    - AppwriteTokenManager: Appwrite ctrader-internal function (preferred)
+    - AppwriteTokenManager: Appwrite api-internal function (preferred)
     - BrokerTokenManager: Cloudflare auth broker (legacy)
     - TokenManager: Direct OAuth token management (legacy)
     - Raw tokens: Fallback for direct token provision (for backward compatibility)
@@ -34,7 +34,7 @@ class AuthManager:
         """Initialize auth manager.
 
         Args:
-            broker_url: Auth broker / ctrader-internal URL
+            broker_url: Auth broker / api-internal URL
             grant_id: Grant ID from auth broker
             client_id: cTrader client ID (for direct mode)
             client_secret: cTrader client secret (for direct mode)

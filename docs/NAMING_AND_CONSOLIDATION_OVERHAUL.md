@@ -42,10 +42,10 @@ The project had architecture information split across multiple documents and inl
 
 | Current | Proposed | Responsibility | Scope of change | Notes |
 |---|---|---|---|---|
-| `ctrader-auth` | `auth-oauth` | OAuth2 + session + admin | Medium | Rename function ID, update `appwrite/functions.json`, CI, custom domain, references. |
-| `ctrader-pin-auth` | `auth-pin` | Username/PIN auth | Medium | Could later merge into a single `auth` function with route prefixes. |
-| `ctrader-internal` | `api-internal` | Server-to-server refresh + grant accounts | Medium | Name is misleading — it is not cTrader-specific, it is the internal platform API. |
-| `ctrader-token-refresh-worker` | `token-refresh` | Scheduled token refresh + ephemeral sweep | Low | Cron schedule stays the same. |
+| `ctrader-auth` | `auth-oauth` | OAuth2 + session + admin | Medium | ✅ Applied. Rename function ID, update `appwrite/functions.json`, CI, custom domain, references. |
+| `ctrader-pin-auth` | `auth-pin` | Username/PIN auth | Medium | ✅ Applied. Could later merge into a single `auth` function with route prefixes. |
+| `ctrader-internal` | `api-internal` | Server-to-server refresh + grant accounts | Medium | ✅ Applied. Name is misleading — it is not cTrader-specific, it is the internal platform API. |
+| `ctrader-token-refresh-worker` | `token-refresh` | Scheduled token refresh + ephemeral sweep | Low | ✅ Applied. Cron schedule stays the same. |
 
 **Long-term option:** merge `auth-oauth` and `auth-pin` into one `auth` Function with custom-domain path routing:
 
@@ -130,12 +130,22 @@ The proposed renames are not cosmetic; they are prerequisites for using Appwrite
 - [ ] Update any internal wiki/Notion links to point to `ARCHITECTURE.md`.
 - [ ] Delete deprecated `sites/ctrader-auth-site` and `sites/ctrader-command-center` after confirming no deployment references remain.
 
-### Phase 1 — Function and domain consolidation (low-to-medium risk)
+### Phase 1 — Function and domain consolidation (✅ COMPLETED)
 
-1. Merge `ctrader-pin-auth` routes into `ctrader-auth` behind `auth.mrme.tech`, OR keep them separate but document `auth.mrme.tech` and `pin.mrme.tech` consistently.
-2. Rename `ctrader-internal` → `api-internal` (or keep ID but update descriptions).
-3. Rename `ctrader-token-refresh-worker` → `token-refresh`.
-4. Update `appwrite/functions.json`, `appwrite.config.json`, `dev/scripts/_config.py`, and CI workflow.
+- [x] Renamed `ctrader-auth` → `auth-oauth`
+- [x] Renamed `ctrader-pin-auth` → `auth-pin`
+- [x] Renamed `ctrader-internal` → `api-internal`
+- [x] Renamed `ctrader-token-refresh-worker` → `token-refresh`
+- [x] Updated `appwrite/functions.json`, directory names, `dev/scripts/_config.py`, `dev/scripts/deploy_auth.py`, CI workflow, and all doc references.
+
+**Remaining:** Merge `auth-pin` routes into `auth-oauth` behind `auth.mrme.tech` (single auth domain) — deferred until post-trial.
+
+### Phase 2 — Hostname migration (medium risk)
+
+1. Add new hostnames (`api.mrme.tech`, `market.mrme.tech`, `ai.mrme.tech`, `research.mrme.tech`) to Cloudflare DNS and tunnel ingress.
+2. Update SPA configs and `remote-services/config/v2.env`.
+3. Run parallel old+new hostnames for a cutover window.
+4. Remove old hostnames from tunnel ingress and DNS.
 
 ### Phase 2 — Hostname migration (medium risk)
 

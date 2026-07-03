@@ -49,7 +49,7 @@ def create_session(cfg: CliConfig) -> CTraderSession:
     """Create a CTraderSession from CLI config.
 
     When Appwrite auth mode is active (broker_url + grant_id + internal_api_key)
-    the session is wired to use the ctrader-internal Appwrite Function for
+    the session is wired to use the api-internal Appwrite Function for
     token refresh via BrokerTokenManager (which supports x-internal-key).
     """
     kwargs: dict[str, Any] = {

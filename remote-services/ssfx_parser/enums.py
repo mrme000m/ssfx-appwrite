@@ -40,7 +40,7 @@ class SignalStatus(str, Enum):
     EMITTED = "emitted"
 
 
-class FollowerExecutionStatus(str, Enum):
+class ExecutionStatus(str, Enum):
     PENDING = "pending"
     EXECUTING = "executing"
     EXECUTED = "executed"

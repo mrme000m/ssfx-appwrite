@@ -21,6 +21,7 @@ from appwrite.client import Client
 from ctrader.account_discovery import AccountDiscovery, AccountRef
 from ctrader.account_events_persister import AccountEventsPersister, PersisterConfig
 from ctrader.env_connection import AccountEvent, EnvironmentConnection
+from ctrader_client.broker_auth import sync_accounts_to_broker
 
 logger = logging.getLogger(__name__)
 
@@ -229,6 +230,30 @@ class AccountHubV2:
             snap.state = AccountConnectionState.CONNECTING
             snap.username = ref.username
         await conn.authorize_account(ref.grant_id, ref.ctid_trader_account_id)
+        
+        # Sync account data to Appwrite broker
+        try:
+            # Get access token for this grant
+            access_token = await conn._token_client.refresh(ref.grant_id)
+            if access_token:
+                # Get the protocol client from the connection
+                protocol = conn._protocol
+                
+                # Sync accounts to broker
+                await sync_accounts_to_broker(
+                    protocol=protocol,
+                    access_token=access_token,
+                    broker_url=self._internal_url,
+                    internal_api_key=self._internal_api_key,
+                    grant_id=ref.grant_id,
+                )
+                logger.info("Synced account %d (grant=%s) to broker", ref.ctid_trader_account_id, ref.grant_id)
+            else:
+                logger.warning("No access token available for account sync (grant=%s)", ref.grant_id)
+        except Exception as exc:
+            logger.error("Failed to sync account %d (grant=%s) to broker: %s", 
+                        ref.ctid_trader_account_id, ref.grant_id, exc)
+        
         async with self._lock:
             snap = self._snapshot_for(ref)
             snap.state = AccountConnectionState.CONNECTED

@@ -13,8 +13,6 @@ class _FakeState:
         self.config = ServerConfig(
             telegram_bot_token="bot_token",
             telegram_webhook_secret_token="webhook_secret",
-            mongo_uri="mongodb://localhost:27017",
-            mongo_database="ssfx_v2",
             source_chat_id="-1001661400724",
             webhook_host="https://ssfx-api.mrme.tech",
             webhook_port=8000,

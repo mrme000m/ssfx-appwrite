@@ -49,7 +49,7 @@ class SignalRequest:
 @dataclass
 class ExecutionResponse:
     status: str
-    follower_id: str
+    slave_id: str
     order_id: int | None = None
     position_id: int | None = None
     message: str = ""
@@ -58,7 +58,7 @@ class ExecutionResponse:
     def to_dict(self) -> dict[str, Any]:
         return {
             "status": self.status,
-            "follower_id": self.follower_id,
+            "slave_id": self.slave_id,
             "order_id": self.order_id,
             "position_id": self.position_id,
             "message": self.message,

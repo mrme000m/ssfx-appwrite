@@ -1,7 +1,0 @@
-{
-  "name": "@slwp/ctrader-pin-auth",
-  "version": "1.0.0",
-  "dependencies": {
-    "node-appwrite": "^26.2.0"
-  }
-}

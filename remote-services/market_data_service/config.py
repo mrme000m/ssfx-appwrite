@@ -378,7 +378,7 @@ class Settings(BaseSettings):
     ctrader_internal_api_key: str | None = Field(
         default=None,
         alias="INTERNAL_API_KEY",
-        description="Internal API key for ctrader-internal Appwrite Function",
+        description="Internal API key for api-internal Appwrite Function",
     )
     ctrader_use_appwrite_auth: bool = Field(
         default=False,

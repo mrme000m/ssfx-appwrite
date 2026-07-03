@@ -1,9 +1,7 @@
-"""Factory for building followers and executors from configuration."""
+"""Factory for building slaves and executors from configuration."""
 from __future__ import annotations
 
 import typing
-
-from pymongo import MongoClient
 
 from ssfx_parser import AgentConfig, ChainedParser, LlmSignalParser, RegexSignalParser
 
@@ -11,11 +9,10 @@ from .backends.ctrader import CTraderBackend
 from .backends.simulated import SimulatedBackend
 from .config import AccountConfig
 from .executor import TradeExecutor
-from .follower import AccountFollower
+from .slave import AccountSlave
 from .market_context import DataServiceClient
 from .risk_monitor import RiskLimits, RiskMonitor
-from .stores.base import AccountStore
-from .stores.mongo_store import MongoAccountStore, MongoSignalStore
+from .stores.base import AccountStore, SignalStore
 from .symbol_resolver import SymbolResolver
 from .volume_resolver import VolumeResolver
 
@@ -68,23 +65,18 @@ def _create_backend(account_config: AccountConfig):
     return SimulatedBackend(account_config.name)
 
 
-def create_follower(
+def create_slave(
     account_config: AccountConfig,
-    mongo_uri: str,
-    mongo_database: str,
     *,
-    client: MongoClient | None = None,
-    signal_store: MongoSignalStore | None = None,
-    account_store: AccountStore | None = None,
+    signal_store: SignalStore,
+    account_store: AccountStore,
     data_service_base_url: str | None = None,
     data_service_api_key: str | None = None,
     data_service_client: DataServiceClient | None = None,
     experience_updater: "SignalExperienceUpdater | None" = None,
     autonomy_enabled: bool = False,
-) -> AccountFollower:
-    """Build an AccountFollower with the appropriate execution backend."""
-    signal_store = signal_store or MongoSignalStore(mongo_uri, mongo_database, client=client)
-    account_store = account_store or MongoAccountStore(mongo_uri, mongo_database, account_config.name, client=client)
+) -> AccountSlave:
+    """Build an AccountSlave with the appropriate execution backend."""
 
     backend = _create_backend(account_config)
     resolver = SymbolResolver()
@@ -107,7 +99,7 @@ def create_follower(
     )
 
     executor = TradeExecutor(
-        follower_id=account_config.name,
+        slave_id=account_config.name,
         backend=backend,
         resolver=resolver,
         signal_store=signal_store,
@@ -122,10 +114,10 @@ def create_follower(
     def config_provider() -> AccountConfig:
         doc = account_store.get_account(account_config.name)
         if doc:
-            return AccountConfig.from_mongo(doc)
+            return AccountConfig.from_doc(doc)
         return account_config
 
-    return AccountFollower(
+    return AccountSlave(
         config=account_config,
         signal_store=signal_store,
         account_store=account_store,

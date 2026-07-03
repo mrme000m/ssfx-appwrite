@@ -111,7 +111,7 @@ Agentic usage (JSON output, no banners):
     parser.add_argument(
         "--broker-url",
         default=None,
-        help="Auth broker / ctrader-internal URL (default: $CTRADER_AUTH_BROKER_URL)",
+        help="Auth broker / api-internal URL (default: $CTRADER_AUTH_BROKER_URL)",
     )
     parser.add_argument(
         "--grant-id",
@@ -331,9 +331,9 @@ async def _run(args: argparse.Namespace) -> int:
             "  CTRADER_CLIENT_ID        cTrader OAuth client ID\n"
             "  CTRADER_CLIENT_SECRET    cTrader OAuth client secret\n"
             "  CTRADER_ACCOUNT_ID       cTrader account ID\n"
-            "  CTRADER_AUTH_BROKER_URL  ctrader-internal / auth broker URL\n"
+            "  CTRADER_AUTH_BROKER_URL  api-internal / auth broker URL\n"
             "  CTRADER_AUTH_GRANT_ID    Grant ID from Appwrite auth layer\n"
-            "  INTERNAL_API_KEY         Internal API key for ctrader-internal\n\n"
+            "  INTERNAL_API_KEY         Internal API key for api-internal\n\n"
             "CLI overrides:\n"
             "  --live         Use live environment\n"
             "  --account-id   Override account ID\n"

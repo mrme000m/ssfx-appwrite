@@ -19,8 +19,8 @@ from ssfx_parser import (
     VolumeMode,
 )
 
-# Deployed Cloudflare auth broker for cTrader OAuth delegation.
-DEFAULT_CTRADER_BROKER_URL = "https://auth-ctrader.mrme0.store"
+# cTrader auth broker URL (must be set via env; no default to avoid wrong endpoint).
+DEFAULT_CTRADER_BROKER_URL = ""
 
 
 @dataclass(slots=True)
@@ -158,7 +158,7 @@ class PerAccountTradingConfig:
 
 @dataclass(slots=True)
 class AccountConfig:
-    """Per-account (formerly per-follower) configuration."""
+    """Per-account trading configuration."""
 
     name: str
     enabled: bool
@@ -185,7 +185,7 @@ class AccountConfig:
             return True
         return symbol.upper() in [s.upper() for s in self.symbols_filter]
 
-    def to_mongo(self) -> dict[str, Any]:
+    def to_doc(self) -> dict[str, Any]:
         return {
             "_id": self.name,
             "name": self.name,
@@ -266,7 +266,7 @@ class AccountConfig:
         }
 
     @classmethod
-    def from_mongo(cls, doc: dict[str, Any]) -> AccountConfig:
+    def from_doc(cls, doc: dict[str, Any]) -> AccountConfig:
         doc = dict(doc)
         doc.pop("_id", None)
         ct = doc.get("ctrader", {})

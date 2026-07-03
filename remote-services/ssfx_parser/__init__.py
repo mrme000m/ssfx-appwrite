@@ -5,7 +5,7 @@ from .enums import (
     Direction,
     EntryUpdateAction,
     ExecutionMode,
-    FollowerExecutionStatus,
+    ExecutionStatus,
     OrderHandling,
     OrderType,
     SecondUpdateAction,
@@ -15,7 +15,7 @@ from .enums import (
     TpStrategy,
     VolumeMode,
 )
-from .models import FollowerExecution, RawMessage, TradeSignal
+from .models import RawMessage, SlaveExecution, TradeSignal
 from .parser import parse_signal
 from .parsers import AgentConfig, ChainedParser, LlmSignalParser, RegexSignalParser, SignalParser
 
@@ -25,8 +25,8 @@ __all__ = [
     "Direction",
     "EntryUpdateAction",
     "ExecutionMode",
-    "FollowerExecution",
-    "FollowerExecutionStatus",
+    "ExecutionStatus",
+    "SlaveExecution",
     "LlmSignalParser",
     "OrderHandling",
     "OrderType",

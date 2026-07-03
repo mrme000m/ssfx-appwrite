@@ -19,10 +19,9 @@ from market_data_service.signal_experience.store import SignalExperienceStore
 from market_data_service.signal_experience.updater import SignalExperienceUpdater
 from ssfx_parser import RawMessage, SignalStatus
 from ssfx_trader.config import AccountConfig
-from ssfx_trader.factory import create_follower, create_parser
-from ssfx_trader.follower import AccountFollower
+from ssfx_trader.factory import create_slave, create_parser
+from ssfx_trader.slave import AccountSlave
 from ssfx_trader.stores.appwrite_account_store import AppwriteAccountStore
-from ssfx_trader.stores.mongo_store import MongoSignalStore
 from ssfx_trader.stores.noop_store import NoOpSignalStore
 
 from . import admin_api
@@ -39,15 +38,13 @@ class AppState:
         self.trading_enabled = False
         # Account state is always read from Appwrite, even when trading is disabled.
         self.account_store = AppwriteAccountStore()
-        # Try MongoDB for signal history; fall back to no-op if unavailable
-        try:
-            self.signal_store = MongoSignalStore(config.mongo_uri, config.mongo_database)
-        except Exception as exc:
-            logger.warning("MongoDB unavailable (%s); signal history disabled", exc)
-            self.signal_store = NoOpSignalStore()
+        # Signal history: Appwrite-native signal store is not yet implemented.
+        # Using NoOp as placeholder; signal execution still works but history
+        # and duplicate-after-restart protection are not persisted.
+        self.signal_store = NoOpSignalStore()
         self.parser = create_parser(config.agent_config())
-        self.followers: dict[str, AccountFollower] = {}
-        self._follower_tasks: set[asyncio.Task] = set()
+        self.slaves: dict[str, AccountSlave] = {}
+        self._slave_tasks: set[asyncio.Task] = set()
         self.experience_scorer: SignalExperienceScorer | None = None
         self.experience_updater: SignalExperienceUpdater | None = None
         self._signal_generator: GoldQuantSignalGenerator | None = None
@@ -71,15 +68,14 @@ class AppState:
             self.trading_enabled = False
             return
 
-        # Fail-closed: without a real signal store we cannot safely recover
-        # state after restart, so do not start followers.
+        # Signal history is currently no-op; slaves still execute but
+        # duplicate-after-restart protection is not available until an
+        # Appwrite-native signal store is implemented.
         if isinstance(self.signal_store, NoOpSignalStore):
-            logger.error(
-                "MongoDB signal store is unavailable. Refusing to start followers "
-                "to avoid duplicate/missed trades after restart."
+            logger.warning(
+                "NoOpSignalStore active — signal history not persisted. "
+                "Duplicate trades after restart are possible."
             )
-            self.trading_enabled = False
-            return
 
         source = "Appwrite"
         accounts = self.account_store.list_accounts()
@@ -89,11 +85,9 @@ class AppState:
         self.trading_enabled = True
         for doc in accounts:
             try:
-                cfg = AccountConfig.from_mongo(doc)
-                follower = create_follower(
+                cfg = AccountConfig.from_doc(doc)
+                slave = create_slave(
                     cfg,
-                    self.config.mongo_uri,
-                    self.config.mongo_database,
                     signal_store=self.signal_store,
                     account_store=self.account_store,
                     data_service_base_url=self.config.dataservice_base_url,
@@ -101,14 +95,14 @@ class AppState:
                     experience_updater=self.experience_updater,
                     autonomy_enabled=self.config.agent_autonomy_enabled,
                 )
-                await follower._executor._backend.connect()
-                task = asyncio.create_task(follower.start())
-                self._follower_tasks.add(task)
-                task.add_done_callback(self._follower_tasks.discard)
-                self.followers[cfg.name] = follower
-                logger.info("Started follower for account %s (source: %s)", cfg.name, source)
+                await slave._executor._backend.connect()
+                task = asyncio.create_task(slave.start())
+                self._slave_tasks.add(task)
+                task.add_done_callback(self._slave_tasks.discard)
+                self.slaves[cfg.name] = slave
+                logger.info("Started slave for account %s (source: %s)", cfg.name, source)
             except Exception as exc:
-                logger.error("Failed to start follower for %s: %s", doc.get("_id"), exc)
+                logger.error("Failed to start slave for %s: %s", doc.get("_id"), exc)
 
         self._signal_generator = GoldQuantSignalGenerator(
             config=GoldQuantGeneratorConfig(
@@ -120,21 +114,21 @@ class AppState:
             data_service_base_url=self.config.dataservice_base_url,
             data_service_api_key=self.config.dataservice_api_key,
             agent_harness_base_url=self.config.agent_harness_base_url,
-            followers=self.followers,
+            slaves=self.slaves,
         )
         self._signal_generator.start()
 
     async def stop(self) -> None:
         if self._signal_generator is not None:
             await self._signal_generator.stop()
-        for follower in self.followers.values():
-            follower.stop()
-        if self._follower_tasks:
-            await asyncio.gather(*self._follower_tasks, return_exceptions=True)
+        for slave in self.slaves.values():
+            slave.stop()
+        if self._slave_tasks:
+            await asyncio.gather(*self._slave_tasks, return_exceptions=True)
         await self.parser.close()
 
-    def _follower_tasks_done(self, task: asyncio.Task) -> None:
-        self._follower_tasks.discard(task)
+    def _slave_tasks_done(self, task: asyncio.Task) -> None:
+        self._slave_tasks.discard(task)
 
 
 state: AppState | None = None
@@ -193,10 +187,10 @@ async def health() -> dict[str, Any]:
     return {
         "status": "ok",
         "trading_enabled": state.trading_enabled if state else False,
-        "accounts": list(state.followers.keys()) if state else [],
+        "accounts": list(state.slaves.keys()) if state else [],
         "active_positions": {
-            name: follower._executor.active_position_count
-            for name, follower in (state.followers.items() if state else [])
+            name: slave._executor.active_position_count
+            for name, slave in (state.slaves.items() if state else [])
         },
     }
 
@@ -387,8 +381,8 @@ async def _process_channel_post(
         signal.parser_used,
     )
 
-    for follower in app_state.followers.values():
-        await follower.on_signal(signal)
+    for slave in app_state.slaves.values():
+        await slave.on_signal(signal)
 
 
 async def _poll_updates(app_state: AppState) -> None:

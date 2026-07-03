@@ -2,7 +2,7 @@
 
 This module implements a true autonomy loop: it periodically polls the Data
 Service gold-quant snapshot, asks the EntryDecisionAgent for confirmation, and
-injects synthetic NEW XAUUSD signals into all followers when both the engine
+injects synthetic NEW XAUUSD signals into all slaves when both the engine
 and the agent return high-confidence ENTER verdicts.
 """
 from __future__ import annotations
@@ -42,13 +42,13 @@ class GoldQuantSignalGenerator:
         data_service_base_url: str,
         data_service_api_key: str | None,
         agent_harness_base_url: str,
-        followers: dict[str, Any],
+        slaves: dict[str, Any],
     ):
         self._config = config
         self._data_url = data_service_base_url.rstrip("/")
         self._data_api_key = data_service_api_key
         self._agent_client = AgentHarnessClient(base_url=agent_harness_base_url)
-        self._followers = followers
+        self._slaves = slaves
         self._shutdown = asyncio.Event()
         self._task: asyncio.Task[None] | None = None
 
@@ -147,8 +147,8 @@ class GoldQuantSignalGenerator:
             experience={"quality_score": 0.8, "quality_factors": ["gold_quant_autonomy"], "experience_action": "none"},
             open_positions=[
                 {"symbol": p["signal"].symbol, "direction": p["signal"].direction.value}
-                for follower in self._followers.values()
-                for p in follower._executor._active_positions.values()
+                for slave in self._slaves.values()
+                for p in slave._executor._active_positions.values()
             ],
         )
 
@@ -248,30 +248,30 @@ class GoldQuantSignalGenerator:
             signal.entry_price,
             float(agent_decision.get("confidence", 0.0)),
         )
-        for name, follower in self._followers.items():
+        for name, slave in self._slaves.items():
             try:
-                if not await self._follower_can_receive_signal(follower, signal):
+                if not await self._slave_can_receive_signal(slave, signal):
                     continue
-                await follower.on_signal(signal)
+                await slave.on_signal(signal)
             except Exception as exc:
-                logger.warning("Failed to route autonomous signal to follower %s: %s", name, exc)
+                logger.warning("Failed to route autonomous signal to slave %s: %s", name, exc)
 
-    async def _follower_can_receive_signal(self, follower: Any, signal: TradeSignal) -> bool:
-        """Pre-check follower state before injecting an autonomous signal."""
-        config = follower._config
+    async def _slave_can_receive_signal(self, slave: Any, signal: TradeSignal) -> bool:
+        """Pre-check slave state before injecting an autonomous signal."""
+        config = slave._config
         if not config.enabled:
-            logger.debug("Skipping autonomous signal for disabled follower %s", config.name)
+            logger.debug("Skipping autonomous signal for disabled slave %s", config.name)
             return False
         if not config.allows_symbol(signal.symbol):
-            logger.debug("Skipping autonomous signal for follower %s: symbol %s not allowed", config.name, signal.symbol)
+            logger.debug("Skipping autonomous signal for slave %s: symbol %s not allowed", config.name, signal.symbol)
             return False
 
-        executor = follower._executor
+        executor = slave._executor
         trading = executor._trading
         active = executor._active_positions
 
         if executor.active_position_count >= trading.max_positions:
-            logger.debug("Skipping autonomous signal for follower %s: max positions reached", config.name)
+            logger.debug("Skipping autonomous signal for slave %s: max positions reached", config.name)
             return False
 
         sym_count = sum(
@@ -279,7 +279,7 @@ class GoldQuantSignalGenerator:
             if p.get("signal") and p["signal"].symbol and p["signal"].symbol.upper() == signal.symbol.upper()
         )
         if sym_count >= trading.max_positions_per_symbol:
-            logger.debug("Skipping autonomous signal for follower %s: max %s positions reached", config.name, signal.symbol)
+            logger.debug("Skipping autonomous signal for slave %s: max %s positions reached", config.name, signal.symbol)
             return False
 
         dir_value = signal.direction.value if signal.direction else None
@@ -293,7 +293,7 @@ class GoldQuantSignalGenerator:
                     and pos_signal.direction
                     and pos_signal.direction.value == dir_value
                 ):
-                    logger.debug("Skipping autonomous signal for follower %s: same symbol/direction open", config.name)
+                    logger.debug("Skipping autonomous signal for slave %s: same symbol/direction open", config.name)
                     return False
 
         if not trading.allow_opposite_direction:
@@ -307,7 +307,7 @@ class GoldQuantSignalGenerator:
                     and pos_signal.direction
                     and pos_signal.direction.value == opposite
                 ):
-                    logger.debug("Skipping autonomous signal for follower %s: opposite direction open", config.name)
+                    logger.debug("Skipping autonomous signal for slave %s: opposite direction open", config.name)
                     return False
 
         risk_monitor = executor._risk_monitor
@@ -318,10 +318,10 @@ class GoldQuantSignalGenerator:
                 open_risk_pct = self._estimate_open_risk_pct(signal, trading.default_volume, equity)
                 allowed, reason = risk_monitor.check_new_signal(equity, open_risk_pct=open_risk_pct)
                 if not allowed:
-                    logger.debug("Skipping autonomous signal for follower %s: risk kill-switch (%s)", config.name, reason)
+                    logger.debug("Skipping autonomous signal for slave %s: risk kill-switch (%s)", config.name, reason)
                     return False
             except Exception as exc:
-                logger.warning("Skipping autonomous signal for follower %s: risk check error %s", config.name, exc)
+                logger.warning("Skipping autonomous signal for slave %s: risk check error %s", config.name, exc)
                 return False
 
         return True

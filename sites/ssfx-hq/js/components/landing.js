@@ -21,8 +21,17 @@ window.LandingComponent = (function () {
             ${cta}
           </div>
         </div>
+        <div id="service-status-container"></div>
       </div>
     `;
+
+    // Mount service status component for unauthenticated users
+    if (!authenticated) {
+      const statusContainer = container.querySelector('#service-status-container');
+      if (statusContainer && window.ServiceStatusComponent) {
+        window.ServiceStatusComponent.mount(statusContainer);
+      }
+    }
   }
 
   return { mount };

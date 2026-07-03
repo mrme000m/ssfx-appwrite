@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 from .enums import (
     Direction,
-    FollowerExecutionStatus,
+    ExecutionStatus,
     OrderType,
     SignalStatus,
     SignalType,
@@ -75,16 +75,7 @@ class TradeSignal(BaseModel):
     def take_profits(self) -> list[float]:
         return [tp for tp in (self.tp1, self.tp2, self.tp3) if tp is not None]
 
-    def to_mongo(self) -> dict[str, Any]:
-        data = self.model_dump(mode="json")
-        data["_id"] = f"{self.chat_id}:{self.message_id}"
-        return data
 
-    @classmethod
-    def from_mongo(cls, doc: dict[str, Any]) -> TradeSignal:
-        doc = dict(doc)
-        doc.pop("_id", None)
-        return cls(**doc)
 
 
 class RawMessage(BaseModel):
@@ -102,28 +93,17 @@ class RawMessage(BaseModel):
         dt = datetime.fromtimestamp(self.timestamp_ms / 1000, tz=UTC)
         return dt.strftime("%Y-%m-%d")
 
-    def to_mongo(self) -> dict[str, Any]:
-        data = self.model_dump(mode="json")
-        data["_id"] = f"{self.chat_id}:{self.message_id}"
-        data["date"] = self.date_str
-        return data
-
-    @classmethod
-    def from_mongo(cls, doc: dict[str, Any]) -> RawMessage:
-        doc = dict(doc)
-        doc.pop("_id", None)
-        doc.pop("date", None)
-        return cls(**doc)
 
 
-class FollowerExecution(BaseModel):
-    """Per-follower execution tracking for a signal."""
 
-    follower_id: str
+class SlaveExecution(BaseModel):
+    """Per-slave execution tracking for a signal."""
+
+    slave_id: str
     signal_chat_id: str
     signal_message_id: int
     signal_type: str = "NEW"
-    status: FollowerExecutionStatus = FollowerExecutionStatus.PENDING
+    status: ExecutionStatus = ExecutionStatus.PENDING
     order_id: int | None = None
     position_id: int | None = None
     executed_price: float | None = None
@@ -138,13 +118,4 @@ class FollowerExecution(BaseModel):
     def signal_key(self) -> str:
         return f"{self.signal_chat_id}:{self.signal_message_id}"
 
-    def to_mongo(self) -> dict[str, Any]:
-        data = self.model_dump(mode="json")
-        data["_id"] = f"{self.follower_id}:{self.signal_chat_id}:{self.signal_message_id}"
-        return data
 
-    @classmethod
-    def from_mongo(cls, doc: dict[str, Any]) -> FollowerExecution:
-        doc = dict(doc)
-        doc.pop("_id", None)
-        return cls(**doc)

@@ -59,8 +59,8 @@ def raw_account_doc() -> dict:
     }
 
 
-def test_from_mongo_coerces_string_enums(raw_account_doc: dict) -> None:
-    cfg = AccountConfig.from_mongo(raw_account_doc)
+def test_from_doc_coerces_string_enums(raw_account_doc: dict) -> None:
+    cfg = AccountConfig.from_doc(raw_account_doc)
     assert cfg.trading.execution_mode == ExecutionMode.DEMO
     assert cfg.trading.volume_mode == VolumeMode.FIXED_LOTS
     assert cfg.trading.tp_strategy == TpStrategy.TP1_ONLY
@@ -74,9 +74,9 @@ def test_from_mongo_coerces_string_enums(raw_account_doc: dict) -> None:
     assert override.partial_close.on_tp1_pct == 25.0
 
 
-def test_to_mongo_round_trip(raw_account_doc: dict) -> None:
-    cfg = AccountConfig.from_mongo(raw_account_doc)
-    serialized = cfg.to_mongo()
+def test_to_doc_round_trip(raw_account_doc: dict) -> None:
+    cfg = AccountConfig.from_doc(raw_account_doc)
+    serialized = cfg.to_doc()
 
     assert serialized["_id"] == "test"
     assert serialized["trading"]["execution_mode"] == "demo"
@@ -91,7 +91,7 @@ def test_to_mongo_round_trip(raw_account_doc: dict) -> None:
     assert override["partial_close"]["on_tp1_pct"] == 25.0
 
 
-def test_from_mongo_to_mongo_idempotency(raw_account_doc: dict) -> None:
-    first = AccountConfig.from_mongo(raw_account_doc).to_mongo()
-    second = AccountConfig.from_mongo(first).to_mongo()
+def test_from_doc_to_doc_idempotency(raw_account_doc: dict) -> None:
+    first = AccountConfig.from_doc(raw_account_doc).to_doc()
+    second = AccountConfig.from_doc(first).to_doc()
     assert first == second

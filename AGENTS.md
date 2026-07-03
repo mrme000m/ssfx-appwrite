@@ -413,7 +413,7 @@ A user-level plugin at `~/.claude/plugins/appwrite-ctrader/` provides skills, co
 | `appwrite-tablesdb` | Create TablesDB tables with correct column types and permissions |
 | `appwrite-sites` | Deploy and extend the auth/admin SPA |
 | `appwrite-cicd` | Hybrid GitHub Actions + Appwrite git deployment pipeline |
-| `ctrader-auth` | OAuth flow, PIN login, grant_id token management, encrypted storage |
+| `auth-oauth` | OAuth flow, PIN login, grant_id token management, encrypted storage |
 | `ctrader-trading` | TG signal ingestion, copy trading, position monitoring, master-slave execution |
 | `pplx-agent` | Perplexity + TradingView gold market research and Space management |
 
@@ -452,6 +452,7 @@ OpenCode and Qwen Code agents should use the equivalent `dev.sh` commands (e.g.,
 # Run from project root to re-link skills after plugin updates
 PLUGIN_SKILLS="$HOME/.claude/plugins/appwrite-ctrader/skills"
 for skill in appwrite-cicd appwrite-functions appwrite-sites appwrite-tablesdb ctrader-auth ctrader-trading pplx-agent; do
+# Note: ctrader-auth skill name kept for backwards compatibility with plugin.
   ln -sfn "${PLUGIN_SKILLS}/${skill}" ".agents/skills/${skill}"
   ln -sfn "${PLUGIN_SKILLS}/${skill}" ".qwen/skills/${skill}"
   ln -sfn "${PLUGIN_SKILLS}/${skill}" "$HOME/.qwen/skills/${skill}"
@@ -489,10 +490,10 @@ Replaces `cf-auth-broker` (Cloudflare Worker) with Appwrite Functions + TablesDB
 
 | Function | Purpose | Endpoints |
 |----------|---------|-----------|
-| `ctrader-auth` | OAuth start/callback, session check, logout | `GET /auth/ctrader/start`, `GET /callback`, `GET /session`, `POST /logout` |
-| `ctrader-pin-auth` | PIN login, set username+PIN, PIN reset | `POST /pin-login`, `POST /set-credentials`, `POST /pin-reset/request`, `POST /pin-reset/confirm` |
-| `ctrader-internal` | Server-to-server for Python backends (gated by `x-internal-key`) | `POST /internal/ctrader/refresh`, `GET /internal/grant/latest`, `POST /internal/grant/:grant_id/accounts` |
-| `ctrader-token-refresh-worker` | Scheduled cron (daily 03:00) + on-demand HTTP for rotating near-expiry tokens and sweeping stale ephemeral_tokens | `GET /` (HTTP trigger) |
+| `auth-oauth` | OAuth start/callback, session check, logout | `GET /auth/ctrader/start`, `GET /callback`, `GET /session`, `POST /logout` |
+| `auth-pin` | PIN login, set username+PIN, PIN reset | `POST /pin-login`, `POST /set-credentials`, `POST /pin-reset/request`, `POST /pin-reset/confirm` |
+| `api-internal` | Server-to-server for Python backends (gated by `x-internal-key`) | `POST /internal/ctrader/refresh`, `GET /internal/grant/latest`, `POST /internal/grant/:grant_id/accounts` |
+| `token-refresh` | Scheduled cron (daily 03:00) + on-demand HTTP for rotating near-expiry tokens and sweeping stale ephemeral_tokens | `GET /` (HTTP trigger) |
 
 ### Appwrite Sites
 
@@ -503,11 +504,38 @@ Replaces `cf-auth-broker` (Cloudflare Worker) with Appwrite Functions + TablesDB
 
 ### Auth Flow
 
-1. **New slave**: clicks Connect → `ctrader-auth` redirects to cTrader consent → callback exchanges code → creates Appwrite user + `slave_accounts` row with encrypted tokens → sets `a_session_<PROJECT_ID>` cookie → redirects to site onboarding.
-2. **Onboarding**: slave sets username + PIN via `ctrader-pin-auth` /set-credentials.
-3. **Login**: slave/master enter username + PIN → `ctrader-pin-auth` verifies, creates Appwrite session cookie → redirected to dashboard.
+1. **New slave**: clicks Connect → `auth-oauth` redirects to cTrader consent → callback exchanges code → creates Appwrite user + `slave_accounts` row with encrypted tokens → sets `a_session_<PROJECT_ID>` cookie → redirects to site onboarding.
+2. **Onboarding**: slave sets username + PIN via `auth-pin` /set-credentials.
+3. **Login**: slave/master enter username + PIN → `auth-pin` verifies, creates Appwrite session cookie → redirected to dashboard.
 4. **Python backend**: calls `POST /internal/ctrader/refresh` with `x-internal-key`, gets access_token, then uses `ctrader-open-api` locally for account list and trading.
 5. **Master**: username `admin` + PIN. Created by `init-scripts/admin-pin.sh`. Can view all slaves via master dashboard.
+
+### Account Discovery & Sync Process
+
+The AccountHub v2 service automatically discovers and syncs cTrader accounts:
+
+```
+AccountHubV2 (every 30s) → Poll slave_accounts table → Discover active slaves
+    ↓
+AccountDiscovery → Find accounts in accounts table or parse ctrader_account_ids
+    ↓
+EnvironmentConnection.authorize_account() → Sync to Appwrite broker
+    ↓
+POST /internal/grant/:grant_id/accounts → Update accounts table
+    ↓
+Admin dashboard queries accounts table → Display account details
+```
+
+**Key Components**:
+- **AccountDiscovery**: Polls `slave_accounts` for active slaves and their accounts
+- **EnvironmentConnection**: Shared cTrader transport per environment (live/demo)
+- **Account Sync**: Calls `sync_accounts_to_broker()` after authorization to persist account data
+
+**Troubleshooting**: If accounts don't appear in dashboard:
+1. Check AccountHub logs: `docker compose logs account-hub | grep "Synced account"`
+2. Verify `/internal/grant/:grant_id/accounts` endpoint connectivity
+3. Confirm `accounts` table has data for the grant_id
+4. Ensure `TOKEN_ENCRYPTION_KEY` matches between functions and services
 
 ### CI/CD Pipeline
 
@@ -552,7 +580,7 @@ Deployment is fully automated via **GitHub Actions** on push to the `develop` br
 | `CTRADER_CLIENT_SECRET` | cTrader OAuth client secret |
 | `TOKEN_ENCRYPTION_KEY` | AES-GCM-256 key for token encryption |
 | `SESSION_HMAC_KEY` | HMAC key for session state signing |
-| `INTERNAL_API_KEY` | Internal API key for ctrader-internal |
+| `INTERNAL_API_KEY` | Internal API key for `api-internal` |
 | `V2_ADMIN_KEY` | Admin key for the `ssfx-hq` dashboard to call `ssfx-api` `/api/*` endpoints. Defaults to `ADMIN_API_KEY` from `.env` during `./dev.sh setup-gh-secrets`. |
 
 ### Manual Deployment (one-time setup)
@@ -567,8 +595,8 @@ Deployment is fully automated via **GitHub Actions** on push to the `develop` br
 # 3. Configure cTrader OAuth (reads init-scripts/config.yml)
 ./init-scripts/ctrader-oauth.sh
 
-# 4. Register the ctrader-auth /callback domain in openapi.ctrader.com
-# 5. Update sites/ctrader-auth-site/config.js and sites/ssfx-hq/config.js with deployed Function domains
+# 4. Register the auth-oauth /callback domain in openapi.ctrader.com
+# 5. Update sites/ssfx-hq/config.js with deployed Function domains
 #    (ssfx-hq reads V2_ADMIN_KEY / ADMIN_API_KEY at build time so the SPA can call /api/* endpoints)
 # 6. E2E test: SPA → start → consent → callback → grant stored + session
 ```
@@ -577,10 +605,10 @@ Deployment is fully automated via **GitHub Actions** on push to the `develop` br
 
 Variables are upserted by `dev/scripts/deploy_auth.py` from environment values (local `.env` or GitHub Secrets). They are not read from per-function `.env` files.
 
-- `CTRADER_CLIENT_ID`, `CTRADER_CLIENT_SECRET`, `TOKEN_ENCRYPTION_KEY`, `SESSION_HMAC_KEY`, `SITES_URL` → `ctrader-auth`
-- `INTERNAL_API_KEY` → `ctrader-internal`
-- `BCRYPT_SALT_ROUNDS` → `ctrader-pin-auth`
-- `REFRESH_BUFFER_HOURS` → `ctrader-token-refresh-worker`
+- `CTRADER_CLIENT_ID`, `CTRADER_CLIENT_SECRET`, `TOKEN_ENCRYPTION_KEY`, `SESSION_HMAC_KEY`, `SITES_URL` → `auth-oauth`
+- `INTERNAL_API_KEY` → `api-internal`
+- `BCRYPT_SALT_ROUNDS` → `auth-pin`
+- `REFRESH_BUFFER_HOURS` → `token-refresh`
 - `APPWRITE_PROJECT_ID`, `APPWRITE_API_KEY`, `APPWRITE_ENDPOINT`, `CTRADER_AUTH_DATABASE_ID` → all functions
 
 ### Site Variables (secrets)
@@ -591,7 +619,7 @@ Site build variables are upserted by `dev/scripts/deploy_auth.py` before each si
 
 ### Python Backend Migration
 
-- `CTRADER_AUTH_BROKER_URL` → `ctrader-internal` Function domain
+- `CTRADER_AUTH_BROKER_URL` → `api-internal` Function domain
 - Add `CTRADER_AUTH_INTERNAL_KEY` env var
 - Remove calls to old `/internal/ctrader/accounts` and `/internal/ctrader/account-balance`; use `ctrader-open-api` locally with the returned `access_token`
 - Call `POST /internal/grant/:grant_id/accounts` once after first refresh to persist account IDs

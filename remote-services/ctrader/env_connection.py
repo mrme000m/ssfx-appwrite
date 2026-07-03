@@ -68,8 +68,8 @@ class EnvironmentConnection:
         is_live: ``True`` for live environment, ``False`` for demo.
         client_id: cTrader OAuth client ID.
         client_secret: cTrader OAuth client secret.
-        internal_url: Base URL of the ``ctrader-internal`` Appwrite Function.
-        internal_api_key: Secret key for ``ctrader-internal``.
+        internal_url: Base URL of the ``api-internal`` Appwrite Function.
+        internal_api_key: Secret key for ``api-internal``.
         transport_type: ``"tcp"`` or ``"ws"``.
     """
 
