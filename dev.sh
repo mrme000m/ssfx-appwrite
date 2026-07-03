@@ -2,7 +2,7 @@
 # dev.sh — Dispatcher for slwp development operations.
 # Usage: ./dev.sh <command> [args...]
 #
-# Commands are implemented as repeatable scripts in dev/scripts/.
+# Commands are implemented as repeatable scripts in dev/scripts/ and its subdirectories.
 # Complex or JSON-heavy scripts are written in Python; simple wrappers may be shell.
 
 set -euo pipefail
@@ -25,7 +25,11 @@ if [[ -z "${COMMAND}" ]]; then
   echo "Usage: $0 <command> [args...]" >&2
   echo "" >&2
   echo "Available commands:" >&2
-  for script in "${SCRIPTS_DIR}"/*.sh "${SCRIPTS_DIR}"/*.py; do
+  for script in \
+      "${SCRIPTS_DIR}"/*.sh \
+      "${SCRIPTS_DIR}"/*.py \
+      "${SCRIPTS_DIR}"/*/*.sh \
+      "${SCRIPTS_DIR}"/*/*.py; do
     [[ -f "${script}" ]] || continue
     name="$(basename "${script}")"
     # Strip extension (.sh or .py)
@@ -42,14 +46,18 @@ fi
 
 # Commands are hyphenated in usage (cf-tunnel-status) but Python modules use underscores.
 # Try the literal name first, then the underscore variant, for both .py and .sh.
+# Search top-level and one level of subdirectories.
 SCRIPT=""
 for base in "${COMMAND}" "${COMMAND//-/_}"; do
   for ext in py sh; do
-    candidate="${SCRIPTS_DIR}/${base}.${ext}"
-    if [[ -x "${candidate}" ]]; then
-      SCRIPT="${candidate}"
-      break 2
-    fi
+    for dir in "${SCRIPTS_DIR}" "${SCRIPTS_DIR}"/*; do
+      [[ -d "${dir}" ]] || continue
+      candidate="${dir}/${base}.${ext}"
+      if [[ -x "${candidate}" ]]; then
+        SCRIPT="${candidate}"
+        break 3
+      fi
+    done
   done
 done
 

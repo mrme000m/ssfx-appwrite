@@ -10,6 +10,7 @@ from appwrite.services.tables_db import TablesDB
 
 from ssfx_parser import SlaveExecution
 from ssfx_server.appwrite_client import AppwriteClient
+from ssfx_trader.config import AccountConfig
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +114,35 @@ class AppwriteAccountStore:
         except Exception as exc:
             logger.error("Failed to get account %s from Appwrite: %s", name, exc)
             return None
+
+    def load(self, name: str) -> AccountConfig | None:
+        """Load an AccountConfig by name from Appwrite."""
+        doc = self.get_account(name)
+        if doc is None:
+            return None
+        try:
+            return AccountConfig.from_doc(doc)
+        except Exception as exc:
+            logger.error("Failed to parse AccountConfig for %s: %s", name, exc)
+            return None
+
+    def load_by_grant(self, grant_id: str, ctid: int) -> AccountConfig | None:
+        """Find account row matching grant_id/ctid."""
+        try:
+            result = self.tables_db.list_rows(
+                database_id=self.database_id,
+                table_id=self.table_id,
+                queries=[f'equal("grant_id", "{grant_id}")'],
+            )
+            for row in result.rows:
+                data = getattr(row, "data", row)
+                doc = _appwrite_row_to_account_doc(data)
+                cfg = AccountConfig.from_doc(doc)
+                if cfg.ctrader.grant_id == grant_id and cfg.ctrader.account_id == ctid:
+                    return cfg
+        except Exception as exc:
+            logger.warning("Could not query account configs for grant %s: %s", grant_id, exc)
+        return None
 
     def save_account(self, account: Any) -> None:
         doc = account.to_doc() if hasattr(account, "to_doc") else dict(account)

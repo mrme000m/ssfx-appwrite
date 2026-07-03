@@ -6,8 +6,8 @@ import contextlib
 import logging
 from contextlib import asynccontextmanager
 
-from appwrite.client import Client
 from fastapi import FastAPI
+from shared.appwrite_client import create_appwrite_client
 
 from ctrader.config import CTRADERConfig
 from ctrader.trading import router as trade_router
@@ -15,7 +15,7 @@ from ctrader.trading.auth import TokenClient
 from ctrader.trading.event_relay import EventRelay
 from ctrader.trading.session_manager import SessionManager
 from ctrader.trading.signal_router import SignalRouter
-from ctrader.trading.user_config_store import UserConfigStore
+from ssfx_trader.stores.appwrite_account_store import AppwriteAccountStore
 
 logger = logging.getLogger(__name__)
 
@@ -29,10 +29,11 @@ async def lifespan(app: FastAPI):
 
     logging.basicConfig(level=getattr(logging, config.log_level.upper(), logging.INFO))
 
-    appwrite_client = Client()
-    appwrite_client.set_endpoint(config.appwrite_endpoint)
-    appwrite_client.set_project(config.appwrite_project_id)
-    appwrite_client.set_key(config.appwrite_api_key)
+    appwrite_client, tables_db = create_appwrite_client(
+        endpoint=config.appwrite_endpoint,
+        project_id=config.appwrite_project_id,
+        api_key=config.appwrite_api_key,
+    )
 
     # ── Trading execution ───────────────────────────────────────────────────
     token_client = TokenClient(
@@ -45,10 +46,10 @@ async def lifespan(app: FastAPI):
         client_id=config.ctrader_client_id,
         client_secret=config.ctrader_client_secret,
     )
-    config_store = UserConfigStore(
-        client=appwrite_client,
+    config_store = AppwriteAccountStore(
+        tables_db=tables_db,
         database_id=config.appwrite_database_id,
-        accounts_table=config.accounts_table,
+        table_id=config.accounts_table,
     )
     event_relay = EventRelay(
         client=appwrite_client,

@@ -1,8 +1,11 @@
-"""Shared Appwrite server client."""
+"""Shared Appwrite server client.
+
+Thin wrapper around the shared factory that also caches the singleton
+and exposes table names from server config.
+"""
 from __future__ import annotations
 
-from appwrite.client import Client
-from appwrite.services.tables_db import TablesDB
+from shared.appwrite_client import create_appwrite_client
 
 from ssfx_server.config_loader import ServerConfig
 
@@ -23,11 +26,11 @@ class AppwriteClient:
         return cls._instance
 
     def _init(self, config: ServerConfig) -> None:
-        self.client = Client()
-        self.client.set_endpoint(config.appwrite_endpoint)
-        self.client.set_project(config.appwrite_project_id)
-        self.client.set_key(config.appwrite_api_key)
-        self.tables_db = TablesDB(self.client)
+        self.client, self.tables_db = create_appwrite_client(
+            endpoint=config.appwrite_endpoint,
+            project_id=config.appwrite_project_id,
+            api_key=config.appwrite_api_key,
+        )
         self.database_id = config.appwrite_database_id
         self.accounts_table = config.appwrite_accounts_table
         self.presets_table = config.appwrite_presets_table

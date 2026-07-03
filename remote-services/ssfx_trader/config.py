@@ -267,8 +267,15 @@ class AccountConfig:
 
     @classmethod
     def from_doc(cls, doc: dict[str, Any]) -> AccountConfig:
+        """Parse AccountConfig from a Mongo-style doc or an Appwrite TablesDB row (with config_json)."""
         doc = dict(doc)
         doc.pop("_id", None)
+
+        # Handle Appwrite config_json wrapper format
+        if "config_json" in doc:
+            cfg = json.loads(doc.get("config_json") or "{}")
+            doc = {**doc, **cfg}
+
         ct = doc.get("ctrader", {})
         tr = doc.get("trading", {})
         return AccountConfig(

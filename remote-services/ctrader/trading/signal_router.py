@@ -4,13 +4,13 @@ from __future__ import annotations
 import logging
 
 from ssfx_trader.config import AccountConfig
+from ssfx_trader.stores.appwrite_account_store import AppwriteAccountStore
 
 from .auth import TokenClient
 from .event_relay import EventRelay
 from .executor_worker import ExecutorWorker
 from .models import ExecutionResponse, SignalRequest
 from .session_manager import SessionManager
-from .user_config_store import UserConfigStore
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ class SignalRouter:
         token_client: TokenClient,
         session_manager: SessionManager,
         event_relay: EventRelay,
-        config_store: UserConfigStore,
+        config_store: AppwriteAccountStore,
         data_service_base_url: str = "",
         data_service_api_key: str = "",
     ):
