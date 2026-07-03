@@ -62,6 +62,9 @@ module.exports = async function main({ req, res, log, error }) {
   const method = req.method;
 
   try {
+    if (path === '/health' && method === 'GET') {
+      return res.json({ status: 'ok', service: 'ctrader-internal' }, 200, corsHeaders(req.headers['origin'] || ''));
+    }
     if (!checkInternalKey(req)) {
       return res.json({ error: 'Unauthorized' }, 401, corsHeaders(req.headers['origin'] || ''));
     }

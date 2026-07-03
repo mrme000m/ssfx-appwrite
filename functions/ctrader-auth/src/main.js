@@ -77,6 +77,9 @@ module.exports = async function main({ req, res, log, error }) {
   const origin = req.headers['origin'] || '';
 
   try {
+    if (path === '/health' && method === 'GET') {
+      return res.json({ status: 'ok', service: 'ctrader-auth' }, 200, corsHeaders(origin));
+    }
     if (path === '/auth/ctrader/start' && method === 'GET') {
       return await handleStart(req, res, log);
     }

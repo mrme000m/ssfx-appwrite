@@ -170,6 +170,9 @@ module.exports = async function main({ req, res, log, error }) {
   const method = req.method;
 
   try {
+    if (path === '/health' && method === 'GET') {
+      return res.json({ status: 'ok', service: 'ctrader-pin-auth' }, 200, corsHeaders(req.headers['origin'] || ''));
+    }
     if (path === '/pin-login' && method === 'POST') {
       return await handlePinLogin(req, res, log, error);
     }

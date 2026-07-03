@@ -44,7 +44,14 @@ def _require_admin_key(request: Request) -> None:
     cfg = _state().config
     if not cfg.admin_api_key:
         raise HTTPException(status_code=503, detail="admin API key not configured")
+    
+    # Check header first (preferred for API calls)
     provided = request.headers.get("x-admin-key", "")
+    
+    # Fall back to query parameter for SSE streams (browser compatibility)
+    if not provided:
+        provided = request.query_params.get("admin_key", "")
+    
     if not secrets.compare_digest(provided, cfg.admin_api_key):
         raise HTTPException(status_code=401, detail="unauthorized")
 

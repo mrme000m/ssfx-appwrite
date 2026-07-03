@@ -43,6 +43,10 @@ module.exports = async function main({ req, res, log, error }) {
   if (preflight) return preflight;
 
   try {
+    if (req.method === 'GET' && req.path === '/health') {
+      return res.json({ status: 'ok', service: 'ctrader-token-refresh-worker' }, 200, corsHeaders(req.headers['origin'] || ''));
+    }
+
     const results = {
       rotated: 0,
       failed: 0,
