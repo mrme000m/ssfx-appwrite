@@ -12,7 +12,7 @@ import logging
 import time
 from typing import Any, Awaitable, Callable
 
-from appwrite.client import Client
+from shared.appwrite_client import create_appwrite_client
 
 from ctrader.account_discovery import AccountDiscovery, AccountRef
 from ctrader.env_connection import EnvironmentConnection
@@ -93,11 +93,10 @@ class AppwriteFeedManager:
         assert internal_api_key is not None
 
         database_id = settings.ctrader_auth_database_id or "ctrader_auth"
-        appwrite_client = (
-            Client()
-            .set_endpoint(settings.appwrite_endpoint)
-            .set_project(settings.appwrite_project_id)
-            .set_key(settings.appwrite_api_key)
+        appwrite_client, _ = create_appwrite_client(
+            endpoint=settings.appwrite_endpoint,
+            project_id=settings.appwrite_project_id,
+            api_key=settings.appwrite_api_key,
         )
 
         self._discovery = AccountDiscovery(

@@ -70,7 +70,13 @@ def get_appwrite_ids() -> tuple[str, str, str]:
 
 
 def _get_client() -> Any:
-    """Build an Appwrite client from environment / settings."""
+    """Build an Appwrite client from environment / settings.
+
+    NOTE: Intentionally separate from ``shared.appwrite_client`` because this
+    module supports dev-script usage where the appwrite SDK may not be
+    installed (hence ``_require_appwrite()`` lazy import). It also reads
+    ``MARKET_DATA_APPWRITE_*`` prefixed env vars via ``get_settings()``.
+    """
     Client, TablesDB = _require_appwrite()
     settings = get_settings()
 

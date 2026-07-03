@@ -6,10 +6,10 @@ import logging
 import os
 from typing import Any
 
-from appwrite.client import Client
 from appwrite.exception import AppwriteException
 from appwrite.id import ID
 from appwrite.services.tables_db import TablesDB
+from shared.appwrite_client import create_appwrite_client
 
 from .models import (
     ExperienceAuthor,
@@ -44,13 +44,12 @@ class SignalExperienceStore:
     def _connect(self) -> None:
         if not self.project_id or not self.api_key:
             raise RuntimeError("APPWRITE_PROJECT_ID and APPWRITE_API_KEY are required")
-        client = (
-            Client()
-            .set_endpoint(self.endpoint)
-            .set_project(self.project_id)
-            .set_key(self.api_key)
+        _, tables = create_appwrite_client(
+            endpoint=self.endpoint,
+            project_id=self.project_id,
+            api_key=self.api_key,
         )
-        self._tables = TablesDB(client)
+        self._tables = tables
 
     def _strip(self, row: Any) -> dict[str, Any]:
         """Return only the user-defined data fields from an Appwrite row."""

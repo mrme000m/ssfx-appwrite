@@ -12,6 +12,8 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
+from appwrite.exception import AppwriteException
+
 from .config import get_settings
 from .database import BaseDatabaseManager, _iso_now
 from .models import (
@@ -343,8 +345,7 @@ class AppwriteDatabaseManager(BaseDatabaseManager):
 
     async def connect(self) -> None:
         try:
-            from appwrite.client import Client
-            from appwrite.services.tables_db import TablesDB
+            from shared.appwrite_client import create_appwrite_client
         except ImportError:
             raise RuntimeError(
                 "Appwrite backend requires the 'appwrite' package. "
@@ -355,13 +356,11 @@ class AppwriteDatabaseManager(BaseDatabaseManager):
         self._database_id = settings.appwrite_database_id
 
         def _init() -> None:
-            self._client = (
-                Client()
-                .set_endpoint(settings.appwrite_endpoint)
-                .set_project(settings.appwrite_project_id)
-                .set_key(settings.appwrite_api_key)
+            self._client, self._tables = create_appwrite_client(
+                endpoint=settings.appwrite_endpoint,
+                project_id=settings.appwrite_project_id,
+                api_key=settings.appwrite_api_key,
             )
-            self._tables = TablesDB(self._client)
 
         await asyncio.to_thread(_init)
         await self._ensure_database()
@@ -387,8 +386,6 @@ class AppwriteDatabaseManager(BaseDatabaseManager):
     # ── Schema setup ─────────────────────────────────────────────────────────
 
     async def _ensure_database(self) -> None:
-        from appwrite.exception import AppwriteException
-
         def _check_or_create() -> None:
             try:
                 self._tables.get(database_id=self._database_id)
@@ -408,8 +405,6 @@ class AppwriteDatabaseManager(BaseDatabaseManager):
         await asyncio.to_thread(_check_or_create)
 
     async def _ensure_tables(self) -> None:
-        from appwrite.exception import AppwriteException
-
         def _list_tables() -> list[str]:
             try:
                 result = self._tables.list_tables(database_id=self._database_id)

@@ -13,7 +13,7 @@ import asyncio
 import logging
 
 import uvicorn
-from appwrite.client import Client
+from shared.appwrite_client import create_appwrite_client
 
 from ctrader.account_hub_v2 import AccountHubV2
 from ctrader.config import CTRADERConfig
@@ -32,10 +32,11 @@ async def main() -> None:
     logger = logging.getLogger("account-hub-server")
     logger.info("Starting Account Hub WS Server on port %s", config.account_hub_port)
 
-    appwrite_client = Client()
-    appwrite_client.set_endpoint(config.appwrite_endpoint)
-    appwrite_client.set_project(config.appwrite_project_id)
-    appwrite_client.set_key(config.appwrite_api_key)
+    appwrite_client, _ = create_appwrite_client(
+        endpoint=config.appwrite_endpoint,
+        project_id=config.appwrite_project_id,
+        api_key=config.appwrite_api_key,
+    )
 
     database_id = config.ctrader_auth_database_id or "ctrader_auth"
 

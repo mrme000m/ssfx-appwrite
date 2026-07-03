@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from ssfx_parser import TradeSignal
@@ -256,4 +256,4 @@ MIN_SAMPLES_FOR_WIN_RATE = 10
 
 
 def _iso_now() -> str:
-    return datetime.utcnow().isoformat() + "Z"
+    return datetime.now(UTC).isoformat()
