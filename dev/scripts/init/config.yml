@@ -1,0 +1,28 @@
+# Configuration for third-party service init scripts.
+# This file is gitignored; do not commit secrets.
+
+ctrader:
+  client_id: "15675_5JDsCBjokL6h5a7YR7XFAPsNxU1uC0CsD3lo46zLIgpcjND93K"
+  client_secret: "fKhz8aA5jhg2Ufbqdy9Nb8eMg1qmXXPXIfOWb8ewjG7Wjwosyf"
+  redirect_uri: "https://auth.mrme.tech/callback"
+  environment: "demo" # or "live"
+
+master:
+  email: "mrme000.m0@gmail.com"
+
+pplx_agent:
+  # Perplexity Pro model selection: auto, pro, reasoning, deep_research.
+  mode: "pro"
+  model: "GPT-5.5"
+  thinking: true
+  # Space created 2026-07-02
+  gold_market_space_uuid: "f24620cf-a15c-4635-8341-72cd33f39c0c"
+  # TradingView credentials are only required for private Pine scripts.
+  # tv_user: ""
+  # tv_session: ""
+  # tv_signature: ""
+
+# Add more services below as needed:
+# example_service:
+#   api_key: "..."
+#   endpoint: "..."

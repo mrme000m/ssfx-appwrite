@@ -178,8 +178,8 @@ All code paths needed for a demo-account trial are implemented:
 ```
 Phase A: Simulated (no real cTrader connection)
   1. Deploy auth layer + site
-  2. Set up admin PIN (init-scripts/admin-pin.sh)
-  3. Configure cTrader OAuth (init-scripts/ctrader-oauth.sh)
+  2. Set up admin PIN (dev/scripts/init/admin-pin.sh)
+  3. Configure cTrader OAuth (dev/scripts/init/ctrader-oauth.sh)
   4. Complete OAuth flow with a demo cTrader account
   5. Set username + PIN
   6. Run ssfx_trader with simulated backend

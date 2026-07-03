@@ -46,9 +46,9 @@ critical and medium-priority issues before live autonomous trading can be enable
 ### 3. Init-script cleanup
 
 **Priority:** high  
-**Files:** `init-scripts/ctrader-oauth.py`, `init-scripts/admin-pin.py`, `init-scripts/_env.py` (new), `appwrite.config.json`, `init-scripts/migrate-master-to-service-config.py` (new)
+**Files:** `dev/scripts/init/ctrader-oauth.py`, `dev/scripts/init/admin-pin.py`, `dev/scripts/init/_env.py` (new), `appwrite.config.json`, `dev/scripts/init/migrate-master-to-service-config.py` (new)
 
-- Create a shared `init-scripts/_env.py` loader.
+- Create a shared `dev/scripts/init/_env.py` loader.
 - Update `appwrite.config.json` `service_config` schema (rowSecurity, `config_json` column, encrypted `config_value`).
 - Rewrite `ctrader-oauth.py` to use modern keyword-style TablesDB calls and store config under `ctrader_oauth` key.
 - Rewrite `admin-pin.py` to store master PIN hash in `service_config` (`master_auth` key) instead of abusing `slave_accounts`.

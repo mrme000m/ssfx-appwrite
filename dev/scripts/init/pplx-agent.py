@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""init-scripts/pplx-agent.py — Persist PPLX Agent configuration to Appwrite TablesDB."""
+"""dev/scripts/init/pplx-agent.py — Persist PPLX Agent configuration to Appwrite TablesDB."""
 from __future__ import annotations
 
 import json
@@ -69,7 +69,7 @@ def find_existing(db: TablesDB) -> dict | None:
 def main() -> int:
     pplx = read_config()
     if not pplx:
-        print("pplx_agent section missing in init-scripts/config.yml", file=sys.stderr)
+        print("pplx_agent section missing in dev/scripts/init/config.yml", file=sys.stderr)
         return 1
 
     print("[init] Persisting PPLX Agent config to Appwrite TablesDB...")

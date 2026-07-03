@@ -4,7 +4,7 @@
 This script provides a comprehensive reset functionality that:
 1. Resets the entire users database (deletes all users and auth data)
 2. Optionally sets up the admin PIN interactively
-3. Avoids redundancy with existing init-scripts
+3. Avoids redundancy with existing dev/scripts/init scripts
 
 Usage:
     ./dev.sh reset [--all] [--interactive-admin]
@@ -66,8 +66,8 @@ def main() -> int:
     
     if args.interactive_admin:
         print("\n[reset] Setting up admin PIN interactively...")
-        # Use the existing admin-pin script from init-scripts
-        admin_pin_cmd = ["python3", "init-scripts/admin-pin.py"]
+        # Use the existing admin-pin script from dev/scripts/init
+        admin_pin_cmd = ["python3", "dev/scripts/init/admin-pin.py"]
         exit_code, output = run_command(admin_pin_cmd)
         if exit_code != 0:
             print(f"[reset] Error: admin-pin setup failed with exit code {exit_code}", file=sys.stderr)

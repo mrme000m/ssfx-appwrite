@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# init-scripts/_template.sh — Template for a third-party service init script.
-# Copy to init-scripts/<service>.sh and adapt.
+# dev/scripts/init/_template.sh — Template for a third-party service init script.
+# Copy to dev/scripts/init/<service>.sh and adapt.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="${SCRIPT_DIR}/config.yml"
 
 if [[ ! -f "${CONFIG_FILE}" ]]; then
-  echo "Error: ${CONFIG_FILE} not found. Copy init-scripts/config.example.yml to init-scripts/config.yml and fill it in." >&2
+  echo "Error: ${CONFIG_FILE} not found. Copy dev/scripts/init/config.example.yml to dev/scripts/init/config.yml and fill it in." >&2
   exit 1
 fi
 

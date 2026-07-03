@@ -13,10 +13,10 @@ This directory contains repeatable scripts that configure third-party services a
 
 ```bash
 # 1. Copy the example config and fill in real values
-cp init-scripts/config.example.yml init-scripts/config.yml
+cp dev/scripts/init/config.example.yml dev/scripts/init/config.yml
 
 # 2. Run a single init script
-./init-scripts/ctrader-oauth.sh
+./dev/scripts/init/ctrader-oauth.sh
 
 # 3. Or run all init scripts via dev.sh
 ./dev.sh init
@@ -24,8 +24,8 @@ cp init-scripts/config.example.yml init-scripts/config.yml
 
 ## Adding a New Init Script
 
-1. Create `init-scripts/<service>.py` (preferred for structured config) or `init-scripts/<service>.sh`.
-2. Make it executable: `chmod +x init-scripts/<service>.*`.
-3. Read values from `init-scripts/config.yml`.
+1. Create `dev/scripts/init/<service>.py` (preferred for structured config) or `dev/scripts/init/<service>.sh`.
+2. Make it executable: `chmod +x dev/scripts/init/<service>.*`.
+3. Read values from `dev/scripts/init/config.yml`.
 4. Upsert rows into the appropriate Appwrite Database table.
 5. Ensure the script is idempotent and safe to rerun.

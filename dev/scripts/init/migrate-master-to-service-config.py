@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""init-scripts/migrate-master-to-service-config.py
+"""dev/scripts/init/migrate-master-to-service-config.py
 
 One-off migration: move the existing master admin row from slave_accounts
 into service_config (master_auth key) so slave_accounts holds only slave

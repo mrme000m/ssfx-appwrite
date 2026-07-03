@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""init-scripts/ctrader-trading-events.py — Create the ctrader_trading_events TablesDB table."""
+"""dev/scripts/init/ctrader-trading-events.py — Create the ctrader_trading_events TablesDB table."""
 
 import os
 from pathlib import Path

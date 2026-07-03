@@ -22,7 +22,7 @@ This document captures the architecture, conventions, and operational details di
 
 - **Appwrite Database is the single source of truth** for all user-level and system-level configuration.
 - `.env` is reserved only for **bootstrap secrets** required to connect to Appwrite (`APPWRITE_ENDPOINT`, `APPWRITE_PROJECT_ID`, `APPWRITE_API_KEY`).
-- Third-party service configuration (cTrader OAuth, Telegram bot, LLM keys, InfluxDB, etc.) is read from `init-scripts/config.yml` at setup time and then persisted to Appwrite Database.
+- Third-party service configuration (cTrader OAuth, Telegram bot, LLM keys, InfluxDB, etc.) is read from `dev/scripts/init/config.yml` at setup time and then persisted to Appwrite Database.
 - Runtime code reads configuration from Appwrite, not from files or environment variables.
 
 ---
@@ -296,7 +296,7 @@ Set via `./dev.sh setup-gh-secrets`:
 3. PIN reset flow does not send email.
 4. `trade_configs` table permissions allow any user to read/modify any row.
 5. Function `.env` files with secrets exist in working tree.
-6. `init-scripts/ctrader-oauth.py` abuses `slave_accounts` to store cTrader OAuth config.
+6. `dev/scripts/init/ctrader-oauth.py` abuses `slave_accounts` to store cTrader OAuth config.
 7. Init scripts use deprecated Python SDK positional API.
 8. `functions/_shared/index.js` exports undefined `CORS_ORIGIN` instead of `CORS_ORIGINS`.
 9. Telegram webhook has no signature verification.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""init-scripts/admin-pin.py — Idempotently create master admin user + auth row."""
+"""dev/scripts/init/admin-pin.py — Idempotently create master admin user + auth row."""
 from __future__ import annotations
 
 import getpass

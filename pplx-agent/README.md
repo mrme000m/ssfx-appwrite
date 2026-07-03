@@ -44,7 +44,7 @@ Per project conventions, runtime settings should be stored in the Appwrite
 `service_config` table under `config_key = pplx_agent`. Use:
 
 ```bash
-python init-scripts/pplx-agent.py
+python dev/scripts/init/pplx-agent.py
 ```
 
 For local development the same keys can be set in `pplx-agent/.env`.

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# dev/scripts/init.sh — Run all third-party service init scripts.
+# dev/scripts/init/init.sh — Run all third-party service init scripts.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INIT_DIR="$(cd "${SCRIPT_DIR}/../../init-scripts" && pwd)"
+INIT_DIR="${SCRIPT_DIR}"
 
 echo "[dev] Running init scripts from ${INIT_DIR}..."
 

@@ -313,7 +313,7 @@ Keep the Appwrite-native mode that is already emerging:
 
 - All runtime configuration belongs in TablesDB (`service_config`, `trade_settings`, `signal_slaves`).
 - `.env` is reserved for bootstrap secrets: `APPWRITE_ENDPOINT`, `APPWRITE_PROJECT_ID`, `APPWRITE_API_KEY`.
-- Third-party credentials (cTrader OAuth, Resend, Telegram, Perplexity cookies) are written by idempotent `init-scripts/*` into `service_config`, not into `.env` files on the VM.
+- Third-party credentials (cTrader OAuth, Resend, Telegram, Perplexity cookies) are written by idempotent `dev/scripts/init/*` into `service_config`, not into `.env` files on the VM.
 
 ---
 

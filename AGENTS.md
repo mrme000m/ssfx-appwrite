@@ -129,12 +129,12 @@ Do not run ad-hoc commands for these operations; add new commands to `dev/script
 
 ## Third-Party Service Initialization
 
-- Configure third-party services using repeatable init scripts in `init-scripts/`.
-- Each init script reads required setup values from a YAML file (e.g., `init-scripts/config.yml`).
+- Configure third-party services using repeatable init scripts in `dev/scripts/init/.
+- Each init script reads required setup values from a YAML file (e.g., `dev/scripts/init/config.yml`).
 - After collecting values, the init script writes them to Appwrite Database for subsequent use by local and remote runtimes.
 - Init scripts must be idempotent and safe to rerun.
 - Example flow:
-  1. Parse `init-scripts/config.yml`.
+  1. Parse `dev/scripts/init/config.yml`.
   2. Validate required fields.
   3. Upsert configuration rows into Appwrite Database.
   4. Print confirmation with table/row identifiers.
@@ -508,7 +508,7 @@ Replaces `cf-auth-broker` (Cloudflare Worker) with Appwrite Functions + TablesDB
 2. **Onboarding**: slave sets username + PIN via `auth-pin` /set-credentials.
 3. **Login**: slave/master enter username + PIN → `auth-pin` verifies, creates Appwrite session cookie → redirected to dashboard.
 4. **Python backend**: calls `POST /internal/ctrader/refresh` with `x-internal-key`, gets access_token, then uses `ctrader-open-api` locally for account list and trading.
-5. **Master**: username `admin` + PIN. Created by `init-scripts/admin-pin.sh`. Can view all slaves via master dashboard.
+5. **Master**: username `admin` + PIN. Created by `dev/scripts/init/admin-pin.sh`. Can view all slaves via master dashboard.
 
 ### Account Discovery & Sync Process
 
@@ -590,10 +590,10 @@ Deployment is fully automated via **GitHub Actions** on push to the `develop` br
 ./dev.sh deploy-auth
 
 # 2. Set up master admin PIN
-./init-scripts/admin-pin.sh
+./dev/scripts/init/admin-pin.sh
 
-# 3. Configure cTrader OAuth (reads init-scripts/config.yml)
-./init-scripts/ctrader-oauth.sh
+# 3. Configure cTrader OAuth (reads dev/scripts/init/config.yml)
+./dev/scripts/init/ctrader-oauth.sh
 
 # 4. Register the auth-oauth /callback domain in openapi.ctrader.com
 # 5. Update sites/ssfx-hq/config.js with deployed Function domains
@@ -669,7 +669,7 @@ A dedicated long-term research service (port `9004`) maintains a persistent pict
 - **Perplexity client**: Vendored from `remote-services/agent/pplx/pplx/` and kept in `pplx-agent/pplx/` so the image is self-contained.
 - **Integration**: `PplxResearchAgent` and `/agent/v1/research/pplx*` endpoints in `agent_harness` let the entry/lifecycle agents enrich decisions with long-term context.
 - **Deployment**: Built into the `ctrader-services` Docker image via a BuildKit `additional_contexts` named `pplx-agent`; publicly exposed as `pplx-agent.mrme.tech`.
-- **Config**: `service_config.config_key = pplx_agent` in Appwrite TablesDB (init via `init-scripts/pplx-agent.py`).
+- **Config**: `service_config.config_key = pplx_agent` in Appwrite TablesDB (init via `dev/scripts/init/pplx-agent.py`).
 - **Cookies**: Perplexity cookies are loaded from Bitwarden (secure note `perplexity.ai`) or `~/.config/perplexity/cookies.json` on the host and mounted read-only into the container.
 
 ## Project Files
@@ -688,7 +688,7 @@ A dedicated long-term research service (port `9004`) maintains a persistent pict
 | `pplx-agent/` | Perplexity + TradingView gold market research agent (port 9004) |
 | `remote-services/ctrader_cli/` | cTrader Open API CLI (market data + trading, Appwrite-auth aware) |
 | `dev/scripts/` | Repeatable scripts for dev operations |
-| `init-scripts/` | Repeatable init scripts for third-party services |
+| `dev/scripts/init/ | Repeatable init scripts for third-party services |
 | `resend` | Resend CLI (global) — email sending, configured with `.env` |
 | `.env` | Environment variables (credentials) – **not committed** |
 | `.gitignore` | Excludes `.env`, `.DS_Store`, logs |

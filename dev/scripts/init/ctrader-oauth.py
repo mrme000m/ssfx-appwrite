@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""init-scripts/ctrader-oauth.py — Persist cTrader OAuth config to Appwrite TablesDB."""
+"""dev/scripts/init/ctrader-oauth.py — Persist cTrader OAuth config to Appwrite TablesDB."""
 from __future__ import annotations
 
 import json
