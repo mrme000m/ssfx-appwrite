@@ -417,6 +417,8 @@ A user-level plugin at `~/.claude/plugins/appwrite-ctrader/` provides skills, co
 | `ctrader-trading` | TG signal ingestion, copy trading, position monitoring, master-slave execution |
 | `pplx-agent` | Perplexity + TradingView gold market research and Space management |
 
+> **Downstream signal integration:** see `cpr00.md` for how the `alwaydata` Telegram forwarder (upstream) delivers signals to this runtime (downstream) — via Telegram Bot API webhook, direct HTTP push (`SIGNAL_WEBHOOK_URL`), or long-polling fallback. Includes the `SignalParser` classification contract, promo-filtering guarantees, and HMAC-signed payload schema.
+
 ### Commands (7) — Claude Code slash commands
 
 | Command | Purpose |

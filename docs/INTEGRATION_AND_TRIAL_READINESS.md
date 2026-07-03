@@ -31,6 +31,7 @@ The system is **architecturally sound and substantially implemented**. All criti
 | `ARCHITECTURE.md` §2.5.1 lists `ssfx_presets` / `ssfx_risk_state` tables but no schema file exists in `appwrite/` | Schema drift risk | Add table definitions to `appwrite/functions.json` or a schema file |
 | `appwrite.config.json` reports `functions: 0, sites: 0, databases: 0` | CLI may not deploy correctly | Reconcile with `appwrite/functions.json` (which has 4 functions) |
 | Sites consolidated: `ssfx-hq` is the only deployed site still in working tree | Confusion, deploy noise | Delete per NAMING_AND_CONSOLIDATION_OVERHAUL.md Phase 0 |
+| Signal ingestion contract (`cpr00.md`) not cross-linked from `ARCHITECTURE.md` or `AGENTS.md` | Downstream agents may miss integration surface | Add explicit "Signal Ingestion" section to `ARCHITECTURE.md` §2.x and link from `AGENTS.md` skills table |
 
 ---
 
@@ -48,6 +49,22 @@ Functions (_shared/index.js)          Python (ctrader_client/)
 
 - `ctrader/config.py` references `CTRADER_AUTH_BROKER_URL`, `INTERNAL_API_KEY`, `CTRADER_AUTH_DATABASE_ID` — all match the function-side variables.
 - `ctrader_client/appwrite_auth.py` correctly calls the internal refresh endpoint and never receives refresh tokens.
+
+### 3.2. Upstream Forwarder → Downstream Trading Runtime: INTEGRATED ✅
+
+The alwaysdata Telegram forwarder (`/Volumes/ExMac/code/ssfx/alwaydata`) and the SSFX trading runtime (`remote-services/ssfx_server`) are connected via the **Telegram Bot API webhook** with an optional **direct HTTP push** (`SIGNAL_WEBHOOK_URL`).
+
+| Contract point | Status | Verified |
+|---|---|---|
+| Bot webhook handler (`POST /webhook`) | Implemented in `ssfx_server/web_app.py` | ✅ |
+| Price-snapshot guard (`is_price_augmented_snapshot`) | Implemented in `ssfx_server/telegram_webhook.py` | ✅ |
+| Source-chat filtering (`post.chat_id == SOURCE_CHAT_ID`) | Documented in `cpr00.md`; add to `web_app.py` | ⚠️ Code-level gap |
+| Direct HTTP push (`POST /api/signals/inject`) | Implemented in `ssfx_server/admin_api.py` | ✅ |
+| HMAC signature verification on direct push | Documented in `cpr00.md`; add to endpoint | ⚠️ Code-level gap |
+| Upstream promo filter | `signal_parser.py` (0 FP / 0 FN on 2 354 msgs) | ✅ |
+| Upstream entry-only price augmentation | `forwarding.py` `_should_forward` + `SignalParser` | ✅ |
+
+See `cpr00.md` for the full downstream integration guide, including the `ParsedSignal` schema, retry behaviour, and operational runbook.
 - `v2.env.example` documents all required env vars for the Python side.
 
 ### 3.2. cTrader Open API Client: FULLY IMPLEMENTED ✅

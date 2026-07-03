@@ -152,6 +152,26 @@ Containerized Python services on the AWS VM. They read current configuration fro
 | `account_hub` | 9301 | Live cTrader transports, account discovery, WebSocket fan-out. |
 | `ctrader` / `ctrader_cli` | 9300 / CLI | Direct cTrader Open API tooling and unified cTrader service. |
 
+#### 2.4.1. Signal Ingestion (upstream → downstream)
+
+`ssfx_server` receives trading signals from the upstream **alwaysdata Telegram forwarder** (`/Volumes/ExMac/code/ssfx/alwaydata`). Two transport modes are supported:
+
+**Mode A — Telegram Bot API webhook (default)**
+- The upstream forwards text messages into a destination Telegram channel.
+- `ssfx_server` listens via `POST /webhook` for `channel_post` updates.
+- The bot must be an admin of the destination channel.
+
+**Mode B — Direct HTTP push (lowest latency)**
+- The upstream POSTs a structured JSON snapshot to `SIGNAL_WEBHOOK_URL` (configured in `alwaydata/.env`).
+- Payload includes pre-fetched cTrader bid/ask, spread, and signal latency.
+- Payload is HMAC-SHA256 signed with `SIGNAL_WEBHOOK_SECRET`.
+
+**Upstream guarantees:**
+- Promos and spam are filtered by `signal_parser.py` before forwarding (0 false positives on 2 354 historical messages).
+- Price augmentation only fires on entry signals (`ENTRY` / `ENTRY_PENDING`), not on manage/close/noise messages.
+
+> Full integration contract, parser schema, and operational runbook: **`cpr00.md`** (project root).
+
 **Connection model:**
 
 - One `grant_id` ≡ one cTID ≡ one access token ≡ one persistent TCP connection in the live pool.
