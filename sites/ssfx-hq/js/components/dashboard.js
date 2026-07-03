@@ -262,7 +262,7 @@ window.DashboardComponent = (function () {
 
   function renderAccountMiniCard(acc) {
     const id = String(acc.ctid_trader_account_id || acc.ctidTraderAccountId || '');
-    const broker = String(acc.broker_title_short || acc.brokerTitleShort || acc.broker_name || acc.brokerName || 'Unknown Broker');
+    const broker = String(acc.broker_title_short || acc.brokerTitleShort || acc.brokerTitle || acc.broker_name || acc.brokerName || 'Unknown Broker');
     const isLive = acc.is_live === true || acc.isLive === true;
     const balance = typeof acc.balance === 'number' ? acc.balance : null;
     const moneyDigits = acc.money_digits || acc.moneyDigits || 0;

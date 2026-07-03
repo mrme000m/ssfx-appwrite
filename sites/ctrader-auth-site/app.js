@@ -266,7 +266,7 @@
     return `<div class="account-cards">${accounts.map(acc => {
       const id = String(acc.ctid_trader_account_id || acc.ctidTraderAccountId || acc.accountId || '');
       const login = String(acc.trader_login || acc.traderLogin || acc.accountNumber || '');
-      const broker = String(acc.broker_name || acc.brokerName || acc.broker_title_short || acc.brokerTitleShort || acc.brokerTitle || 'Unknown Broker');
+      const broker = String(acc.broker_title_short || acc.brokerTitleShort || acc.brokerTitle || acc.broker_name || acc.brokerName || 'Unknown Broker');
       const isLive = acc.is_live === true || acc.isLive === true || acc.live === true;
       const selected = acc.selected === true;
       const balance = typeof acc.balance === 'number' ? acc.balance : null;
