@@ -11,7 +11,7 @@ This script:
 Run locally or on the Azure VM after `docker compose up -d`:
 
     export CF_API_TOKEN=...
-    python3 remote-services/init-tunnel.py
+    python3 dev/scripts/init-tunnel.py
 
 Required env vars (read from .env or exported):
     CF_API_TOKEN, CF_ACCOUNT_ID, CF_ZONE_ID, CF_TUNNEL_ID

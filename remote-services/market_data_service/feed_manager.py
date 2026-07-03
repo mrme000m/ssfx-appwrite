@@ -13,16 +13,12 @@ from .config import get_settings
 from .feed_manager_appwrite import AppwriteFeedManager
 from .models import FeedSource, TimeFrame
 from .symbol_registry import SymbolRegistry
-from .util import setup_ctrader_import_path
 
 logger = logging.getLogger(__name__)
 
 # ── cTrader client import ────────────────────────────────────────────────────
-# Uses shared import path setup for consistency across service modules
 
 CTRADER_CLIENT_AVAILABLE = False
-
-setup_ctrader_import_path()
 
 try:
     from ctrader_client import (

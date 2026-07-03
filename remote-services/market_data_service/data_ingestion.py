@@ -20,20 +20,15 @@ from .models import (
     TimeFrame,
 )
 from .symbol_registry import SymbolRegistry
-from .util import setup_ctrader_import_path
 
 logger = logging.getLogger(__name__)
 
 # ── cTrader domain types import ─────────────────────────────────────────────-
-# Uses shared import path setup for consistency across service modules
 
 CTRADER_TYPES = False
 _SpotTick: Any = None
 _BarClose: Any = None
 _DepthUpdate: Any = None
-
-# Set up sys.path and attempt import
-setup_ctrader_import_path()
 
 try:
     from ctrader_client import BarClose, DepthUpdate, SpotTick

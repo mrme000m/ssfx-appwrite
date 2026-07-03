@@ -1,5 +1,5 @@
 """Shared utilities for market data service."""
 
-from .ctrader_import import setup_ctrader_import_path
+from .rate_limiter import RateLimiter
 
-__all__ = ["setup_ctrader_import_path"]
+__all__ = ["RateLimiter"]
