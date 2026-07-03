@@ -52,10 +52,16 @@ window.Router = (function () {
       <a class="nav-item" href="#/trade-config" data-route="/trade-config">Trade Config</a>
     ` : '';
 
+    const role = window.appState.role || 'slave';
+    const isMaster = window.Auth.isMaster();
+    const isAdmin = window.Auth.isAdmin();
+    const roleClass = isAdmin ? 'admin' : isMaster ? 'master' : 'slave';
+    const roleLabel = isAdmin ? 'admin' : isMaster ? 'master' : role;
     const userBlock = authenticated ? `
       <div class="user-menu">
-        <span class="user-role">${window.Auth.isMaster() ? 'master' : 'slave'}</span>
+        <span class="topbar-role ${roleClass}">${roleLabel}</span>
         <span>${window.UI.esc(window.appState.username || window.appState.user?.email || 'User')}</span>
+        ${isAdmin ? '<span class="admin-badge" title="Administrator">⭐</span>' : ''}
       </div>
       <button class="btn btn-sm btn-ghost" id="logout-btn">Logout</button>
     ` : `

@@ -30,6 +30,8 @@ window.Auth = (function () {
       window.appState.status = data.status || '';
       window.appState.active = data.active === true;
       window.appState.lastHeartbeat = data.last_heartbeat_at || null;
+      window.appState.accounts = Array.isArray(data.accounts) ? data.accounts : [];
+      window.appState.selectedAccountId = data.selected_account_id || '';
       return data;
     } catch (err) {
       window.appState.user = null;
@@ -45,6 +47,10 @@ window.Auth = (function () {
 
   function isMaster() {
     return window.appState.role === 'master' || window.appState.role === 'admin';
+  }
+
+  function isAdmin() {
+    return window.appState.role === 'admin';
   }
 
   function isAuthenticated() {
@@ -68,9 +74,46 @@ window.Auth = (function () {
     window.appState.username = '';
     window.appState.role = null;
     window.appState.grantId = null;
+    window.appState.status = '';
+    window.appState.active = false;
+    window.appState.accounts = [];
+    window.appState.selectedAccountId = '';
+  }
+
+  async function selectAccount(accountId) {
+    const db = getTablesDB();
+    if (!db || !window.appState.userId) {
+      throw new Error('Not authenticated');
+    }
+    const rows = await db.listRows({
+      databaseId: window.API.CFG.databaseId,
+      tableId: 'slave_accounts',
+      queries: [window.Appwrite.Query.equal('appwrite_user_id', window.appState.userId)],
+    });
+    const row = (rows.rows || [])[0];
+    if (!row) {
+      throw new Error('No account record found');
+    }
+    await db.updateRow({
+      databaseId: window.API.CFG.databaseId,
+      tableId: 'slave_accounts',
+      rowId: row.$id,
+      data: { selected_account_id: accountId },
+    });
+    window.appState.selectedAccountId = accountId;
+    window.commandBus.dispatchEvent(new CustomEvent('accounts'));
+  }
+
+  async function refresh() {
+    return checkSession();
   }
 
   async function setCredentials(username, pin) {
+    if (typeof username === 'object' && username !== null) {
+      const obj = username;
+      username = obj.username;
+      pin = obj.pin;
+    }
     return window.API.AuthAPI.setCredentials({ username, pin });
   }
 
@@ -80,10 +123,13 @@ window.Auth = (function () {
     getAccount,
     getTablesDB,
     checkSession,
+    refresh,
     isMaster,
+    isAdmin,
     isAuthenticated,
     login,
     logout,
     setCredentials,
+    selectAccount,
   };
 })();

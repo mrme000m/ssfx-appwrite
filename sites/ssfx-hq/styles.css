@@ -530,6 +530,7 @@ h3 { font-size: 1.05rem; }
 .badge-amber { background: var(--accent-amber-dim); color: var(--accent-amber); border-color: rgba(255, 183, 3, 0.2); }
 .badge-coral { background: var(--accent-coral-dim); color: var(--accent-coral); border-color: rgba(255, 107, 69, 0.2); }
 .badge-teal { background: var(--accent-teal-dim); color: var(--accent-teal); border-color: rgba(46, 196, 182, 0.2); }
+.badge-purple { background: rgba(196, 181, 253, 0.12); color: #a855f7; border-color: rgba(168, 85, 247, 0.2); }
 .badge-ghost { background: transparent; color: var(--text-stone); border-color: var(--border-subtle); }
 
 /* ── Empty state ───────────────────────────────────────── */
@@ -984,3 +985,228 @@ h3 { font-size: 1.05rem; }
 .text-center { text-align: center; }
 .text-sm { font-size: 0.8125rem; }
 .text-xs { font-size: 0.6875rem; }
+
+/* ── UX Enhancements ───────────────────────────────────── */
+.toast-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--text-stone);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+}
+
+.toast-close:hover {
+  color: var(--text-cream);
+}
+
+.form-input.error {
+  border-color: var(--accent-red) !important;
+  box-shadow: 0 0 0 3px var(--accent-red-dim) !important;
+}
+
+.form-error-message {
+  color: var(--accent-red);
+  font-size: 0.6875rem;
+  margin-top: 4px;
+}
+
+.nav-item:active {
+  transform: scale(0.98);
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+  .topbar-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  
+  .data-grid-auto {
+    grid-template-columns: 1fr;
+  }
+  
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Loading spinner improvements */
+.loading-screen {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+/* Empty state improvements */
+.empty-state {
+  transition: all 0.2s ease;
+}
+
+.empty-state:hover {
+  border-color: var(--border-strong);
+}
+
+/* Alert boxes for form feedback */
+.alert {
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.alert-error {
+  background: var(--accent-red-dim);
+  color: var(--accent-red);
+  border: 1px solid rgba(248, 113, 113, 0.25);
+}
+
+.alert-info {
+  background: var(--accent-coral-dim);
+  color: var(--accent-coral);
+  border: 1px solid rgba(255, 107, 69, 0.2);
+}
+
+.alert code {
+  font-family: 'Spline Sans Mono', monospace;
+  font-size: 0.75rem;
+  word-break: break-all;
+}
+
+/* Button loading state */
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ── Account connection & selection ────────────────────── */
+.account-connection-card {
+  border-left: 3px solid var(--accent-coral);
+}
+
+.account-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--sp-4);
+}
+
+.account-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+  cursor: pointer;
+}
+
+.account-card:hover {
+  border-color: var(--border-strong);
+}
+
+.account-card-selected {
+  border-color: var(--accent-coral);
+  box-shadow: 0 0 0 1px var(--accent-coral) inset, 0 8px 24px rgba(255, 107, 69, 0.08);
+}
+
+.account-card-selected:hover {
+  border-color: var(--accent-coral);
+}
+
+.account-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.account-card-broker {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: var(--text-cream);
+}
+
+.account-card-balance {
+  font-family: var(--font-mono);
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: var(--accent-coral);
+  letter-spacing: -0.02em;
+}
+
+.account-card-currency {
+  font-size: 0.875rem;
+  color: var(--text-stone);
+  margin-left: var(--sp-2);
+}
+
+.account-card-meta {
+  display: flex;
+  gap: var(--sp-3);
+  font-size: 0.75rem;
+  color: var(--text-stone);
+  flex-wrap: wrap;
+}
+
+.account-card-actions {
+  margin-top: auto;
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+/* Topbar role badge */
+.topbar-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+}
+
+.topbar-role.admin {
+  background: var(--accent-coral-dim);
+  color: var(--accent-coral);
+  border-color: rgba(255, 107, 69, 0.2);
+}
+
+.topbar-role.master {
+  background: var(--accent-coral-dim);
+  color: var(--accent-coral);
+  border-color: rgba(255, 107, 69, 0.2);
+}
+
+.topbar-role.slave {
+  background: var(--accent-teal-dim);
+  color: var(--accent-teal);
+  border-color: rgba(46, 196, 182, 0.2);
+}
+
+.admin-badge {
+  color: #f9d71c;
+  font-size: 0.875rem;
+  margin-left: 4px;
+  text-shadow: 0 0 4px rgba(249, 215, 28, 0.3);
+}
+
+/* Make role badge align nicely in page header */
+.page-header .badge {
+  align-self: center;
+}
