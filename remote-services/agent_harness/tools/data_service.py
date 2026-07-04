@@ -20,7 +20,18 @@ class DataServiceClient:
         await self._client.aclose()
 
     async def get_gold_quant_snapshot(self) -> dict[str, Any] | None:
-        url = f"{self._settings.data_service_base_url.rstrip('/')}/api/v1/gold/quant"
+        """Legacy alias; prefer get_quant_snapshot(symbol)."""
+        return await self.get_quant_snapshot("XAUUSD")
+
+    async def get_quant_snapshot(self, symbol: str) -> dict[str, Any] | None:
+        """Fetch quant snapshot for any symbol.
+
+        Uses the generic ``/quant/{symbol}`` endpoint which delegates to the
+        gold-quant engine for XAUUSD and falls back to enriched market context
+        for BTCUSD and other symbols.
+        """
+        symbol = (symbol or "XAUUSD").upper()
+        url = f"{self._settings.data_service_base_url.rstrip('/')}/api/v1/quant/{symbol}"
         try:
             resp = await self._client.get(url, headers=self._auth_headers())
             resp.raise_for_status()
@@ -28,7 +39,7 @@ class DataServiceClient:
         except Exception as exc:
             import logging
 
-            logging.getLogger(__name__).warning("Failed to fetch gold quant snapshot: %s", exc)
+            logging.getLogger(__name__).warning("Failed to fetch quant snapshot for %s: %s", symbol, exc)
             return None
 
     async def get_market_context(self, symbol: str) -> dict[str, Any] | None:

@@ -30,7 +30,17 @@ from .volume_resolver import VolumeResolver
 if typing.TYPE_CHECKING:
     from market_data_service.signal_experience.updater import SignalExperienceUpdater
 
+from market_data_service.signal_experience.context_builder import build_entry_context
+
 logger = logging.getLogger(__name__)
+
+# Symbols that are allowed to use AI agents (entry decision + lifecycle planning).
+# Defaults to XAUUSD; set AGENT_ENABLED_SYMBOLS=XAUUSD,BTCUSD to enable others.
+AGENT_ENABLED_SYMBOLS: set[str] = {
+    s.strip().upper()
+    for s in os.environ.get("AGENT_ENABLED_SYMBOLS", "XAUUSD").split(",")
+    if s.strip()
+}
 
 _AGGRESSION_SCORE: dict[SignalType, int] = {
     SignalType.CANCEL: 100,
@@ -194,7 +204,7 @@ class TradeExecutor:
         return await self._backend.get_account_summary()
 
     async def run_autonomy_cycle(self) -> list[dict[str, Any]]:
-        """Proactively re-evaluate open XAUUSD positions even without new signals."""
+        """Proactively re-evaluate open agent-enabled positions even without new signals."""
         if not self._autonomy_enabled or self._market_context_client is None:
             return []
 
@@ -203,7 +213,7 @@ class TradeExecutor:
             positions_snapshot = list(self._active_positions.items())
         for key, pos in positions_snapshot:
             original = pos.get("signal")
-            if original is None or original.symbol != "XAUUSD":
+            if original is None or original.symbol not in AGENT_ENABLED_SYMBOLS:
                 continue
             synthetic = TradeSignal(
                 raw_text="autonomy check",
@@ -345,7 +355,7 @@ class TradeExecutor:
     ) -> tuple[TradeSignal, dict[str, Any] | None]:
         if (
             not self._agent_client.is_lifecycle_enabled()
-            or signal.symbol != "XAUUSD"
+            or signal.symbol not in AGENT_ENABLED_SYMBOLS
             or original is None
             or self._market_context_client is None
         ):
@@ -356,7 +366,21 @@ class TradeExecutor:
         if not pos:
             return signal, None
 
-        quant = await self._market_context_client.get_gold_quant()
+        quant = await self._market_context_client.get_quant_snapshot(signal.symbol or "")
+        recent_messages: list[dict[str, Any]] = []
+        try:
+            chat_id = original.chat_id or signal.chat_id
+            recent_messages = [
+                {
+                    "message_id": m.message_id,
+                    "text": m.text,
+                    "reply_to_message_id": m.reply_to_message_id,
+                }
+                for m in self._signal_store.get_today_messages(chat_id)
+            ]
+        except Exception as exc:
+            logger.debug("[%s] No recent messages for lifecycle plan: %s", self._slave_id, exc)
+
         plan_result = await self._agent_client.lifecycle_plan(
             position={
                 "symbol": signal.symbol,
@@ -367,6 +391,7 @@ class TradeExecutor:
             },
             signal_update=self._signal_to_dict(signal),
             quant_snapshot=quant,
+            recent_messages=recent_messages,
         )
         if not plan_result:
             return signal, None
@@ -583,24 +608,56 @@ class TradeExecutor:
             if order_type != OrderType.LIMIT:
                 return {"accepted": False, "code": "limit_only", "reason": "order_handling is limit_only"}
 
-        # ── AI agent entry decision (XAUUSD only, with deterministic fallback) ──
+        # ── AI agent entry decision (configurable symbols, deterministic fallback) ──
         agent_decision = None
         if (
             self._agent_client.is_entry_enabled()
-            and signal.symbol == "XAUUSD"
+            and signal.symbol in AGENT_ENABLED_SYMBOLS
             and self._market_context_client is not None
         ):
-            quant = await self._market_context_client.get_gold_quant()
+            quant = await self._market_context_client.get_quant_snapshot(signal.symbol or "")
             if quant is not None:
+                experience: dict[str, Any] = {
+                    "quality_score": signal.quality_score,
+                    "quality_factors": signal.quality_factors,
+                    "experience_action": signal.experience_action,
+                }
+                if self._experience_updater is not None:
+                    try:
+                        experience = await asyncio.to_thread(
+                            build_entry_context,
+                            signal,
+                            self._signal_store,
+                            self._experience_updater.store,
+                        )
+                    except Exception as exc:
+                        logger.warning(
+                            "[%s] Failed to build signal experience context: %s",
+                            self._slave_id,
+                            exc,
+                        )
+                recent_messages: list[dict[str, Any]] = []
+                try:
+                    recent_messages = [
+                        {
+                            "message_id": m.message_id,
+                            "text": m.text,
+                            "reply_to_message_id": m.reply_to_message_id,
+                        }
+                        for m in self._signal_store.get_today_messages(signal.chat_id)
+                    ]
+                except Exception as exc:
+                    logger.debug("[%s] No recent messages available: %s", self._slave_id, exc)
+
                 agent_result = await self._agent_client.entry_decision(
                     signal=self._signal_to_dict(signal),
                     quant_snapshot=quant,
-                    experience={
-                        "quality_score": signal.quality_score,
-                        "quality_factors": signal.quality_factors,
-                        "experience_action": signal.experience_action,
-                    },
-                    open_positions=[{"symbol": p["signal"].symbol, "direction": p["signal"].direction.value} for p in self._active_positions.values()],
+                    experience=experience,
+                    open_positions=[
+                        {"symbol": p["signal"].symbol, "direction": p["signal"].direction.value}
+                        for p in self._active_positions.values()
+                    ],
+                    recent_messages=recent_messages,
                 )
                 if not agent_result:
                     logger.error("[%s] Entry agent returned no decision; rejecting signal", self._slave_id)

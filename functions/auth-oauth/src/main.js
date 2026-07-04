@@ -12,6 +12,7 @@ const {
   signState,
   verifyState,
   exchangeCtraderCode,
+  validateRedirectUri,
   encrypt,
   generateGrantId,
   generateToken,
@@ -30,6 +31,9 @@ const PROJECT_ID = process.env.APPWRITE_PROJECT_ID;
 const DB_ID = process.env.CTRADER_AUTH_DATABASE_ID;
 
 // Load OAuth config from service_config when available, falling back to env vars.
+// The redirect URI is validated and must be configured explicitly; the old
+// `${SITES_URL}/callback` fallback is removed because the OAuth callback must
+// point to the auth-oauth function domain (e.g. auth.mrme.tech), not the SPA.
 async function getOAuthConfig() {
   const db = makeAdminDb();
   const svc = await getServiceConfig(db, 'ctrader_oauth', 'CTRADER_OAUTH_JSON');
@@ -37,14 +41,14 @@ async function getOAuthConfig() {
     return {
       clientId: svc.client_id,
       clientSecret: svc.client_secret,
-      redirectUri: svc.redirect_uri,
+      redirectUri: validateRedirectUri(svc.redirect_uri),
       environment: svc.environment,
     };
   }
   return {
     clientId: process.env.CTRADER_CLIENT_ID,
     clientSecret: process.env.CTRADER_CLIENT_SECRET,
-    redirectUri: process.env.CTRADER_REDIRECT_URI || `${process.env.SITES_URL}/callback`,
+    redirectUri: validateRedirectUri(process.env.CTRADER_REDIRECT_URI),
     environment: process.env.CTRADER_ENVIRONMENT || 'demo',
   };
 }
@@ -135,7 +139,7 @@ module.exports = async function main({ req, res, log, error }) {
       try {
         const slaveList = await db.listRows({
           databaseId: DB_ID,
-          tableId: 'slave_accounts',
+          tableId: 'users',
           queries: [Query.equal('appwrite_user_id', user.$id)],
         });
         const slave = slaveList.rows[0] || null;
@@ -308,7 +312,7 @@ async function handleCallback(req, res, log, error) {
   try {
     const existingList = await db.listRows({
       databaseId: DB_ID,
-      tableId: 'slave_accounts',
+      tableId: 'users',
       queries: [Query.equal('appwrite_user_id', appwriteUserId)],
     });
     if (existingList.rows.length > 0) {
@@ -318,7 +322,7 @@ async function handleCallback(req, res, log, error) {
       hasCredentials = !!(existing.username && existing.pin_hash);
       await db.updateRow({
         databaseId: DB_ID,
-        tableId: 'slave_accounts',
+        tableId: 'users',
         rowId: existing.$id,
         data: {
           grant_id: grantId,
@@ -332,7 +336,7 @@ async function handleCallback(req, res, log, error) {
       grantId = generateGrantId();
       await db.createRow({
         databaseId: DB_ID,
-        tableId: 'slave_accounts',
+        tableId: 'users',
         rowId: ID.unique(),
         data: {
           appwrite_user_id: appwriteUserId,
@@ -417,7 +421,7 @@ async function handleSession(req, res, log) {
     const db = makeAdminDb();
     const slaveList = await db.listRows({
       databaseId: DB_ID,
-      tableId: 'slave_accounts',
+      tableId: 'users',
       queries: [Query.equal('appwrite_user_id', user.$id)],
     });
 
@@ -571,7 +575,7 @@ async function handleAdminSlaves(req, res, log, error) {
   try {
     const list = await db.listRows({
       databaseId: DB_ID,
-      tableId: 'slave_accounts',
+      tableId: 'users',
       queries: [Query.equal('role', 'slave'), Query.limit(100)],
     });
 
@@ -608,7 +612,7 @@ async function requireMaster(req, res) {
   // Allow either a slave_accounts row with role master or the service_config master_auth record.
   const callerList = await db.listRows({
     databaseId: DB_ID,
-    tableId: 'slave_accounts',
+    tableId: 'users',
     queries: [Query.equal('appwrite_user_id', user.$id)],
   });
   const caller = rowData(callerList.rows[0]) || null;
@@ -705,7 +709,7 @@ async function handleAdminDeleteAccount(req, res, grantId, accountId, log, error
     // Update slave row to remove the account id from its list and clear selection if needed.
     const slaveList = await db.listRows({
       databaseId: DB_ID,
-      tableId: 'slave_accounts',
+      tableId: 'users',
       queries: [Query.equal('grant_id', grantId)],
     });
     if (slaveList.rows && slaveList.rows.length > 0) {
@@ -722,7 +726,7 @@ async function handleAdminDeleteAccount(req, res, grantId, accountId, log, error
       }
       await db.updateRow({
         databaseId: DB_ID,
-        tableId: 'slave_accounts',
+        tableId: 'users',
         rowId: slaveRow.$id,
         data: update,
       });
@@ -767,14 +771,14 @@ async function handleAdminUnlinkSlave(req, res, log, error) {
     // Clear tokens and account references on the slave row.
     const slaveList = await db.listRows({
       databaseId: DB_ID,
-      tableId: 'slave_accounts',
+      tableId: 'users',
       queries: [Query.equal('grant_id', grantId)],
     });
     if (slaveList.rows && slaveList.rows.length > 0) {
       const slaveRow = slaveList.rows[0];
       await db.updateRow({
         databaseId: DB_ID,
-        tableId: 'slave_accounts',
+        tableId: 'users',
         rowId: slaveRow.$id,
         data: {
           access_token_enc: null,
@@ -821,14 +825,14 @@ async function handleAdminResetSlave(req, res, grantId, log, error) {
     // Delete the slave row entirely.
     const slaveList = await db.listRows({
       databaseId: DB_ID,
-      tableId: 'slave_accounts',
+      tableId: 'users',
       queries: [Query.equal('grant_id', grantId)],
     });
     if (slaveList.rows && slaveList.rows.length > 0) {
       const slaveRow = slaveList.rows[0];
       await db.deleteRow({
         databaseId: DB_ID,
-        tableId: 'slave_accounts',
+        tableId: 'users',
         rowId: slaveRow.$id,
       });
     }
@@ -836,13 +840,13 @@ async function handleAdminResetSlave(req, res, grantId, log, error) {
     // Also delete any trade configs for this grant
     const configList = await db.listRows({
       databaseId: DB_ID,
-      tableId: 'trade_configs',
+      tableId: 'trade_settings',
       queries: [Query.equal('grant_id', grantId)],
     });
     for (const row of configList.rows || []) {
       await db.deleteRow({
         databaseId: DB_ID,
-        tableId: 'trade_configs',
+        tableId: 'trade_settings',
         rowId: row.$id,
       });
     }

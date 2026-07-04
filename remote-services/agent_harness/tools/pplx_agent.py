@@ -19,15 +19,20 @@ class PplxAgentClient:
     async def close(self) -> None:
         await self._client.aclose()
 
-    async def get_long_term_picture(self) -> dict[str, Any] | None:
+    async def get_long_term_picture(self, symbol: str = "") -> dict[str, Any] | None:
         """Fetch the latest long-term synthesis cached in the PPLX Agent Space."""
         url = f"{self._settings.pplx_agent_url.rstrip('/')}/api/v1/gold/query"
+        symbol = (symbol or "XAUUSD").upper()
+        default_question = (
+            f"What is the current long-term {symbol} market picture, trend, key levels, and main risks?"
+        )
         try:
             resp = await self._client.post(
                 url,
                 json={
-                    "query": "What is the current long-term gold market picture, trend, key levels, and main risks?",
+                    "query": default_question,
                     "mode": "pro",
+                    "symbol": symbol,
                 },
             )
             resp.raise_for_status()

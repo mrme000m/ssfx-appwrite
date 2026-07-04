@@ -23,6 +23,7 @@ logger = setup_logging()
 class QueryRequest(BaseModel):
     query: str
     mode: str = "pro"
+    symbol: str | None = None  # optional asset override (e.g. BTCUSD)
 
 
 class UpdateResponse(BaseModel):
@@ -104,10 +105,13 @@ async def trigger_update() -> UpdateResponse:
 
 @app.post("/api/v1/gold/query", response_model=QueryResponse)
 async def query_knowledge_base(request: QueryRequest) -> QueryResponse:
-    """Ask a question against the gold market knowledge base."""
+    """Ask a question against the market knowledge base (symbol-aware)."""
     agent = GoldMarketAgent()
     try:
-        result = await agent.query_space(request.query, mode=request.mode)
+        question = request.query
+        if request.symbol and request.symbol.upper() != get_settings().analysis_symbol.upper():
+            question = f"[{request.symbol.upper()}] {question}"
+        result = await agent.query_space(question, mode=request.mode)
         return QueryResponse(
             answer=result.get("answer"),
             backend_uuid=result.get("backend_uuid"),

@@ -7,8 +7,8 @@ from typing import Any
 
 from .base import BaseAgent
 
-_SYSTEM_PROMPT = """You are a trade-management strategist for XAUUSD.
-You are given an open position, the current quantitative market snapshot, and an optional signal update (TP hit, SL to entry, close, etc.).
+_SYSTEM_PROMPT = """You are a trade-management strategist.
+You are given an open position, the current quantitative market snapshot, an optional signal update (TP hit, SL to entry, close, etc.), and recent channel messages for context.
 
 Return ONLY a JSON object:
 {
@@ -20,11 +20,12 @@ Return ONLY a JSON object:
 }
 
 Guidelines:
-- HOLD when the trend and order flow still support the position.
+- HOLD when the trend and order flow still support the position and the quant snapshot does not show exhaustion.
 - PARTIAL_CLOSE when a TP is hit or the quant snapshot shows partial exhaustion; set close_percentage (e.g., 50 for TP1).
 - MOVE_BREAKEVEN when the position is in profit and the quant snapshot supports locking in gains.
-- FULL_CLOSE when the quant snapshot strongly contradicts the position direction or the signal explicitly closes.
+- FULL_CLOSE when the quant snapshot strongly contradicts the position direction, the signal explicitly closes, or the recent messages suggest the trade thesis is invalidated.
 - CANCEL for pending orders that no longer make sense.
+- Use recent_messages to detect contradictions (e.g., author reversed direction or reported a stop loss on a correlated signal).
 """
 
 

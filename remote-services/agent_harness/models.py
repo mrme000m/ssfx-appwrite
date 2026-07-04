@@ -29,6 +29,7 @@ class SignalIntentRequest(BaseModel):
     reply_to_message_id: int | None = None
     recent_messages: list[dict[str, Any]] = Field(default_factory=list)
     open_positions: list[dict[str, Any]] = Field(default_factory=list)
+    experience: dict[str, Any] | None = None
 
 
 class SignalIntentResult(BaseModel):
@@ -51,6 +52,7 @@ class EntryDecisionRequest(BaseModel):
     quant_snapshot: dict[str, Any] | None = None
     experience: dict[str, Any] | None = None
     open_positions: list[dict[str, Any]] = Field(default_factory=list)
+    recent_messages: list[dict[str, Any]] = Field(default_factory=list)
     account: dict[str, Any] | None = None
 
 
@@ -108,6 +110,7 @@ class PplxResearchOutput(BaseModel):
 class PplxResearchRequest(BaseModel):
     question: str = "What is the current long-term gold market picture and trend?"
     include_custom: bool = True
+    symbol: str = "XAUUSD"  # asset being researched (e.g. BTCUSD)
 
 
 class PplxResearchResponse(BaseModel):

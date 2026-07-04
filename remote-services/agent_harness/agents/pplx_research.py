@@ -30,8 +30,14 @@ class PplxResearchAgent:
             self._client = PplxAgentClient(self._settings)
         return self._client
 
-    async def run(self, question: str = "") -> dict[str, Any]:
-        """Return long-term picture plus optional custom question result."""
+    async def run(self, question: str = "", symbol: str = "") -> dict[str, Any]:
+        """Return long-term picture plus optional custom question result.
+
+        Args:
+            question: Optional custom question to ask.
+            symbol: Asset symbol (default: XAUUSD). Passed through to the
+                PPLX Agent so queries can be scoped to BTCUSD etc.
+        """
         if not self._settings.pplx_agent_enabled:
             return {
                 "output": {"enabled": False, "context": ""},
@@ -41,13 +47,13 @@ class PplxResearchAgent:
         start = time.perf_counter()
         client = await self._client_ctx()
         try:
-            picture = await client.get_long_term_picture()
+            picture = await client.get_long_term_picture(symbol=symbol)
             custom = None
             if question:
                 url = f"{self._settings.pplx_agent_url.rstrip('/')}/api/v1/gold/query"
                 resp = await client._client.post(
                     url,
-                    json={"query": question, "mode": "pro"},
+                    json={"query": question, "mode": "pro", "symbol": symbol or "XAUUSD"},
                 )
                 resp.raise_for_status()
                 custom = resp.json()

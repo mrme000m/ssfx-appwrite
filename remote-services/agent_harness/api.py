@@ -152,7 +152,8 @@ async def entry_decision(req: EntryDecisionRequest) -> EntryDecisionResponse:
     if quant is None:
         client: DataServiceClient | None = state.get("data_client")
         if client is not None:
-            quant = await client.get_gold_quant_snapshot()
+            symbol = req.signal.get("symbol") if req.signal else None
+            quant = await client.get_quant_snapshot(symbol)
 
     payload = {
         "signal": req.signal,
@@ -195,7 +196,8 @@ async def lifecycle_plan(req: LifecyclePlanRequest) -> LifecyclePlanResponse:
     if quant is None:
         client: DataServiceClient | None = state.get("data_client")
         if client is not None:
-            quant = await client.get_gold_quant_snapshot()
+            symbol = req.position.get("symbol") if req.position else None
+            quant = await client.get_quant_snapshot(symbol)
 
     payload = {
         "position": req.position,
@@ -217,7 +219,10 @@ async def pplx_research(req: PplxResearchRequest) -> PplxResearchResponse:
     if agent is None:
         raise HTTPException(status_code=503, detail="PPLX research agent not initialized")
 
-    result = await agent.run(question=req.question if req.include_custom else "")
+    result = await agent.run(
+        question=req.question if req.include_custom else "",
+        symbol=req.symbol,
+    )
     return PplxResearchResponse(**result)
 
 

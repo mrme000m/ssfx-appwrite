@@ -194,7 +194,7 @@ async function releaseGrantLock(db, grantId) {
 async function exchangeCtraderCode(code, oauth = null) {
   const clientId = oauth?.clientId || process.env.CTRADER_CLIENT_ID;
   const clientSecret = oauth?.clientSecret || process.env.CTRADER_CLIENT_SECRET;
-  const redirectUri = oauth?.redirectUri || process.env.CTRADER_REDIRECT_URI;
+  const redirectUri = validateRedirectUri(oauth?.redirectUri || process.env.CTRADER_REDIRECT_URI);
   const params = new URLSearchParams({
     grant_type: 'authorization_code',
     client_id: clientId,
@@ -269,6 +269,28 @@ async function refreshCtraderToken(refreshToken, oauth = null) {
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+function validateRedirectUri(uri) {
+  if (!uri || typeof uri !== 'string') {
+    throw new Error('cTrader redirect URI is not configured');
+  }
+  try {
+    const url = new URL(uri);
+    if (url.protocol !== 'https:') {
+      throw new Error('cTrader redirect URI must use HTTPS');
+    }
+  } catch (err) {
+    if (uri && typeof uri === 'string') {
+      throw new Error(`Invalid cTrader redirect URI: ${uri} (${err.message})`);
+    }
+    throw err;
+  }
+  const lower = uri.toLowerCase();
+  if (lower.includes('localhost') || lower.includes('127.0.0.1') || lower.includes('example.com')) {
+    throw new Error(`cTrader redirect URI appears to be a playground/default URI: ${uri}`);
+  }
+  return uri;
 }
 
 function jsonResponse(body, status = 200, extraHeaders = {}) {
@@ -347,6 +369,7 @@ module.exports = {
   sleep,
   jsonResponse,
   redirectResponse,
+  validateRedirectUri,
   generateGrantId,
   generateToken,
   corsHeaders,

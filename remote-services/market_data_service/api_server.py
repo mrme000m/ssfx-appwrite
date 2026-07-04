@@ -1403,6 +1403,35 @@ async def get_gold_prompt() -> dict[str, Any]:
     return {"symbol": snapshot.get("symbol"), "prompt": snapshot.get("agent_prompt", "")}
 
 
+# ── Generic Quant Snapshot (symbol-agnostic) ─────────────────────────────────
+
+@public_router.get("/quant/{symbol}", tags=["Quant"])
+async def get_quant_snapshot(symbol: str) -> dict[str, Any]:
+    """Full quantitative snapshot for any symbol.
+
+    XAUUSD returns the rich gold-quant engine output.
+    Other symbols fall back to the generic market context enriched with a
+    lightweight ``agent_prompt`` so downstream LLM agents can consume it.
+    """
+    symbol_upper = symbol.upper()
+    if symbol_upper == "XAUUSD":
+        return await _fetch_gold_snapshot()
+
+    ctx = await get_market_context(symbol_upper)
+    if isinstance(ctx, dict) and "error" not in ctx:
+        tick = ctx.get("tick") or {}
+        ctx["agent_prompt"] = (
+            f"## {symbol_upper} Market Snapshot\n\n"
+            f"**Price:** bid={tick.get('bid')} ask={tick.get('ask')} "
+            f"spread={tick.get('spread')}\n"
+            f"**Bars (M1/H1/D1):** {len(ctx.get('bars', {}))} timeframes loaded\n"
+            f"**Indicators:** {len(ctx.get('indicators', []))} loaded\n"
+            f"**Signals:** {len(ctx.get('signals', []))} recent\n"
+            f"\nUse this data to assess entry / lifecycle decisions."
+        )
+    return ctx
+
+
 # ── Router Inclusion & Static Site Mount ───────────────────────────────────────
 
 app.include_router(public_router)
