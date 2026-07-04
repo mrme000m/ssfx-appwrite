@@ -165,7 +165,6 @@ def create_admin(users: Users, db: TablesDB, email: str, pin: str) -> str:
                 "active": True,
             }
         ),
-        "description": "Master admin authentication record",
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
     db.create_row(database_id=DB_ID, table_id="service_config", row_id=ID.unique(), data=body)

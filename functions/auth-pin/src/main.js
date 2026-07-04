@@ -296,7 +296,6 @@ async function handleSetCredentials(req, res, log, error) {
         role: 'master',
         active: true,
       }),
-      description: 'Master admin authentication record',
       updated_at: new Date().toISOString(),
     };
     const existing = await db.listRows({
@@ -564,7 +563,6 @@ async function handlePinResetConfirm(req, res, log, error) {
         role: 'master',
         active: true,
       }),
-      description: 'Master admin authentication record',
       updated_at: new Date().toISOString(),
     };
     const existing = await db.listRows({

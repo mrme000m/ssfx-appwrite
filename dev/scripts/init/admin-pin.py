@@ -200,7 +200,6 @@ def main() -> int:
             "role": "master",
             "active": True,
         }),
-        "description": "Master admin authentication record",
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
