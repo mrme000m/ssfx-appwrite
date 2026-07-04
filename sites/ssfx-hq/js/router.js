@@ -21,18 +21,7 @@ window.Router = (function () {
   function getPath() {
     const hash = window.location.hash.replace(/^#/, '') || '/';
     return hash.split('?')[0];
-  }
 
-  function getQueryParams() {
-    const hash = window.location.hash.replace(/^#/, '') || '';
-    const queryIdx = hash.indexOf('?');
-    if (queryIdx === -1) return {};
-    const params = new URLSearchParams(hash.slice(queryIdx + 1));
-    const result = {};
-    for (const [key, value] of params) {
-      result[key] = value;
-    }
-    return result;
   }
 
   function navigate(path, replace = false) {
