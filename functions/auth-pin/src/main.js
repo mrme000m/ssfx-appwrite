@@ -327,6 +327,46 @@ async function handleSetCredentials(req, res, log, error) {
       log(`Failed to update master user name: ${err.message}`);
     }
 
+    // Also sync PIN hash to users row so auth-oauth callback finds it.
+    try {
+      const masterUserList = await db.listRows({
+        databaseId: DB_ID,
+        tableId: 'users',
+        queries: [Query.equal('appwrite_user_id', user.$id)],
+      });
+      if (masterUserList.rows.length > 0) {
+        await db.updateRow({
+          databaseId: DB_ID,
+          tableId: 'users',
+          rowId: masterUserList.rows[0].$id,
+          data: { username, pin_hash: hashPin(pin), active: true, status: 'active', role: 'master' },
+        });
+      } else {
+        await db.createRow({
+          databaseId: DB_ID,
+          tableId: 'users',
+          rowId: ID.unique(),
+          data: {
+            appwrite_user_id: user.$id,
+            username,
+            pin_hash: hashPin(pin),
+            role: 'master',
+            grant_id: '',
+            active: true,
+            status: 'active',
+            email: user.email || '',
+          },
+          permissions: [
+            Permission.read(Role.user(user.$id)),
+            Permission.update(Role.user(user.$id)),
+            Permission.read(Role.users()),
+          ],
+        });
+      }
+    } catch (syncErr) {
+      error(`Master users row sync failed: ${syncErr.message}`);
+    }
+
     log(`Set master credentials user=${user.$id} username=${username}`);
     return res.json({ success: true, username }, 200, corsHeaders(req.headers['origin'] || ''));
   }
@@ -546,6 +586,25 @@ async function handlePinResetConfirm(req, res, log, error) {
         rowId: existing.rows[0].$id,
         data: body,
       });
+    }
+
+    // Also sync PIN hash to users row for auth-oauth callback compatibility.
+    try {
+      const masterUserList = await db.listRows({
+        databaseId: DB_ID,
+        tableId: 'users',
+        queries: [Query.equal('appwrite_user_id', et.user_id)],
+      });
+      if (masterUserList.rows.length > 0) {
+        await db.updateRow({
+          databaseId: DB_ID,
+          tableId: 'users',
+          rowId: masterUserList.rows[0].$id,
+          data: { pin_hash: hashPin(newPin), active: true, status: 'active' },
+        });
+      }
+    } catch (syncErr) {
+      error(`Master users row sync on reset failed: ${syncErr.message}`);
     }
 
     log(`PIN reset confirmed user=${et.user_id} role=master`);

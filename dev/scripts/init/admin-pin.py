@@ -86,6 +86,70 @@ def _row_id(row) -> str | None:
     return getattr(row, "$id", getattr(row, "id", None))
 
 
+def _upsert_master_users_row(db: TablesDB, user_id: str, email: str, pin_hash: str) -> None:
+    """Ensure the users table has a row for the master admin so cTrader OAuth works."""
+    from appwrite.permission import Permission
+    from appwrite.role import Role
+
+    try:
+        result = db.list_rows(
+            database_id=DB_ID,
+            table_id="users",
+            queries=[Query.equal("appwrite_user_id", user_id)],
+        )
+        rows = getattr(result, "documents", getattr(result, "rows", []))
+        if rows:
+            row_id = _row_id(rows[0])
+            db.update_row(
+                database_id=DB_ID,
+                table_id="users",
+                row_id=row_id,
+                data={
+                    "username": MASTER_USERNAME,
+                    "pin_hash": pin_hash,
+                    "role": "master",
+                    "active": True,
+                    "status": "active",
+                    "email": email,
+                },
+            )
+            print(f"[init] Updated master users row '{row_id}'")
+            return
+    except Exception as exc:
+        print(f"[init] users lookup warning: {exc}")
+
+    try:
+        db.create_row(
+            database_id=DB_ID,
+            table_id="users",
+            row_id=ID.unique(),
+            data={
+                "appwrite_user_id": user_id,
+                "username": MASTER_USERNAME,
+                "pin_hash": pin_hash,
+                "role": "master",
+                "grant_id": "",
+                "access_token_enc": "",
+                "refresh_token_enc": "",
+                "access_token_expires_at": "",
+                "ctrader_account_ids": "",
+                "selected_account_id": "",
+                "status": "active",
+                "active": True,
+                "email": email,
+                "last_heartbeat_at": None,
+            },
+            permissions=[
+                Permission.read(Role.user(user_id)),
+                Permission.update(Role.user(user_id)),
+                Permission.read(Role.users()),
+            ],
+        )
+        print("[init] Created master users row")
+    except Exception as exc:
+        print(f"[init] users row creation warning: {exc}")
+
+
 def find_existing_master(db: TablesDB) -> dict | None:
     try:
         result = db.list_rows(
@@ -158,6 +222,10 @@ def main() -> int:
             data=body,
         )
         print(f"[init] Updated master_auth row '{row_id}'")
+
+    # Also upsert a users row so the master admin can connect cTrader later.
+    # auth-oauth callback requires a users row to exist.
+    _upsert_master_users_row(db, user_id, master_email, pin_hash)
 
     print()
     print("[init] Master admin ready.")
