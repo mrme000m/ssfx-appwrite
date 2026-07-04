@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Initialise Cloudflare tunnel ingress + DNS for the Azure VM Docker services.
+"""Initialise Cloudflare tunnel ingress + DNS for the VM Docker services.
 
 This script:
   1. Loads the current Cloudflare tunnel configuration.
@@ -8,7 +8,7 @@ This script:
   4. Ensures proxied CNAME records exist for each hostname.
   5. Polls the public endpoints until they are reachable.
 
-Run locally or on the Azure VM after `docker compose up -d`:
+Run locally or on the VM after `docker compose up -d`:
 
     export CF_API_TOKEN=...
     python3 dev/scripts/init-tunnel.py
@@ -30,12 +30,14 @@ from pathlib import Path
 # Hostnames we publish through the Cloudflare tunnel for this Docker stack.
 # The `service` value is what the cloudflared connector on the VM resolves.
 DEFAULT_INGRESS = [
-    {"hostname": "ssfx-api.mrme.tech",    "service": "http://localhost:8000", "originRequest": {}},
+    {"hostname": "api.mrme.tech",         "service": "http://localhost:8000", "originRequest": {}},
     {"hostname": "ds-control.mrme.tech",  "service": "http://localhost:9000", "originRequest": {}},
     {"hostname": "ds-sse.mrme.tech",      "service": "http://localhost:9001", "originRequest": {}},
-    {"hostname": "dataservice.mrme.tech", "service": "http://localhost:9002", "originRequest": {}},
-    {"hostname": "ctrader-api.mrme.tech", "service": "http://localhost:9300", "originRequest": {}},
-    {"hostname": "ctrader-ws.mrme.tech",  "service": "http://localhost:9301", "originRequest": {}},
+    {"hostname": "market.mrme.tech",      "service": "http://localhost:9002", "originRequest": {}},
+    {"hostname": "ai.mrme.tech",          "service": "http://localhost:9003", "originRequest": {}},
+    {"hostname": "research.mrme.tech",    "service": "http://localhost:9004", "originRequest": {}},
+    {"hostname": "ctrader.mrme.tech",     "service": "http://localhost:9300", "originRequest": {}},
+    {"hostname": "account-hub.mrme.tech", "service": "http://localhost:9301", "originRequest": {}},
 ]
 
 
@@ -44,7 +46,7 @@ REPO_ROOT = SCRIPT_DIR.parent
 
 # Ingress rules can be customised by placing config/tunnel-ingress.json next to
 # this script. The defaults match the docker-compose.yml port mappings.
-INGRESS_CONFIG_PATH = SCRIPT_DIR / "config" / "tunnel-ingress.json"
+INGRESS_CONFIG_PATH = SCRIPT_DIR.parent.parent / "remote-services" / "config" / "tunnel-ingress.json"
 
 
 def load_ingress() -> list[dict]:

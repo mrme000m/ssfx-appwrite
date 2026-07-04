@@ -16,6 +16,11 @@ from appwrite.client import Client
 from appwrite.query import Query
 from appwrite.services.tables_db import TablesDB
 
+try:
+    from shared.table_names import CTRADER_ACCOUNTS_TABLE
+except ImportError:  # pragma: no cover
+    CTRADER_ACCOUNTS_TABLE = "ctrader_accounts"
+
 logger = logging.getLogger(__name__)
 
 
@@ -39,8 +44,8 @@ class AccountDiscovery:
         self,
         appwrite_client: Client,
         database_id: str,
-        slave_accounts_table: str = "slave_accounts",
-        accounts_table: str = "accounts",
+        slave_accounts_table: str = "users",
+        accounts_table: str | None = None,
     ):
         self._client = appwrite_client
         self._tables = TablesDB(appwrite_client)

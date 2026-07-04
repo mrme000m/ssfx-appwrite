@@ -35,4 +35,4 @@ def create_appwrite_client(
 
 
 def get_appwrite_database_id() -> str:
-    return os.getenv("APPWRITE_DATABASE_ID", "ctrader_auth")
+    return os.getenv("APPWRITE_DATABASE_ID", "slwp_platform")

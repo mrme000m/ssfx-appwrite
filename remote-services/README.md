@@ -1,4 +1,4 @@
-# remote-services — Azure VM Docker runtime
+# remote-services — Linux VM Docker runtime
 
 Self-contained cTrader services container. All Python packages live inside this
 directory. Code is baked into the image at build time; configuration is mounted
@@ -10,10 +10,10 @@ at runtime.
 |---------|------|---------|-----------------|
 | `dataservice-daemon` | `9000` | Market-data ingestion / control API | `ds-control.mrme.tech` |
 | `dataservice-sse` | `9001` | MCP SSE server (live prices/tools) | `ds-sse.mrme.tech` |
-| `dataservice-api` | `9002` | OpenPI REST API + admin UI | `dataservice.mrme.tech` |
-| `ssfx-server` | `8000` | Telegram webhook + cTrader slave admin | `ssfx-api.mrme.tech` |
-| `agent-harness` | `9003` | AI decision layer (intent, entry, lifecycle) | `agent.mrme.tech` |
-| `pplx-agent` | `9004` | Perplexity + TradingView gold market research | `pplx-agent.mrme.tech` |
+| `dataservice-api` | `9002` | OpenPI REST API + admin UI | `market.mrme.tech` |
+| `ssfx-server` | `8000` | Telegram webhook + cTrader slave admin | `api.mrme.tech` |
+| `agent-harness` | `9003` | AI decision layer (intent, entry, lifecycle) | `ai.mrme.tech` |
+| `pplx-agent` | `9004` | Perplexity + TradingView gold market research | `research.mrme.tech` |
 | `ctrader` | `9300` | Unified cTrader service (WS hub + trade exec) | `ctrader.mrme.tech` |
 | `account-hub` | `9301` | Persistent cTrader connections for all slave accounts | `account-hub.mrme.tech` |
 
@@ -37,7 +37,7 @@ remote-services/
 └── logs/                    Persistent log output
 ```
 
-## First-time setup on the Azure VM
+## First-time setup on the VM
 
 1. Copy and fill in the runtime configs:
 
@@ -50,16 +50,16 @@ remote-services/
    # Edit the files above with real credentials.
    ```
 
-2. Sync this folder to the VM and start the container:
+2. Deploy to the VM:
 
    ```bash
-   ./dev.sh remote-services-sync
+   ./dev.sh deploy-remote aws
    ```
 
 3. Publish the services through the Cloudflare tunnel and verify DNS:
 
    ```bash
-   ./dev.sh remote-services-init-tunnel
+   ./dev.sh cf-tunnel-update
    ```
 
 ## Day-to-day iteration
@@ -86,17 +86,17 @@ This rsyncs the changed source, rebuilds the image, and restarts the container.
 
 ```bash
 # One-shot fresh-VM provision + deploy + tunnel sync
-python3 remote-services/setup_vm.py
+python3 dev/scripts/setup_vm.py
 
 # Or step by step:
-./dev.sh deploy-remote aws         # Deploy to AWS VM
+./dev.sh deploy-remote aws         # Deploy to primary VM
 ./dev.sh cf-tunnel-update          # Update Cloudflare tunnel ingress
 ```
 
 ## Manual commands on the VM
 
 ```bash
-ssh m@<vm-ip>
+ssh <vm-user>@<vm-ip>
 cd ~/ctrader-services
 
 # Start / restart
@@ -105,9 +105,6 @@ docker compose restart
 
 # View logs
 docker compose logs -f
-
-# Run the tunnel init script on the VM itself
-python3 init-tunnel.py
 ```
 
 ## cTrader CLI
@@ -141,7 +138,7 @@ When `account_id` is omitted, the CLI auto-discovers the only available account.
 
 ## Notes
 
-- The container exposes ports on `localhost` of the Azure VM; `cloudflared` on the
+- The container exposes ports on `localhost` of the VM; `cloudflared` on the
   VM forwards the public hostnames to those ports.
 - Source code is baked into the image at build time; configs and logs are mounted.
 - Market data persistence defaults to **SQLite** (`MARKET_DATA_DB_BACKEND=sqlite`);

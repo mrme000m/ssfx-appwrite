@@ -4,8 +4,10 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException, Request
 
+from ssfx_parser import RegexSignalParser
 from ssfx_server import admin_api
 from ssfx_server.config_loader import ServerConfig
+from ssfx_trader.stores.noop_store import NoOpSignalStore
 
 
 class _FakeState:
@@ -14,7 +16,7 @@ class _FakeState:
             telegram_bot_token="bot_token",
             telegram_webhook_secret_token="webhook_secret",
             source_chat_id="-1001661400724",
-            webhook_host="https://ssfx-api.mrme.tech",
+            webhook_host="https://api.mrme.tech",
             webhook_port=8000,
             webhook_path="/webhook",
             llm_api_key="",
@@ -25,7 +27,7 @@ class _FakeState:
             appwrite_project_id="",
             appwrite_api_key="",
             appwrite_database_id="",
-            appwrite_accounts_table="ssfx_accounts",
+            appwrite_accounts_table="signal_slaves",
             appwrite_presets_table="ssfx_presets",
             appwrite_executions_table="ssfx_executions",
             appwrite_risk_state_table="ssfx_risk_state",
@@ -45,8 +47,20 @@ class _FakeState:
             gold_quant_signal_interval_sec=60.0,
             gold_quant_min_confidence=0.75,
             gold_quant_agent_min_confidence=0.65,
+            signal_store_backend="noop",
+            signal_store_appwrite_database_id="market_data",
+            appwrite_raw_messages_table="raw_messages",
+            appwrite_parsed_signals_table="parsed_signals",
+            appwrite_signal_trades_table="signal_trades",
+            signal_store_sqlite_path="/tmp/test_signals.db",
+            signal_store_fallback_sqlite=True,
+            signal_webhook_secret="test-secret",
         )
         self.slaves = {}
+        self.signal_store = NoOpSignalStore()
+        self.parser = RegexSignalParser()
+        self.experience_scorer = None
+        self.experience_updater = None
 
 
 def _make_request(admin_key: str = "") -> Request:

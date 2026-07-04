@@ -50,6 +50,7 @@ COPY bin/* /usr/local/bin/
 RUN chmod +x /usr/local/bin/run-*
 
 # Copy all Python source packages.
+COPY shared/ /app/shared/
 COPY ssfx_parser/ /app/ssfx_parser/
 COPY ctrader_client/ /app/ctrader_client/
 COPY ctrader_cli/ /app/ctrader_cli/

@@ -55,13 +55,13 @@ def main():
 
     here = Path(__file__).parent
     config_file = here / "config.yml"
-    db_id = "ctrader_auth"
+    db_id = "slwp_platform"
     if config_file.exists():
         with open(config_file) as f:
             cfg = yaml.safe_load(f) or {}
         db_id = cfg.get("ctrader", {}).get("database_id", db_id)
 
-    table_id = "ctrader_trading_events"
+    table_id = "trading_events"
 
     client = Client()
     client.set_endpoint(os.environ["APPWRITE_ENDPOINT"])

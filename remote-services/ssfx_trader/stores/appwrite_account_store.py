@@ -73,8 +73,8 @@ class AppwriteAccountStore:
         if tables_db is None:
             _, tables_db = create_appwrite_client()
         self.tables_db = tables_db
-        self.database_id = database_id or os.getenv("APPWRITE_DATABASE_ID", "ctrader_auth")
-        self.table_id = table_id or os.getenv("APPWRITE_ACCOUNTS_TABLE", "ssfx_accounts")
+        self.database_id = database_id or os.getenv("APPWRITE_DATABASE_ID", "slwp_platform")
+        self.table_id = table_id or os.getenv("APPWRITE_ACCOUNTS_TABLE", "signal_slaves")
         self.executions_table_id = executions_table_id or os.getenv("APPWRITE_EXECUTIONS_TABLE", "ssfx_executions")
         self.risk_state_table_id = risk_state_table_id or os.getenv("APPWRITE_RISK_STATE_TABLE", "risk_state")
 

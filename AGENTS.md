@@ -153,12 +153,12 @@ cp remote-services/config/vm.env.example remote-services/config/vm.env
 # edit remote-services/config/vm.env
 
 # Provision Docker, cloudflared, and deploy the stack
-python3 remote-services/setup_vm.py
+python3 dev/scripts/setup_vm.py
 # or the thin shell wrapper:
-# ./remote-services/setup-vm.sh
+# ./dev/scripts/setup-vm.sh
 ```
 
-`remote-services/setup_vm.py` is the canonical reference for agents. It:
+`dev/scripts/setup_vm.py` is the canonical reference for agents. It:
 1. Installs Docker, Docker Compose plugin, and Docker Buildx.
 2. Installs and registers `cloudflared` for the existing Cloudflare tunnel.
 3. Updates the tunnel ingress from `remote-services/config/tunnel-ingress.json`.
@@ -219,12 +219,12 @@ Source of truth: `remote-services/config/tunnel-ingress.json`.
 
 | Hostname | Local Service | Purpose |
 |----------|---------------|---------|
-| `ssfx-api.mrme.tech` | `http://localhost:8000` | Telegram webhook + cTrader slave admin |
+| `api.mrme.tech` (legacy `ssfx-api.mrme.tech`) | `http://localhost:8000` | Telegram webhook + cTrader slave admin |
 | `ds-control.mrme.tech` | `http://localhost:9000` | DataService control API |
 | `ds-sse.mrme.tech` | `http://localhost:9001` | MCP SSE live price/tools |
-| `dataservice.mrme.tech` | `http://localhost:9002` | Market data OpenPI REST API |
-| `agent.mrme.tech` | `http://localhost:9003` | AI agent harness (XAUUSD decision layer) |
-| `pplx-agent.mrme.tech` | `http://localhost:9004` | Perplexity gold-market research agent |
+| `market.mrme.tech` (legacy `dataservice.mrme.tech`) | `http://localhost:9002` | Market data OpenPI REST API |
+| `ai.mrme.tech` (legacy `agent.mrme.tech`) | `http://localhost:9003` | AI agent harness (XAUUSD decision layer) |
+| `research.mrme.tech` (legacy `pplx-agent.mrme.tech`) | `http://localhost:9004` | Perplexity gold-market research agent |
 | `ctrader.mrme.tech` | `http://localhost:9300` | cTrader unified service |
 | `account-hub.mrme.tech` | `http://localhost:9301` | Account hub WebSocket server |
 | catch-all | `http_status:404` | — |
@@ -239,7 +239,7 @@ Source of truth: `remote-services/config/tunnel-ingress.json`.
 ./dev.sh cf-tunnel-update
 
 # One-shot fresh-VM provision + deploy + tunnel sync
-python3 remote-services/setup_vm.py
+python3 dev/scripts/setup_vm.py
 
 # Manual: list tunnels
 curl -s "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/cfd_tunnel" \
@@ -260,7 +260,7 @@ curl -s "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records?per_
 2. Ensure the service is running on the VM and listening on a local port.
 3. Add a tunnel ingress rule to `remote-services/config/tunnel-ingress.json` mapping the subdomain to the local service.
 4. Ensure a proxied CNAME record exists: `api.mrme.tech` → `<tunnel-id>.cfargotunnel.com` (use the Cloudflare dashboard or API).
-5. Run `python3 remote-services/setup_vm.py` or `./dev.sh cf-tunnel-update` to apply the ingress change.
+5. Run `python3 dev/scripts/setup_vm.py` or `./dev.sh cf-tunnel-update` to apply the ingress change.
 6. Verify with `curl https://api.mrme.tech/health`.
 
 ## Email: Resend
@@ -670,7 +670,7 @@ A dedicated long-term research service (port `9004`) maintains a persistent pict
 - **Package**: `pplx-agent/pplx_agent/` — config, API, `GoldMarketAgent`, Space manager, TradingView scanner.
 - **Perplexity client**: Vendored from `remote-services/agent/pplx/pplx/` and kept in `pplx-agent/pplx/` so the image is self-contained.
 - **Integration**: `PplxResearchAgent` and `/agent/v1/research/pplx*` endpoints in `agent_harness` let the entry/lifecycle agents enrich decisions with long-term context.
-- **Deployment**: Built into the `ctrader-services` Docker image via a BuildKit `additional_contexts` named `pplx-agent`; publicly exposed as `pplx-agent.mrme.tech`.
+- **Deployment**: Built into the `ctrader-services` Docker image via a BuildKit `additional_contexts` named `pplx-agent`; publicly exposed as `research.mrme.tech` (legacy `pplx-agent.mrme.tech`).
 - **Config**: `service_config.config_key = pplx_agent` in Appwrite TablesDB (init via `dev/scripts/init/pplx-agent.py`).
 - **Cookies**: Perplexity cookies are loaded from Bitwarden (secure note `perplexity.ai`) or `~/.config/perplexity/cookies.json` on the host and mounted read-only into the container.
 

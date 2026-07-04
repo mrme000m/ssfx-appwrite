@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# sync-and-restart.sh — rsync + restart on the Azure VM.
+# sync-and-restart.sh — rsync + restart on the VM.
 # Use ./dev.sh remote-services-sync from the repo root instead.
 set -euo pipefail
 
-REMOTE_USER="${AZURE_VM_USER:-m}"
+REMOTE_USER="${VM_USER:-m}"
 REMOTE_HOST="${1:-}"
 REMOTE_PATH="~/ctrader-services"
 
 if [[ -z "$REMOTE_HOST" ]]; then
-  echo "Usage: $0 <azure-vm-ip-or-host>" >&2
+  echo "Usage: $0 <vm-ip-or-host>" >&2
   exit 1
 fi
 

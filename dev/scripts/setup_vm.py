@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """One-shot fresh-VM provisioner for SSFX remote-services.
 
-Run from the project root or remote-services/:
+Run from the project root:
 
-    SSH_HOST=aws-ssfx python3 remote-services/setup_vm.py
+    SSH_HOST=aws-ssfx python3 dev/scripts/setup_vm.py
 
 To move to a different VM, change at most 2-3 values in
 remote-services/config/vm.env (see config/vm.env.example).
@@ -26,14 +26,15 @@ from pathlib import Path
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parent
-VM_SCRIPTS_DIR = SCRIPT_DIR / "vm-scripts"
+PROJECT_ROOT = SCRIPT_DIR.parent.parent
+SERVICES_DIR = PROJECT_ROOT / "remote-services"
+VM_SCRIPTS_DIR = SERVICES_DIR / "vm-scripts"
 
 HEALTH_HOSTS = [
-    "ssfx-api.mrme.tech",
+    "api.mrme.tech",
     "ctrader.mrme.tech",
-    "agent.mrme.tech",
-    "dataservice.mrme.tech",
+    "ai.mrme.tech",
+    "market.mrme.tech",
 ]
 
 
@@ -56,7 +57,7 @@ def load_env_file(path: Path) -> None:
 def load_env() -> None:
     """Load repo root .env and optional VM target config."""
     load_env_file(PROJECT_ROOT / ".env")
-    load_env_file(SCRIPT_DIR / "config" / "vm.env")
+    load_env_file(SERVICES_DIR / "config" / "vm.env")
 
 
 def require_env(name: str) -> str:
@@ -335,7 +336,7 @@ def main() -> int:
         print("[setup-vm] Skipping tunnel ingress update")
     else:
         print("[setup-vm] === Phase 3: Updating Cloudflare tunnel ingress ===")
-        ingress_file = SCRIPT_DIR / "config" / "tunnel-ingress.json"
+        ingress_file = SERVICES_DIR / "config" / "tunnel-ingress.json"
         if not ingress_file.exists():
             print(f"ERROR: Tunnel ingress config not found: {ingress_file}", file=sys.stderr)
             return 1
@@ -350,7 +351,7 @@ def main() -> int:
 
         print("[setup-vm] Syncing remote-services code ...")
         ssh(f"mkdir -p {remote_dir}")
-        rsync_local_to_remote(SCRIPT_DIR, remote_dir)
+        rsync_local_to_remote(SERVICES_DIR, remote_dir)
 
         print("[setup-vm] Syncing PPLX agent code ...")
         ssh(f"mkdir -p {pplx_remote_dir}")

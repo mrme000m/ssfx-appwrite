@@ -30,6 +30,8 @@ window.LoginComponent = (function () {
           </form>
           <div class="text-center mt-4">
             <a href="#/reset" class="text-sm text-dim">Forgot PIN?</a>
+            <span class="text-sm text-dim mx-2">·</span>
+            <a href="#/register" class="text-sm text-dim">Create account</a>
           </div>
         </div>
       </div>

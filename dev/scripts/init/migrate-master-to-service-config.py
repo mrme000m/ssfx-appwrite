@@ -52,7 +52,7 @@ def main() -> int:
     try:
         result = db.list_rows(
             database_id=DB_ID,
-            table_id="slave_accounts",
+            table_id="users",
             queries=[Query.equal("role", "master")],
         )
         rows = getattr(result, "documents", getattr(result, "rows", []))
@@ -95,7 +95,7 @@ def main() -> int:
             db.create_row(database_id=DB_ID, table_id="service_config", row_id=ID.unique(), data=body)
             print("[migrate] Created service_config master_auth row")
 
-        db.delete_row(database_id=DB_ID, table_id="slave_accounts", row_id=old_id)
+        db.delete_row(database_id=DB_ID, table_id="users", row_id=old_id)
         print(f"[migrate] Deleted stale master row '{old_id}' from slave_accounts")
     except Exception as exc:
         print(f"[migrate] Migration failed: {exc}", file=sys.stderr)

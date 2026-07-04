@@ -7,8 +7,11 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import hmac
+import hashlib
 import json
 import logging
+import re
 import secrets
 from datetime import UTC, datetime
 from typing import Any
@@ -18,7 +21,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from market_data_service.signal_experience.reporter import build_insights, build_llm_context
-from ssfx_parser import Direction, SignalStatus, SignalType, TradeSignal
+from ssfx_parser import Direction, RawMessage, SignalStatus, SignalType, TradeSignal
 from ssfx_trader.config import AccountConfig as TraderAccountConfig
 
 logger = logging.getLogger(__name__)
@@ -139,7 +142,7 @@ async def list_accounts(request: Request) -> JSONResponse:
     results = []
     for doc in accounts:
         name = doc.get("name", "")
-        get_slave = state.slaves.get(name)
+        slave = state.slaves.get(name)
         runtime = {"running": False, "connected": False, "active_positions": 0}
         if slave is not None:
             task = getattr(slave, "_watch_task", None)
@@ -311,6 +314,134 @@ async def inject_signal(payload: InjectSignalRequest, request: Request) -> JSONR
         "Manual signal injected: %s %s %s entry=%s by admin",
         signal.signal_type.value,
         signal.direction.value,
+        signal.symbol,
+        signal.entry_price,
+    )
+
+    for slave in state.slaves.values():
+        await slave.on_signal(signal)
+
+    return JSONResponse({"ok": True, "signal": _serialize_signal(signal)})
+
+
+class _SignalWebhookPayload:
+    """Typed accessor for the alwaydata direct-push JSON body."""
+
+    def __init__(self, body: dict[str, Any]) -> None:
+        self._body = body
+        self.snapshot = body.get("snapshot") or {}
+
+    @property
+    def raw_text(self) -> str:
+        return str(self.snapshot.get("signal_text") or self.snapshot.get("raw_text") or "")
+
+    @property
+    def chat_id(self) -> str:
+        return str(self.snapshot.get("source_chat_id") or self.snapshot.get("chat_id") or "direct")
+
+    @property
+    def message_id(self) -> int:
+        mid = self.snapshot.get("source_message_id") or self.snapshot.get("message_id") or _now_ms()
+        try:
+            return int(mid)
+        except (TypeError, ValueError):
+            return _now_ms()
+
+    @property
+    def reply_to_message_id(self) -> int | None:
+        val = self.snapshot.get("reply_to_message_id")
+        if val is None:
+            return None
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            return None
+
+    @property
+    def symbol(self) -> str | None:
+        explicit = self.snapshot.get("symbol")
+        if explicit:
+            return str(explicit).upper()
+        m = re.search(r"\b(XAUUSD|XAGUSD|GOLD|SILVER|BTCUSD|ETHUSD|[A-Z]{6})\b", self.raw_text.upper())
+        if m:
+            sym = m.group(1)
+            return "XAUUSD" if sym in ("GOLD",) else sym
+        return None
+
+
+def _verify_signal_webhook(body: bytes, header: str | None, secret: str) -> bool:
+    if not secret or not header:
+        return False
+    expected = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+    return secrets.compare_digest(f"sha256={expected}", header)
+
+
+@router.post("/signals/webhook")
+async def signal_webhook(request: Request) -> JSONResponse:
+    """Receive a direct HTTP push from the upstream alwaydata forwarder.
+
+    Verifies the HMAC signature in ``X-Signal-Signature`` using
+    ``SIGNAL_WEBHOOK_SECRET`` and parses the included raw signal text.
+    """
+    state = _state()
+    cfg = state.config
+    if not cfg.signal_webhook_secret:
+        raise HTTPException(status_code=503, detail="SIGNAL_WEBHOOK_SECRET not configured")
+
+    body = await request.body()
+    header = request.headers.get("X-Signal-Signature")
+    if not _verify_signal_webhook(body, header, cfg.signal_webhook_secret):
+        logger.warning("Signal webhook HMAC verification failed from %s", request.client.host if request.client else "unknown")
+        raise HTTPException(status_code=401, detail="invalid signature")
+
+    try:
+        payload = _SignalWebhookPayload(json.loads(body))
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail=f"invalid JSON: {exc}") from exc
+
+    if not payload.raw_text:
+        return JSONResponse({"ok": True, "ignored": "empty signal_text"})
+
+    message_id = payload.message_id
+    raw = RawMessage(
+        chat_id=payload.chat_id,
+        message_id=message_id,
+        text=payload.raw_text,
+        reply_to_message_id=payload.reply_to_message_id,
+        timestamp_ms=_now_ms(),
+    )
+    state.signal_store.save_raw_message(raw)
+
+    signal = await state.parser.parse(
+        raw_text=payload.raw_text,
+        message_id=message_id,
+        chat_id=payload.chat_id,
+        reply_to_message_id=payload.reply_to_message_id,
+        timestamp_ms=raw.timestamp_ms,
+        context=[],
+    )
+    if signal is None:
+        logger.info("Signal webhook produced no parseable signal: %r", payload.raw_text[:80])
+        return JSONResponse({"ok": True, "ignored": "no signal parsed"})
+
+    if payload.symbol and not signal.symbol:
+        signal.symbol = payload.symbol
+    if not signal.symbol:
+        return JSONResponse({"ok": True, "ignored": "symbol could not be resolved"})
+
+    if state.experience_scorer is not None:
+        from market_data_service.signal_experience.classifier import extract_author
+
+        author = extract_author(payload.raw_text)
+        signal = state.experience_scorer.enrich(signal, author_name=author)
+
+    signal.status = SignalStatus.EMITTED
+    state.signal_store.save_signal(signal)
+
+    logger.info(
+        "Signal webhook accepted: %s %s %s entry=%s",
+        signal.signal_type.value,
+        signal.direction.value if signal.direction else None,
         signal.symbol,
         signal.entry_price,
     )

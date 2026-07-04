@@ -32,6 +32,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from _config import (
     FUNCTION_DOMAINS,
     SITE_DOMAINS,
@@ -40,7 +41,7 @@ from _config import (
 
 # ─── Configuration ──────────────────────────────────────────────────────────
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent.resolve()
+PROJECT_ROOT = Path(__file__).parent.parent.parent.parent.resolve()
 APPWRITE_DIR = PROJECT_ROOT / "appwrite"
 FUNCTIONS_JSON = APPWRITE_DIR / "functions.json"
 SITES_JSON = APPWRITE_DIR / "sites.json"
@@ -70,10 +71,13 @@ FUNCTION_VARIABLES = {
         "APPWRITE_ENDPOINT": "{APPWRITE_ENDPOINT}",
         "APPWRITE_PROJECT_ID": "{APPWRITE_PROJECT_ID}",
         "APPWRITE_API_KEY": "{APPWRITE_API_KEY}",
-        "CTRADER_AUTH_DATABASE_ID": "ctrader_auth",
+        "APPWRITE_DATABASE_ID": "slwp_platform",
+        "CTRADER_AUTH_DATABASE_ID": "slwp_platform",
+        "CTRADER_ACCOUNTS_TABLE_ID": "ctrader_accounts",
         "CTRADER_CLIENT_ID": "{CTRADER_CLIENT_ID}",
         "CTRADER_CLIENT_SECRET": "{CTRADER_CLIENT_SECRET}",
         "CTRADER_REDIRECT_URI": "https://auth.mrme.tech/callback",
+        "CTRADER_SCOPE": "{CTRADER_SCOPE}",
         "TOKEN_ENCRYPTION_KEY": "{TOKEN_ENCRYPTION_KEY}",
         "SESSION_HMAC_KEY": "{SESSION_HMAC_KEY}",
         "SITES_URL": "https://app.mrme.tech",
@@ -82,7 +86,9 @@ FUNCTION_VARIABLES = {
         "APPWRITE_ENDPOINT": "{APPWRITE_ENDPOINT}",
         "APPWRITE_PROJECT_ID": "{APPWRITE_PROJECT_ID}",
         "APPWRITE_API_KEY": "{APPWRITE_API_KEY}",
-        "CTRADER_AUTH_DATABASE_ID": "ctrader_auth",
+        "APPWRITE_DATABASE_ID": "slwp_platform",
+        "CTRADER_AUTH_DATABASE_ID": "slwp_platform",
+        "CTRADER_ACCOUNTS_TABLE_ID": "ctrader_accounts",
         "BCRYPT_SALT_ROUNDS": "10",
         "SITES_URL": "https://app.mrme.tech",
         "RESEND_API_KEY": "{RESEND_API_KEY}",
@@ -93,7 +99,9 @@ FUNCTION_VARIABLES = {
         "APPWRITE_ENDPOINT": "{APPWRITE_ENDPOINT}",
         "APPWRITE_PROJECT_ID": "{APPWRITE_PROJECT_ID}",
         "APPWRITE_API_KEY": "{APPWRITE_API_KEY}",
-        "CTRADER_AUTH_DATABASE_ID": "ctrader_auth",
+        "APPWRITE_DATABASE_ID": "slwp_platform",
+        "CTRADER_AUTH_DATABASE_ID": "slwp_platform",
+        "CTRADER_ACCOUNTS_TABLE_ID": "ctrader_accounts",
         "INTERNAL_API_KEY": "{INTERNAL_API_KEY}",
         "CTRADER_CLIENT_ID": "{CTRADER_CLIENT_ID}",
         "CTRADER_CLIENT_SECRET": "{CTRADER_CLIENT_SECRET}",
@@ -104,7 +112,9 @@ FUNCTION_VARIABLES = {
         "APPWRITE_ENDPOINT": "{APPWRITE_ENDPOINT}",
         "APPWRITE_PROJECT_ID": "{APPWRITE_PROJECT_ID}",
         "APPWRITE_API_KEY": "{APPWRITE_API_KEY}",
-        "CTRADER_AUTH_DATABASE_ID": "ctrader_auth",
+        "APPWRITE_DATABASE_ID": "slwp_platform",
+        "CTRADER_AUTH_DATABASE_ID": "slwp_platform",
+        "CTRADER_ACCOUNTS_TABLE_ID": "ctrader_accounts",
         "CTRADER_CLIENT_ID": "{CTRADER_CLIENT_ID}",
         "CTRADER_CLIENT_SECRET": "{CTRADER_CLIENT_SECRET}",
         "TOKEN_ENCRYPTION_KEY": "{TOKEN_ENCRYPTION_KEY}",
@@ -128,7 +138,9 @@ REDACT_KEYS = {
 PLAIN_KEYS = {
     "APPWRITE_ENDPOINT",
     "APPWRITE_PROJECT_ID",
+    "APPWRITE_DATABASE_ID",
     "CTRADER_AUTH_DATABASE_ID",
+    "CTRADER_ACCOUNTS_TABLE_ID",
     "CTRADER_REDIRECT_URI",
     "SITES_URL",
     "BCRYPT_SALT_ROUNDS",
@@ -610,15 +622,17 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     load_env()
+    # cTrader OAuth scope defaults to full trading + account access.
+    os.environ.setdefault("CTRADER_SCOPE", "trading")
     setup_cli()
 
     if not args.no_sync:
         log("Syncing shared module into function packages...")
-        run_cli([sys.executable, str(PROJECT_ROOT / "dev" / "scripts" / "sync_shared.py")])
+        run_cli([sys.executable, str(PROJECT_ROOT / "dev" / "scripts" / "ops" / "sync_shared.py")])
 
     if not args.no_lint:
         log("Running lint...")
-        run_cli(["bash", str(PROJECT_ROOT / "dev" / "scripts" / "lint.sh")])
+        run_cli(["bash", str(PROJECT_ROOT / "dev" / "scripts" / "testing" / "lint.sh")])
 
     if not args.no_tables:
         log("Pushing TablesDB config...")

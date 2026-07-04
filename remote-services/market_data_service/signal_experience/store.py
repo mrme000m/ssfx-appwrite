@@ -11,6 +11,7 @@ from appwrite.id import ID
 from appwrite.services.tables_db import TablesDB
 from shared.appwrite_client import create_appwrite_client
 
+from .base_store import BaseSignalExperienceStore
 from .models import (
     ExperienceAuthor,
     ExperienceOverall,
@@ -24,8 +25,8 @@ logger = logging.getLogger(__name__)
 DEFAULT_DATABASE_ID = "market_data"
 
 
-class SignalExperienceStore:
-    """Sync store for signal experience rows."""
+class SignalExperienceStore(BaseSignalExperienceStore):
+    """Appwrite TablesDB store for signal experience rows."""
 
     def __init__(
         self,
@@ -241,6 +242,26 @@ class SignalExperienceStore:
         rows = self._list("signal_quality_log", queries=[Query.limit(limit)], limit=limit)
         logs = [SignalQualityLog(**r) for r in rows]
         return [log for log in logs if log.outcome is None]
+
+    def list_recent_logs_by_author(
+        self,
+        author: str,
+        limit: int = 10,
+        exclude_message_id: int | None = None,
+    ) -> list[SignalQualityLog]:
+        """Return the most recent quality log rows for an author, newest first."""
+        from appwrite.query import Query
+
+        rows = self._list(
+            "signal_quality_log",
+            queries=[Query.limit(1000)],
+            limit=1000,
+        )
+        logs = [SignalQualityLog(**r) for r in rows if r.get("author") == author]
+        logs.sort(key=lambda log: log.message_id or 0, reverse=True)
+        if exclude_message_id is not None:
+            logs = [log for log in logs if log.message_id != exclude_message_id]
+        return logs[:limit]
 
     # ── Reset ──────────────────────────────────────────────────────────────────
 

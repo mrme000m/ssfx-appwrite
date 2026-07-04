@@ -3,12 +3,12 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 
 cd "${PROJECT_ROOT}"
 
 echo "[dev] Syncing shared module..."
-python3 "${PROJECT_ROOT}/dev/scripts/sync_shared.py"
+python3 "${PROJECT_ROOT}/dev/scripts/ops/sync_shared.py"
 
 echo "[dev] Running Node syntax checks..."
 node --check "functions/_shared/index.js"

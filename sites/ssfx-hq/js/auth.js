@@ -104,7 +104,7 @@ window.Auth = (function () {
     }
     const rows = await db.listRows({
       databaseId: window.API.CFG.databaseId,
-      tableId: 'slave_accounts',
+      tableId: 'users',
       queries: [window.Appwrite.Query.equal('appwrite_user_id', window.appState.userId)],
     });
     const row = (rows.rows || [])[0];
@@ -113,7 +113,7 @@ window.Auth = (function () {
     }
     await db.updateRow({
       databaseId: window.API.CFG.databaseId,
-      tableId: 'slave_accounts',
+      tableId: 'users',
       rowId: row.$id,
       data: { selected_account_id: accountId },
     });

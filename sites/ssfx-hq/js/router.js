@@ -5,6 +5,7 @@ window.Router = (function () {
   const routes = {
     '/': { component: 'LandingComponent', public: true },
     '/login': { component: 'LoginComponent', public: true },
+    '/register': { component: 'RegisterComponent', public: true },
     '/reset': { component: 'ResetComponent', public: true },
     '/onboarding': { component: 'OnboardingComponent', public: true },
     '/dashboard': { component: 'DashboardComponent' },
@@ -18,7 +19,20 @@ window.Router = (function () {
   };
 
   function getPath() {
-    return window.location.hash.replace(/^#/, '') || '/';
+    const hash = window.location.hash.replace(/^#/, '') || '/';
+    return hash.split('?')[0];
+  }
+
+  function getQueryParams() {
+    const hash = window.location.hash.replace(/^#/, '') || '';
+    const queryIdx = hash.indexOf('?');
+    if (queryIdx === -1) return {};
+    const params = new URLSearchParams(hash.slice(queryIdx + 1));
+    const result = {};
+    for (const [key, value] of params) {
+      result[key] = value;
+    }
+    return result;
   }
 
   function navigate(path, replace = false) {
@@ -28,6 +42,11 @@ window.Router = (function () {
     } else {
       window.location.hash = target;
     }
+  }
+
+  function clearQueryParams() {
+    const path = getPath();
+    window.location.hash = path;
   }
 
   function renderShell() {
@@ -164,5 +183,7 @@ window.Router = (function () {
     renderShell,
     navigate,
     getPath,
+    getQueryParams,
+    clearQueryParams,
   };
 })();

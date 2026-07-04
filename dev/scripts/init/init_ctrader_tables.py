@@ -21,7 +21,7 @@ from appwrite.services.tables_db import TablesDB
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
-DATABASE_ID = "ctrader_auth"
+DATABASE_ID = "slwp_platform"
 
 ENDPOINT = os.getenv("APPWRITE_ENDPOINT", "https://sgp.cloud.appwrite.io/v1")
 PROJECT_ID = os.getenv("APPWRITE_PROJECT_ID", "6a22a362002b9ae880bb")
@@ -35,7 +35,7 @@ if not API_KEY:
 # Column specs: (key, type, required, extra_kwargs)
 # ---------------------------------------------------------------------------
 TABLES: dict[str, list[dict]] = {
-    "ssfx_accounts": [
+    "signal_slaves": [
         {"key": "name", "type": "varchar", "required": True, "size": 64},
         {"key": "enabled", "type": "boolean", "required": False},
         {"key": "owner_id", "type": "varchar", "required": False, "size": 64},
@@ -72,7 +72,7 @@ TABLES: dict[str, list[dict]] = {
 }
 
 INDEXES: dict[str, list[dict]] = {
-    "ssfx_accounts": [
+    "signal_slaves": [
         {"key": "idx_name", "type": "unique", "columns": ["name"]},
         {"key": "idx_owner_id", "type": "key", "columns": ["owner_id"]},
         {"key": "idx_enabled", "type": "key", "columns": ["enabled"]},
@@ -228,7 +228,7 @@ def main() -> int:
 
     # Ensure tables exist
     for table_id, name in [
-        ("ssfx_accounts", "SSFX Accounts"),
+        ("signal_slaves", "SSFX Accounts"),
         ("ssfx_executions", "SSFX Executions"),
     ]:
         print(f"\n[Table: {table_id}]")

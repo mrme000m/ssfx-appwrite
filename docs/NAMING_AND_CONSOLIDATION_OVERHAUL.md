@@ -32,10 +32,10 @@ The project had architecture information split across multiple documents and inl
 |---|---|---|---|---|
 | `auth.mrme.tech` | **keep** | Function custom domain | None | — |
 | `pin.mrme.tech` | merge into `auth.mrme.tech` | Function custom domain + SPA config | Medium | `ctrader-pin-auth` routes must be added to `ctrader-auth` or a unified auth function; update `sites/ssfx-hq/config.js`, `sites/ctrader-auth-site/config.js`, `dev/scripts/_config.py`. |
-| `ssfx-api.mrme.tech` | `api.mrme.tech` | DNS + tunnel ingress + SPA config + env vars | Medium | Update `remote-services/config/tunnel-ingress.json`, Cloudflare DNS, `sites/ssfx-hq/config.js`, `remote-services/config/v2.env`, GitHub Secrets if any. |
-| `dataservice.mrme.tech` | `market.mrme.tech` | DNS + tunnel ingress + SPA config + env vars | Medium | Same as above, plus `DATA_SERVICE_URL` consumers. |
-| `agent.mrme.tech` | `ai.mrme.tech` | DNS + tunnel ingress + env vars | Low/Medium | Update ingress, DNS, configs. |
-| `pplx-agent.mrme.tech` | `research.mrme.tech` | DNS + tunnel ingress + env vars | Low | Update ingress, DNS, configs. |
+| `api.mrme.tech` | `api.mrme.tech` | DNS + tunnel ingress + SPA config + env vars | Medium | Update `remote-services/config/tunnel-ingress.json`, Cloudflare DNS, `sites/ssfx-hq/config.js`, `remote-services/config/v2.env`, GitHub Secrets if any. |
+| `market.mrme.tech` | `market.mrme.tech` | DNS + tunnel ingress + SPA config + env vars | Medium | Same as above, plus `DATA_SERVICE_URL` consumers. |
+| `ai.mrme.tech` | `ai.mrme.tech` | DNS + tunnel ingress + env vars | Low/Medium | Update ingress, DNS, configs. |
+| `pplx-ai.mrme.tech` | `research.mrme.tech` | DNS + tunnel ingress + env vars | Low | Update ingress, DNS, configs. |
 | `account-hub.mrme.tech` | **keep** | — | None | — |
 
 ### 2.2. Appwrite Functions
@@ -99,9 +99,9 @@ The project had architecture information split across multiple documents and inl
 |---|---|---|
 | `pinDomain` | remove / merge into `authDomain` | `sites/ssfx-hq/config.js`, `js/api.js` |
 | `authDomain` pointing to `auth.mrme.tech` | keep, but route all auth calls through it | SPA API clients |
-| `v2ApiBase` = `https://ssfx-api.mrme.tech` | `apiBase` = `https://api.mrme.tech` | `sites/ssfx-hq/config.js` |
-| `dataserviceBase` = `https://dataservice.mrme.tech` | `marketBase` = `https://market.mrme.tech` | `sites/ssfx-hq/config.js` |
-| `agentHarnessBase` = `https://agent.mrme.tech` | `aiBase` = `https://ai.mrme.tech` | `sites/ssfx-hq/config.js` |
+| `v2ApiBase` = `https://api.mrme.tech` | `apiBase` = `https://api.mrme.tech` | `sites/ssfx-hq/config.js` |
+| `dataserviceBase` = `https://market.mrme.tech` | `marketBase` = `https://market.mrme.tech` | `sites/ssfx-hq/config.js` |
+| `agentHarnessBase` = `https://ai.mrme.tech` | `aiBase` = `https://ai.mrme.tech` | `sites/ssfx-hq/config.js` |
 
 ---
 

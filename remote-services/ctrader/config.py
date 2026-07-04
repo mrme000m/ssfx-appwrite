@@ -30,8 +30,8 @@ class CTRADERConfig:
     appwrite_api_key: str = ""
     appwrite_database_id: str = ""
     executions_table: str = "ssfx_executions"
-    events_table: str = "ctrader_trading_events"
-    accounts_table: str = "ssfx_accounts"
+    events_table: str = "trading_events"
+    accounts_table: str = "signal_slaves"
 
     # cTrader / auth broker
     ctrader_auth_broker_url: str = "https://internal.mrme.tech"
@@ -40,7 +40,7 @@ class CTRADERConfig:
     ctrader_client_secret: str = ""
 
     # Data service
-    data_service_url: str = "https://dataservice.mrme.tech"
+    data_service_url: str = "https://market.mrme.tech"
     data_service_api_key: str = ""
     data_poll_interval_ms: int = 250
 
@@ -50,8 +50,8 @@ class CTRADERConfig:
     account_hub_poll_interval: float = 30.0
     account_hub_reconnect_base: float = 5.0
     account_hub_reconnect_max: float = 60.0
-    slave_accounts_table: str = "slave_accounts"
-    account_events_table: str = "account_events"
+    slave_accounts_table: str = "users"
+    account_events_table: str = "account_state_history"
     ctrader_auth_database_id: str = ""
 
     # Trading defaults
@@ -72,13 +72,13 @@ class CTRADERConfig:
             appwrite_api_key=os.getenv("APPWRITE_API_KEY", ""),
             appwrite_database_id=os.getenv("APPWRITE_DATABASE_ID", ""),
             executions_table=os.getenv("APPWRITE_EXECUTIONS_TABLE", "ssfx_executions"),
-            events_table=os.getenv("APPWRITE_EVENTS_TABLE", "ctrader_trading_events"),
-            accounts_table=os.getenv("APPWRITE_ACCOUNTS_TABLE", "ssfx_accounts"),
+            events_table=os.getenv("APPWRITE_EVENTS_TABLE", "trading_events"),
+            accounts_table=os.getenv("APPWRITE_ACCOUNTS_TABLE", "signal_slaves"),
             ctrader_auth_broker_url=os.getenv("CTRADER_AUTH_BROKER_URL", "https://internal.mrme.tech"),
             internal_api_key=os.getenv("INTERNAL_API_KEY", ""),
             ctrader_client_id=os.getenv("CTRADER_CLIENT_ID", ""),
             ctrader_client_secret=os.getenv("CTRADER_CLIENT_SECRET", ""),
-            data_service_url=os.getenv("DATA_SERVICE_URL", "https://dataservice.mrme.tech"),
+            data_service_url=os.getenv("DATA_SERVICE_URL", "https://market.mrme.tech"),
             data_service_api_key=os.getenv("DATA_SERVICE_API_KEY", ""),
             data_poll_interval_ms=int(os.getenv("DATA_POLL_INTERVAL_MS", "250")),
             account_hub_port=int(os.getenv("ACCOUNT_HUB_PORT", "9301")),
@@ -86,8 +86,8 @@ class CTRADERConfig:
             account_hub_poll_interval=float(os.getenv("ACCOUNT_HUB_POLL_INTERVAL", "30.0")),
             account_hub_reconnect_base=float(os.getenv("ACCOUNT_HUB_RECONNECT_BASE", "5.0")),
             account_hub_reconnect_max=float(os.getenv("ACCOUNT_HUB_RECONNECT_MAX", "60.0")),
-            slave_accounts_table=os.getenv("SLAVE_ACCOUNTS_TABLE", "slave_accounts"),
-            account_events_table=os.getenv("ACCOUNT_EVENTS_TABLE", "account_events"),
+            slave_accounts_table=os.getenv("SLAVE_ACCOUNTS_TABLE", "users"),
+            account_events_table=os.getenv("ACCOUNT_EVENTS_TABLE", "account_state_history"),
             ctrader_auth_database_id=os.getenv("CTRADER_AUTH_DATABASE_ID", ""),
             default_position_timeout_minutes=float(os.getenv("DEFAULT_POSITION_TIMEOUT_MINUTES", "5.0")),
             token_refresh_buffer_seconds=float(os.getenv("TOKEN_REFRESH_BUFFER_SECONDS", "300.0")),

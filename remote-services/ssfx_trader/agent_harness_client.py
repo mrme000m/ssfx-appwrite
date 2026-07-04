@@ -32,6 +32,7 @@ class AgentHarnessClient:
         quant_snapshot: dict[str, Any] | None,
         experience: dict[str, Any] | None,
         open_positions: list[dict[str, Any]],
+        recent_messages: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any] | None:
         url = f"{self.base_url}/agent/v1/entry/decision"
         payload = {
@@ -39,6 +40,7 @@ class AgentHarnessClient:
             "quant_snapshot": quant_snapshot,
             "experience": experience,
             "open_positions": open_positions,
+            "recent_messages": recent_messages or [],
         }
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
@@ -54,13 +56,14 @@ class AgentHarnessClient:
         position: dict[str, Any],
         signal_update: dict[str, Any] | None,
         quant_snapshot: dict[str, Any] | None,
+        recent_messages: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any] | None:
         url = f"{self.base_url}/agent/v1/lifecycle/plan"
         payload = {
             "position": position,
             "signal_update": signal_update,
             "quant_snapshot": quant_snapshot,
-            "recent_messages": [],
+            "recent_messages": recent_messages or [],
         }
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:

@@ -22,7 +22,7 @@ from pplx_agent.config import PplxAgentSettings  # noqa: E402
 
 load_env()
 
-DB_ID = "ctrader_auth"
+DB_ID = "slwp_platform"
 SERVICE_CONFIG_KEY = "pplx_agent"
 
 

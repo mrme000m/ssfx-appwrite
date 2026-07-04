@@ -67,7 +67,7 @@ module.exports = async function main({ req, res, log, error }) {
     while (true) {
       const batch = await db.listRows({
         databaseId: DB_ID,
-        tableId: 'slave_accounts',
+        tableId: 'users',
         queries: [
           Query.equal('status', 'active'),
           Query.lessThan('access_token_expires_at', expiryThreshold),
@@ -179,7 +179,7 @@ async function rotateOne(db, slave, oauth, log, error) {
 
     await db.updateRow({
       databaseId: DB_ID,
-      tableId: 'slave_accounts',
+      tableId: 'users',
       rowId: slave.$id,
       data: {
         access_token_enc: newAccessEnc,
@@ -195,7 +195,7 @@ async function rotateOne(db, slave, oauth, log, error) {
     if (err.status === 400 || err.status === 401) {
       await db.updateRow({
         databaseId: DB_ID,
-        tableId: 'slave_accounts',
+        tableId: 'users',
         rowId: slave.$id,
         data: { status: 'reauth_required' },
       });

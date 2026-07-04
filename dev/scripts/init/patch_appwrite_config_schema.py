@@ -77,10 +77,10 @@ def main() -> int:
 
     db_map = {}
     for table in config.get("tables", []):
-        db_map[table.get("$id")] = table.get("databaseId", "ctrader_auth")
+        db_map[table.get("$id")] = table.get("databaseId", "slwp_platform")
 
     # --- ssfx_accounts: add updated_at column and helper indexes ---
-    ssfx = find_table(config, "ssfx_accounts")
+    ssfx = find_table(config, "signal_slaves")
     if ssfx:
         ensure_column(ssfx, {"key": "updated_at", "type": "datetime", "required": False, "array": False, "default": None, "format": ""})
         ensure_index(ssfx, {"key": "idx_owner_id", "type": "key", "columns": ["owner_id"]})
@@ -105,7 +105,7 @@ def main() -> int:
         print("[schema] accounts not found", file=sys.stderr)
 
     # --- account_events: add indexes and ensure event_json is longtext ---
-    events = find_table(config, "account_events")
+    events = find_table(config, "account_state_history")
     if events:
         for col in events.get("columns", []):
             if col.get("key") == "event_json":
@@ -144,7 +144,7 @@ def main() -> int:
         presets = new_table(
             table_id="ssfx_presets",
             name="SSFX Presets",
-            database_id="ctrader_auth",
+            database_id="slwp_platform",
             columns=[
                 {"key": "name", "type": "varchar", "required": True, "array": False, "size": 64, "default": None, "encrypt": False},
                 {"key": "description", "type": "text", "required": False, "array": False, "default": None, "encrypt": False},
@@ -162,7 +162,7 @@ def main() -> int:
         risk = new_table(
             table_id="ssfx_risk_state",
             name="SSFX Risk State",
-            database_id="ctrader_auth",
+            database_id="slwp_platform",
             columns=[
                 {"key": "account_name", "type": "varchar", "required": True, "array": False, "size": 64, "default": None, "encrypt": False},
                 {"key": "date_str", "type": "varchar", "required": True, "array": False, "size": 16, "default": None, "encrypt": False},

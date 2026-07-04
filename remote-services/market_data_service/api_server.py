@@ -219,7 +219,7 @@ app.add_middleware(
 
 # ── Root-path rewrite for Cloudflare tunnel compatibility ───────────────────────
 # The public API is canonically under /api/v1, but the tunnel exposes the service
-# at dataservice.mrme.tech with no path prefix. Rewrite root-level public requests
+# at market.mrme.tech with no path prefix. Rewrite root-level public requests
 # so they hit the /api/v1 router without duplicating every route.
 @app.middleware("http")
 async def rewrite_root_api_paths(request: Request, call_next):
@@ -1438,7 +1438,7 @@ app.include_router(public_router)
 app.include_router(admin_router)
 
 # Mount the config/admin site under /admin so the root path is free for the
-# public API (used by the Cloudflare tunnel ingress for dataservice.mrme.tech).
+# public API (used by the Cloudflare tunnel ingress for market.mrme.tech).
 if SITE_DIR.is_dir():
     app.mount("/admin", StaticFiles(directory=str(SITE_DIR), html=True), name="site")
 else:

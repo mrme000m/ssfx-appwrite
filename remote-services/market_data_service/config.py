@@ -391,16 +391,16 @@ class Settings(BaseSettings):
         description="Preferred slave username for Appwrite-native data service mode",
     )
     ctrader_auth_database_id: str = Field(
-        default="ctrader_auth",
+        default="slwp_platform",
         alias="CTRADER_AUTH_DATABASE_ID",
-        description="Appwrite database ID holding slave_accounts and account_events",
+        description="Appwrite database ID holding users (slave accounts) and account_state_history",
     )
     slave_accounts_table: str = Field(
-        default="slave_accounts",
+        default="users",
         alias="SLAVE_ACCOUNTS_TABLE",
     )
     account_events_table: str = Field(
-        default="account_events",
+        default="account_state_history",
         alias="ACCOUNT_EVENTS_TABLE",
     )
 

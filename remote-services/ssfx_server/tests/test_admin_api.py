@@ -1,6 +1,8 @@
 """Tests for the admin API config update endpoint."""
 from __future__ import annotations
 
+import hmac
+import hashlib
 import json
 from typing import Any
 
@@ -86,6 +88,65 @@ async def test_update_account_not_found() -> None:
     with pytest.raises(HTTPException) as exc_info:
         await admin_api.update_account("missing", req)
     assert exc_info.value.status_code == 404
+
+
+class _FakeWebhookRequest(Request):
+    def __init__(self, body: bytes, signature: str | None = None) -> None:
+        headers = []
+        if signature:
+            headers.append((b"x-signal-signature", signature.encode()))
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "headers": headers,
+            "path": "/api/signals/webhook",
+            "query_string": b"",
+            "client": ("127.0.0.1", 12345),
+        }
+        super().__init__(scope)
+        self._body = body
+
+    async def body(self) -> bytes:
+        return self._body
+
+
+@pytest.mark.asyncio
+async def test_signal_webhook_verifies_signature() -> None:
+    state = _FakeState()
+    state.config.signal_webhook_secret = "webhook-secret"
+    admin_api.set_state(state)
+
+    body = json.dumps(
+        {
+            "event": "signal",
+            "snapshot": {
+                "source_chat_id": -1001,
+                "source_message_id": 42,
+                "signal_text": "XAUUSD BUY 2300 SL 2290 TP 2310",
+                "symbol": "XAUUSD",
+            },
+        }
+    ).encode()
+    sig = f"sha256={hmac.new(b'webhook-secret', body, hashlib.sha256).hexdigest()}"
+    req = _FakeWebhookRequest(body, sig)
+    resp = await admin_api.signal_webhook(req)
+    data = json.loads(resp.body)
+    assert data["ok"] is True
+    assert data["signal"]["symbol"] == "XAUUSD"
+    assert data["signal"]["direction"] == "BUY"
+
+
+@pytest.mark.asyncio
+async def test_signal_webhook_rejects_bad_signature() -> None:
+    state = _FakeState()
+    state.config.signal_webhook_secret = "webhook-secret"
+    admin_api.set_state(state)
+
+    body = b'{"event":"signal","snapshot":{}}'
+    req = _FakeWebhookRequest(body, "sha256=bad")
+    with pytest.raises(HTTPException) as exc_info:
+        await admin_api.signal_webhook(req)
+    assert exc_info.value.status_code == 401
 
 
 @pytest.mark.asyncio

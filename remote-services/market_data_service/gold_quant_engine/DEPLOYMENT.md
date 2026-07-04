@@ -127,7 +127,7 @@ API Server (port 9002)
 
 3. **Restart the Data Service**:
    ```bash
-   cd /Volumes/ExMac/code/ssfx/appwrite-auth/remote-services
+   cd /Volumes/ExMac/code/ssfx/appwrite-auth-consolidated/remote-services
    docker compose restart dataservice-daemon dataservice-api
    # OR locally:
    python -m market_data_service data-service

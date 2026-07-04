@@ -92,7 +92,7 @@ class AppwriteFeedManager:
         assert internal_url is not None
         assert internal_api_key is not None
 
-        database_id = settings.ctrader_auth_database_id or "ctrader_auth"
+        database_id = settings.ctrader_auth_database_id or "slwp_platform"
         appwrite_client, _ = create_appwrite_client(
             endpoint=settings.appwrite_endpoint,
             project_id=settings.appwrite_project_id,
@@ -102,7 +102,7 @@ class AppwriteFeedManager:
         self._discovery = AccountDiscovery(
             appwrite_client=appwrite_client,
             database_id=database_id,
-            slave_accounts_table=settings.slave_accounts_table or "slave_accounts",
+            slave_accounts_table=settings.slave_accounts_table or "users",
         )
         refs = self._discovery.discover()
         env_refs = [r for r in refs if r.is_live == settings.ctrader_use_live]

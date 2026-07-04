@@ -62,7 +62,7 @@ class AccountHubV2:
         internal_api_key: str,
         client_id: str,
         client_secret: str,
-        account_events_table: str = "account_events",
+        account_events_table: str = "account_state_history",
         poll_interval: float = 30.0,
         reconnect_base: float = 5.0,
         reconnect_max: float = 60.0,

@@ -38,18 +38,18 @@ if env_file.exists():
             key, val = line.split("=", 1)
             os.environ.setdefault(key, val)
 
-DB_ID = "ctrader_auth"
+DB_ID = "slwp_platform"
 MASTER_AUTH_KEY = "master_auth"
 MASTER_USERNAME = "admin"
 DEFAULT_EMAIL = "mrme000m0@gmail.com"
 
-AUTH_TABLES = ["slave_accounts", "trade_configs", "ephemeral_tokens", "grant_locks"]
+AUTH_TABLES = ["users", "trade_settings", "ephemeral_tokens", "grant_locks"]
 RUNTIME_TABLES = [
     "accounts",
-    "account_events",
-    "ctrader_trading_events",
-    "master_signals",
-    "ssfx_accounts",
+    "account_state_history",
+    "trading_events",
+    "signal_broadcasts",
+    "signal_slaves",
     "ssfx_executions",
 ]
 

@@ -1,5 +1,10 @@
 [
   {
+    "hostname": "api.mrme.tech",
+    "service": "http://localhost:8000",
+    "originRequest": {}
+  },
+  {
     "hostname": "ssfx-api.mrme.tech",
     "service": "http://localhost:8000",
     "originRequest": {}
@@ -15,13 +20,28 @@
     "originRequest": {}
   },
   {
+    "hostname": "market.mrme.tech",
+    "service": "http://localhost:9002",
+    "originRequest": {}
+  },
+  {
     "hostname": "dataservice.mrme.tech",
     "service": "http://localhost:9002",
     "originRequest": {}
   },
   {
+    "hostname": "ai.mrme.tech",
+    "service": "http://localhost:9003",
+    "originRequest": {}
+  },
+  {
     "hostname": "agent.mrme.tech",
     "service": "http://localhost:9003",
+    "originRequest": {}
+  },
+  {
+    "hostname": "research.mrme.tech",
+    "service": "http://localhost:9004",
     "originRequest": {}
   },
   {

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-dev/scripts/remote-test.py — Remote verification test for Azure VM deployment.
+dev/scripts/remote-test.py — Remote verification test for VM deployment.
 
-Resolves the Azure VM IP, then health-checks all exposed services on the VM.
+Health-checks all exposed services on the VM via localhost ports.
 Tests HTTP health endpoints, API endpoints, and WebSocket / SSE connectivity.
 
 Usage:
-    ./dev.sh remote-test [--logs]
+    ./dev.sh remote-test [--host <ip-or-hostname>] [--logs]
 """
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ import websockets
 SCRIPT_DIR = Path(__file__).parent.resolve()
 REMOTE_SERVICES_DIR = SCRIPT_DIR.parent.parent / "remote-services"
 
-# Ports and paths for the deployed services on the Azure VM
+# Ports and paths for the deployed services on the VM
 PORTS = {
     "ssfx-server": 8000,
     "dataservice-control": 9000,
@@ -63,28 +63,28 @@ class RemoteTestRunner:
 
     @staticmethod
     def _resolve_vm_ip() -> str:
-        from _config import AZURE_RESOURCE_GROUP, AZURE_VM_NAME
+        import os
+        from pathlib import Path
 
-        result = subprocess.run(
-            [
-                "az", "vm", "list-ip-addresses",
-                "--name", AZURE_VM_NAME,
-                "--resource-group", AZURE_RESOURCE_GROUP,
-                "--query", "[0].virtualMachine.network.publicIpAddresses[0].ipAddress",
-                "--output", "tsv",
-            ],
-            capture_output=True,
-            text=True,
+        vm_env = Path(__file__).resolve().parent.parent.parent / "remote-services" / "config" / "vm.env"
+        if vm_env.exists():
+            with vm_env.open("r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("SSH_HOST="):
+                        host = line.split("=", 1)[1].strip().strip('"').strip("'")
+                        if host:
+                            print(f"[remote-test] Resolved VM host from vm.env: {host}")
+                            return host
+        host = os.environ.get("SSH_HOST", "").strip()
+        if host:
+            print(f"[remote-test] Resolved VM host from env: {host}")
+            return host
+        print(
+            "ERROR: Could not resolve VM host. Set SSH_HOST in remote-services/config/vm.env or environment.",
+            file=sys.stderr,
         )
-        if result.returncode != 0:
-            print(f"ERROR: Failed to resolve VM IP:\n{result.stderr}", file=sys.stderr)
-            sys.exit(1)
-        ip = result.stdout.strip()
-        if not ip or ip == "null":
-            print("ERROR: Could not resolve VM public IP", file=sys.stderr)
-            sys.exit(1)
-        print(f"[remote-test] Resolved VM IP: {ip}")
-        return ip
+        sys.exit(1)
 
     def base_url(self, port: int) -> str:
         return f"http://{self.vm_ip}:{port}"
@@ -233,8 +233,8 @@ class RemoteTestRunner:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Remote verification test for Azure VM deployment")
-    parser.add_argument("--vm-ip", help="Override Azure VM IP address")
+    parser = argparse.ArgumentParser(description="Remote verification test for VM deployment")
+    parser.add_argument("--host", dest="vm_ip", help="Override VM host (IP or SSH hostname)")
     parser.add_argument("--logs", action="store_true", help="Show hint for fetching remote logs")
     args = parser.parse_args()
 

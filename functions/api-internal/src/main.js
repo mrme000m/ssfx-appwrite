@@ -24,6 +24,7 @@ const {
 } = require('./_shared');
 
 const DB_ID = process.env.CTRADER_AUTH_DATABASE_ID;
+const ACCOUNTS_TABLE_ID = process.env.CTRADER_ACCOUNTS_TABLE_ID || 'ctrader_accounts';
 const INTERNAL_KEY = process.env.INTERNAL_API_KEY;
 
 async function getOAuthConfig() {
@@ -100,7 +101,7 @@ async function handleRefresh(req, res, log, error) {
   const db = makeAdminDb();
   const list = await db.listRows({
     databaseId: DB_ID,
-    tableId: 'slave_accounts',
+    tableId: 'users',
     queries: [Query.equal('grant_id', grantId)],
   });
 
@@ -153,7 +154,7 @@ async function handleRefresh(req, res, log, error) {
 
     await db.updateRow({
       databaseId: DB_ID,
-      tableId: 'slave_accounts',
+      tableId: 'users',
       rowId: slave.$id,
       data: {
         access_token_enc: newAccessEnc,
@@ -174,7 +175,7 @@ async function handleRefresh(req, res, log, error) {
     if (err.status === 400 || err.status === 401) {
       await db.updateRow({
         databaseId: DB_ID,
-        tableId: 'slave_accounts',
+        tableId: 'users',
         rowId: slave.$id,
         data: { status: 'reauth_required' },
       });
@@ -197,7 +198,7 @@ async function handleGrantLatest(req, res, log, error) {
   const db = makeAdminDb();
   const list = await db.listRows({
     databaseId: DB_ID,
-    tableId: 'slave_accounts',
+    tableId: 'users',
     queries: [
       Query.equal('appwrite_user_id', userId),
       Query.equal('status', 'active'),
@@ -222,7 +223,7 @@ async function upsertAccountRow(db, rowId, data) {
   try {
     await db.createRow({
       databaseId: DB_ID,
-      tableId: 'accounts',
+      tableId: ACCOUNTS_TABLE_ID,
       rowId,
       data,
     });
@@ -230,7 +231,7 @@ async function upsertAccountRow(db, rowId, data) {
     if (e.code === 409) {
       await db.updateRow({
         databaseId: DB_ID,
-        tableId: 'accounts',
+        tableId: ACCOUNTS_TABLE_ID,
         rowId,
         data,
       });
@@ -296,7 +297,7 @@ async function handleGrantAccounts(req, res, log, error) {
 
   const slaveList = await db.listRows({
     databaseId: DB_ID,
-    tableId: 'slave_accounts',
+    tableId: 'users',
     queries: [Query.equal('grant_id', grantId)],
   });
   if (slaveList.rows.length === 0) {
@@ -352,7 +353,7 @@ async function handleGrantAccounts(req, res, log, error) {
   if (selectedAccountId && accountIds.length > 0) {
     const existingAccounts = await db.listRows({
       databaseId: DB_ID,
-      tableId: 'accounts',
+      tableId: ACCOUNTS_TABLE_ID,
       queries: [Query.equal('grant_id', grantId)],
     });
     for (const row of existingAccounts.rows || []) {
@@ -362,7 +363,7 @@ async function handleGrantAccounts(req, res, log, error) {
       if (acc.selected !== isSelected && rowId) {
         await db.updateRow({
           databaseId: DB_ID,
-          tableId: 'accounts',
+          tableId: ACCOUNTS_TABLE_ID,
           rowId,
           data: { selected: isSelected },
         });
@@ -380,7 +381,7 @@ async function handleGrantAccounts(req, res, log, error) {
 
   await db.updateRow({
     databaseId: DB_ID,
-    tableId: 'slave_accounts',
+    tableId: 'users',
     rowId: slave.$id,
     data: updates,
   });

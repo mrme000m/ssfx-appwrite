@@ -67,14 +67,14 @@ function recordFailure(ip, username, db) {
     rec.lockedUntil = now + LOCKOUT_MS;
     db.listRows({
       databaseId: DB_ID,
-      tableId: 'slave_accounts',
+      tableId: 'users',
       queries: [Query.equal('username', username)],
     })
       .then(list => {
         if (list.rows[0]) {
           return db.updateRow({
             databaseId: DB_ID,
-            tableId: 'slave_accounts',
+            tableId: 'users',
             rowId: list.rows[0].$id,
             data: { active: false },
           });
@@ -122,7 +122,7 @@ async function getPinUser(db, username) {
 
   const list = await db.listRows({
     databaseId: DB_ID,
-    tableId: 'slave_accounts',
+    tableId: 'users',
     queries: [Query.equal('username', username)],
   });
 
@@ -184,6 +184,9 @@ module.exports = async function main({ req, res, log, error }) {
     }
     if (path === '/pin-reset/confirm' && method === 'POST') {
       return await handlePinResetConfirm(req, res, log, error);
+    }
+    if (path === '/register' && method === 'POST') {
+      return await handleRegister(req, res, log, error);
     }
     return res.json({ error: 'Not found' }, 404, corsHeaders(req.headers['origin'] || ''));
   } catch (err) {
@@ -330,7 +333,7 @@ async function handleSetCredentials(req, res, log, error) {
 
   const existing = await db.listRows({
     databaseId: DB_ID,
-    tableId: 'slave_accounts',
+    tableId: 'users',
     queries: [Query.equal('username', username)],
   });
   if (existing.rows.length > 0) {
@@ -342,7 +345,7 @@ async function handleSetCredentials(req, res, log, error) {
 
   const ownList = await db.listRows({
     databaseId: DB_ID,
-    tableId: 'slave_accounts',
+    tableId: 'users',
     queries: [Query.equal('appwrite_user_id', user.$id)],
   });
 
@@ -353,7 +356,7 @@ async function handleSetCredentials(req, res, log, error) {
   const row = ownList.rows[0];
   await db.updateRow({
     databaseId: DB_ID,
-    tableId: 'slave_accounts',
+    tableId: 'users',
     rowId: row.$id,
     data: {
       username,
@@ -386,7 +389,7 @@ async function handlePinResetRequest(req, res, log, error) {
   const db = makeAdminDb();
   let list = await db.listRows({
     databaseId: DB_ID,
-    tableId: 'slave_accounts',
+    tableId: 'users',
     queries: [Query.equal('email', email)],
   });
 
@@ -551,7 +554,7 @@ async function handlePinResetConfirm(req, res, log, error) {
 
   const slaveList = await db.listRows({
     databaseId: DB_ID,
-    tableId: 'slave_accounts',
+    tableId: 'users',
     queries: [Query.equal('appwrite_user_id', et.user_id)],
   });
 
@@ -561,7 +564,7 @@ async function handlePinResetConfirm(req, res, log, error) {
 
   await db.updateRow({
     databaseId: DB_ID,
-    tableId: 'slave_accounts',
+    tableId: 'users',
     rowId: slaveList.rows[0].$id,
     data: {
       pin_hash: hashPin(newPin),
@@ -571,4 +574,111 @@ async function handlePinResetConfirm(req, res, log, error) {
 
   log(`PIN reset confirmed user=${et.user_id}`);
   return res.json({ success: true }, 200, corsHeaders(req.headers['origin'] || ''));
+}
+
+// ─── POST /register ─────────────────────────────────────────────────
+
+async function handleRegister(req, res, log, error) {
+  const body = req.bodyJson || {};
+  const username = String(body.username || '').trim();
+  const pin = String(body.pin || '');
+
+  if (!username || !pin) {
+    return res.json({ error: 'Username and PIN required' }, 400, corsHeaders(req.headers['origin'] || ''));
+  }
+
+  if (username.length < 3 || username.length > 32) {
+    return res.json({ error: 'Username must be 3-32 characters' }, 400, corsHeaders(req.headers['origin'] || ''));
+  }
+
+  if (!/^\d{4,6}$/.test(pin)) {
+    return res.json({ error: 'PIN must be 4-6 digits' }, 400, corsHeaders(req.headers['origin'] || ''));
+  }
+
+  const db = makeAdminDb();
+
+  // Check if username already exists
+  const existing = await db.listRows({
+    databaseId: DB_ID,
+    tableId: 'users',
+    queries: [Query.equal('username', username)],
+  });
+  if (existing.rows.length > 0) {
+    return res.json({ error: 'Username already taken' }, 409, corsHeaders(req.headers['origin'] || ''));
+  }
+
+  const users = makeAdminUsers();
+  const generatedEmail = `${username}_${generateToken().slice(0, 8)}@local.slwp`;
+  const generatedPassword = generateToken() + generateToken();
+
+  let appwriteUserId;
+  try {
+    const user = await users.createArgon2User({
+      userId: ID.unique(),
+      email: generatedEmail,
+      password: generatedPassword,
+      name: username,
+    });
+    appwriteUserId = user.$id;
+  } catch (err) {
+    error(`User creation failed: ${err.message}`);
+    return res.json({ error: 'Failed to create account' }, 500, corsHeaders(req.headers['origin'] || ''));
+  }
+
+  try {
+    await db.createRow({
+      databaseId: DB_ID,
+      tableId: 'users',
+      rowId: ID.unique(),
+      data: {
+        appwrite_user_id: appwriteUserId,
+        username,
+        pin_hash: hashPin(pin),
+        role: 'slave',
+        grant_id: '',
+        access_token_enc: '',
+        refresh_token_enc: '',
+        access_token_expires_at: '',
+        ctrader_account_ids: '',
+        selected_account_id: '',
+        status: 'pending',
+        active: true,
+        email: '',
+        last_heartbeat_at: null,
+      },
+      permissions: [
+        Permission.read(Role.user(appwriteUserId)),
+        Permission.update(Role.user(appwriteUserId)),
+        Permission.read(Role.users()),
+      ],
+    });
+  } catch (err) {
+    error(`Slave row creation failed: ${err.message}`);
+    // Clean up Appwrite user
+    try { await users.delete(appwriteUserId); } catch {}
+    return res.json({ error: 'Failed to create account record' }, 500, corsHeaders(req.headers['origin'] || ''));
+  }
+
+  // Create session immediately so user is logged in
+  const adminClient = makeAdminClient();
+  const account = new Account(adminClient);
+  const token = await users.createToken({ userId: appwriteUserId });
+  const session = await account.createSession({
+    userId: appwriteUserId,
+    secret: token.secret,
+  });
+
+  const cookie = sessionCookie(cookieName(), session.secret);
+  log(`Registration success user=${appwriteUserId} username=${username}`);
+
+  return res.send(JSON.stringify({
+    success: true,
+    user_id: appwriteUserId,
+    username,
+    role: 'slave',
+  }), 200, {
+    'Content-Type': 'application/json',
+    'Set-Cookie': cookie,
+    ...corsHeaders(req.headers['origin'] || ''),
+  });
 }

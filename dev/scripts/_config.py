@@ -6,10 +6,6 @@ from pathlib import Path
 # Project root
 PROJECT_ROOT = Path(__file__).parent.parent.parent.resolve()
 
-# Azure VM defaults
-AZURE_VM_NAME = os.getenv("AZURE_VM_NAME", "ubuntu-server")
-AZURE_RESOURCE_GROUP = os.getenv("AZURE_RESOURCE_GROUP", "RG-UBUNTU-VM")
-
 # Cloudflare — read from environment (populated by .env via setup_gh_secrets.py)
 CF_ACCOUNT_ID = os.getenv("CF_ACCOUNT_ID", "")
 CF_ZONE_ID = os.getenv("CF_ZONE_ID", "")
@@ -26,7 +22,7 @@ GH_DEFAULT_BRANCH = "develop"
 # Function -> custom domain mappings (native Appwrite Proxy Rules)
 FUNCTION_DOMAINS = {
     "auth-oauth":   "auth.mrme.tech",
-    "auth-pin":     "pin.mrme.tech",
+    "auth-pin":     "auth.mrme.tech",
     "api-internal": "internal.mrme.tech",
     "token-refresh": "refresh.mrme.tech",
 }

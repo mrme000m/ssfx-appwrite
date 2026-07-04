@@ -13,6 +13,23 @@ window.OnboardingComponent = (function () {
   function mount(container) {
     const params = getQueryParams();
 
+    // Onboarding is for authenticated users only (to set/update credentials after login).
+    if (!window.Auth.isAuthenticated()) {
+      container.innerHTML = `
+        <div class="public-page">
+          <div class="public-card">
+            <div class="public-brand">
+              <h1>Authentication Required</h1>
+              <p>Please login or create an account first before setting credentials.</p>
+            </div>
+            <a href="#/login" class="btn btn-primary w-full" style="margin-top:16px">Login</a>
+            <a href="#/register" class="btn btn-ghost w-full" style="margin-top:12px">Create Account</a>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
     if (params.success === 'false') {
       container.innerHTML = `
         <div class="public-page">
@@ -34,7 +51,7 @@ window.OnboardingComponent = (function () {
         <div class="public-card">
           <div class="public-brand">
             <h1>Set Credentials</h1>
-            <p>Create a username and 6-digit PIN to access your deck.</p>
+            <p>Create or update your username and PIN.</p>
           </div>
           ${grantId ? `<div class="alert alert-info" style="margin-bottom:16px">cTrader account linked. Grant ID: <code>${window.UI.esc(grantId)}</code></div>` : ''}
           <form id="onboarding-form">

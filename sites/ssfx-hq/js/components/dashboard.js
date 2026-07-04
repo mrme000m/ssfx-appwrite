@@ -43,10 +43,10 @@ window.DashboardComponent = (function () {
   function renderConnectionCard() {
     const connected = !!window.appState.grantId;
     const status = window.appState.status || (connected ? 'active' : 'disconnected');
-    const userId = window.appState.userId || '';
-    const connectUrl = `${window.API.CFG.authDomain}/auth/ctrader/start${userId ? '?user_id=' + encodeURIComponent(userId) : ''}`;
+    const connectUrl = `${window.API.CFG.authDomain}/auth/ctrader/start?scope=trading`;
     const accounts = window.appState.accounts || [];
     const hasAccounts = accounts.length > 0;
+    const justLinked = window.appState.justLinked === true;
 
     return `
       <div class="card account-connection-card">
@@ -60,15 +60,16 @@ window.DashboardComponent = (function () {
         </div>
         <div class="flex gap-3" style="margin-top:8px">
           <a class="btn ${connected ? 'btn-ghost' : 'btn-primary'}" href="${connectUrl}">
-            ${connected ? 'Add Another Account' : 'Connect cTrader Account'}
+            ${connected ? 'Link Another cTrader ID' : 'Connect cTrader Account'}
           </a>
           ${connected ? `<a class="btn btn-ghost" href="#/trade-config">Edit Trade Config</a>` : ''}
         </div>
-        ${connected && hasAccounts ? `
+        ${connected ? `
           <div class="account-connection-info" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
             <div class="flex items-center gap-2">
               <span class="status-dot ${status === 'active' ? 'online' : 'offline'}"></span>
               <span class="text-sm">Grant ID: <code class="mono">${window.UI.esc(window.appState.grantId || '')}</code></span>
+              ${justLinked && !hasAccounts ? '<span class="badge badge-amber">Discovering accounts…</span>' : ''}
             </div>
           </div>
         ` : ''}
@@ -84,14 +85,23 @@ window.DashboardComponent = (function () {
     }
 
     if (accounts.length === 0) {
+      const justLinked = window.appState.justLinked === true;
       return `
         <div class="card">
           <div class="card-header">
             <h3>Linked Accounts</h3>
           </div>
           <div class="empty-state" style="padding:var(--sp-8) var(--sp-4)">
-            <div class="empty-title">No accounts discovered</div>
-            <p class="empty-desc">After connecting cTrader, your live/demo accounts will appear here once the runtime discovers them.</p>
+            ${justLinked ? `
+              <div class="empty-title">Discovering accounts…</div>
+              <p class="empty-desc">Your cTrader ID is linked. The runtime is pulling your live/demo accounts. This can take up to 30 seconds.</p>
+              <div style="margin-top:12px">
+                <button class="btn btn-sm btn-ghost" onclick="window.refreshAccountsNow && window.refreshAccountsNow()">Refresh now</button>
+              </div>
+            ` : `
+              <div class="empty-title">No accounts discovered</div>
+              <p class="empty-desc">After connecting cTrader, your live/demo accounts will appear here once the runtime discovers them.</p>
+            `}
           </div>
         </div>`;
     }
@@ -518,7 +528,7 @@ window.DashboardComponent = (function () {
       if (!db || !window.appState.userId) return;
       const result = await db.listRows({
         databaseId: window.API.CFG.databaseId,
-        tableId: 'trade_configs',
+        tableId: 'trade_settings',
         queries: [window.Appwrite.Query.equal('slave_user_id', window.appState.userId)],
       });
       const rows = result.rows || [];

@@ -19,7 +19,7 @@ picture of the gold market** and updates it every day. It uses:
 #    when the services image is built.
 
 # 2. Copy the example env (only needed for local development without Appwrite)
-cd /Volumes/ExMac/code/ssfx/appwrite-auth/pplx-agent
+cd /Volumes/ExMac/code/ssfx/appwrite-auth-consolidated/pplx-agent
 cp config/example.env .env
 
 # 3. Create the Perplexity Space
@@ -90,14 +90,14 @@ are updated.
 ### Local
 
 ```bash
-cd /Volumes/ExMac/code/ssfx/appwrite-auth/remote-services
+cd /Volumes/ExMac/code/ssfx/appwrite-auth-consolidated/remote-services
 docker compose up -d
 ```
 
 ### Azure VM (primary remote)
 
 ```bash
-cd /Volumes/ExMac/code/ssfx/appwrite-auth
+cd /Volumes/ExMac/code/ssfx/appwrite-auth-consolidated
 ./dev.sh deploy
 ```
 

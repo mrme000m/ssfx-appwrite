@@ -29,6 +29,7 @@ const {
 
 const PROJECT_ID = process.env.APPWRITE_PROJECT_ID;
 const DB_ID = process.env.CTRADER_AUTH_DATABASE_ID;
+const ACCOUNTS_TABLE_ID = process.env.CTRADER_ACCOUNTS_TABLE_ID || 'ctrader_accounts';
 
 const ALLOWED_SCOPES = ['accounts', 'trading'];
 const DEFAULT_SCOPE = 'trading';
@@ -127,6 +128,17 @@ module.exports = async function main({ req, res, log, error }) {
     if (path === '/echo' && method === 'GET') {
       return res.json({ cookie: req.headers['cookie'] || '', origin: req.headers['origin'] || '' }, 200, corsHeaders(origin));
     }
+    if (path === '/debug-headers' && method === 'GET') {
+      const dump = {
+        headers: req.headers,
+        path: req.path,
+        method: req.method,
+        query: req.query,
+        bodyPreview: String(req.body || '').slice(0, 200),
+      };
+      log('DEBUG HEADERS: ' + JSON.stringify(dump));
+      return res.json(dump, 200, corsHeaders(origin));
+    }
     if (path === '/session-debug' && method === 'GET') {
       const cookie = req.headers['cookie'] || '';
       const sessionMatch = cookie.match(new RegExp(`${cookieName()}=([^;]+)`));
@@ -157,7 +169,7 @@ module.exports = async function main({ req, res, log, error }) {
         if (slave && slave.grant_id) {
           const accountList = await db.listRows({
             databaseId: DB_ID,
-            tableId: 'accounts',
+            tableId: ACCOUNTS_TABLE_ID,
             queries: [Query.equal('grant_id', slave.grant_id)],
           });
           accounts = accountList.rows || [];
@@ -188,7 +200,17 @@ async function handleStart(req, res, log) {
     return res.json({ error: 'OAuth not configured' }, 503, corsHeaders(req.headers['origin'] || ''));
   }
 
-  const userId = req.query.user_id || '';
+  // OAuth start requires an authenticated session. Users must login via PIN first.
+  let userId = '';
+  const sessionUser = await getSessionUser(req);
+  if (sessionUser) {
+    userId = sessionUser.$id;
+    log(`OAuth start using authenticated user=${userId}`);
+  } else {
+    log('OAuth start rejected: no authenticated session');
+    return res.json({ error: 'Login required. Please authenticate with PIN before connecting cTrader.' }, 401, corsHeaders(req.headers['origin'] || ''));
+  }
+
   const requestedScope = typeof req.query.scope === 'string' ? req.query.scope.trim().toLowerCase() : '';
   const scope = ALLOWED_SCOPES.includes(requestedScope) ? requestedScope : oauth.scope;
   const nonce = generateToken();
@@ -219,7 +241,7 @@ async function handleStart(req, res, log) {
   ctraderUrl.searchParams.set('product', 'web');
   ctraderUrl.searchParams.set('state', nonce);
 
-  log(`OAuth start scope=${scope} → ${ctraderUrl.toString()}`);
+  log(`OAuth start scope=${scope} user=${userId || 'anon'} → ${ctraderUrl.toString()}`);
   return res.send('', 302, { Location: ctraderUrl.toString() });
 }
 
@@ -232,11 +254,11 @@ async function handleCallback(req, res, log, error) {
   const sitesUrl = process.env.SITES_URL;
 
   if (errorCode) {
-    return res.redirect(`${sitesUrl}/#/onboarding?success=false&error=${encodeURIComponent(errorCode)}`);
+    return res.redirect(`${sitesUrl}/#/dashboard?success=false&error=${encodeURIComponent(errorCode)}`);
   }
 
   if (!code || !state) {
-    return res.redirect(`${sitesUrl}/#/onboarding?success=false&error=missing_params`);
+    return res.redirect(`${sitesUrl}/#/dashboard?success=false&error=missing_params`);
   }
 
   const db = makeAdminDb();
@@ -251,13 +273,13 @@ async function handleCallback(req, res, log, error) {
       ],
     });
     if (list.rows.length === 0) {
-      return res.redirect(`${sitesUrl}/#/onboarding?success=false&error=invalid_state`);
+      return res.redirect(`${sitesUrl}/#/dashboard?success=false&error=invalid_state`);
     }
     ephemeral = list.rows[0];
     const payload = JSON.parse(ephemeral.payload || '{}');
     const stateUserId = verifyState(payload.signed_state, process.env.SESSION_HMAC_KEY);
     if (!stateUserId) {
-      return res.redirect(`${sitesUrl}/#/onboarding?success=false&error=invalid_state`);
+      return res.redirect(`${sitesUrl}/#/dashboard?success=false&error=invalid_state`);
     }
     if (!ephemeral.user_id && stateUserId) {
       ephemeral.user_id = stateUserId;
@@ -269,7 +291,23 @@ async function handleCallback(req, res, log, error) {
     });
   } catch (err) {
     error(`State lookup failed: ${err.message}`);
-    return res.redirect(`${sitesUrl}/#/onboarding?success=false&error=state_lookup_failed`);
+    return res.redirect(`${sitesUrl}/#/dashboard?success=false&error=state_lookup_failed`);
+  }
+
+  // Reject anonymous OAuth flows — user must be authenticated (PIN login) first.
+  const users = makeAdminUsers();
+  let appwriteUserId = ephemeral.user_id;
+  if (!appwriteUserId || appwriteUserId.startsWith('anon_')) {
+    log('OAuth callback rejected: anonymous flow not allowed');
+    return res.redirect(`${sitesUrl}/#/login?error=login_required`);
+  }
+
+  // Verify the Appwrite user exists.
+  try {
+    await users.get({ userId: appwriteUserId });
+  } catch (err) {
+    log(`OAuth callback rejected: user ${appwriteUserId} not found`);
+    return res.redirect(`${sitesUrl}/#/login?error=login_required`);
   }
 
   const oauth = await getOAuthConfig();
@@ -279,49 +317,14 @@ async function handleCallback(req, res, log, error) {
     tokenData = await exchangeCtraderCode(code, oauth);
   } catch (err) {
     error(`Token exchange failed: ${err.message}`);
-    return res.redirect(`${sitesUrl}/#/onboarding?success=false&error=token_exchange`);
+    return res.redirect(`${sitesUrl}/#/dashboard?success=false&error=token_exchange`);
   }
 
   const { access_token, refresh_token, expires_in } = tokenData;
   const expiresAt = new Date(Date.now() + (expires_in || 3600) * 1000).toISOString();
 
-  const users = makeAdminUsers();
-  let appwriteUserId = ephemeral.user_id;
-
-  if (!appwriteUserId || appwriteUserId.startsWith('anon_')) {
-    const generatedEmail = `slave_${generateGrantId().slice(6)}@local.slwp`;
-    const generatedPassword = generateToken() + generateToken();
-    try {
-      const user = await users.createArgon2User({
-        userId: ID.unique(),
-        email: generatedEmail,
-        password: generatedPassword,
-        name: 'New Slave',
-      });
-      appwriteUserId = user.$id;
-    } catch (err) {
-      error(`User creation failed: ${err.message}`);
-      return res.redirect(`${sitesUrl}/#/onboarding?success=false&error=user_create`);
-    }
-  } else {
-    try {
-      await users.get({ userId: appwriteUserId });
-    } catch {
-      const generatedEmail = `slave_${generateGrantId().slice(6)}@local.slwp`;
-      const generatedPassword = generateToken() + generateToken();
-      const user = await users.createArgon2User({
-        userId: ID.unique(),
-        email: generatedEmail,
-        password: generatedPassword,
-        name: 'New Slave',
-      });
-      appwriteUserId = user.$id;
-    }
-  }
-
   let grantId;
   let role = 'slave';
-  let hasCredentials = false;
   try {
     const existingList = await db.listRows({
       databaseId: DB_ID,
@@ -332,7 +335,6 @@ async function handleCallback(req, res, log, error) {
       const existing = existingList.rows[0];
       grantId = existing.grant_id || generateGrantId();
       role = existing.role || 'slave';
-      hasCredentials = !!(existing.username && existing.pin_hash);
       await db.updateRow({
         databaseId: DB_ID,
         tableId: 'users',
@@ -346,57 +348,26 @@ async function handleCallback(req, res, log, error) {
         },
       });
     } else {
-      grantId = generateGrantId();
-      await db.createRow({
-        databaseId: DB_ID,
-        tableId: 'users',
-        rowId: ID.unique(),
-        data: {
-          appwrite_user_id: appwriteUserId,
-          username: '',
-          pin_hash: '',
-          role: 'slave',
-          grant_id: grantId,
-          access_token_enc: encrypt(access_token),
-          refresh_token_enc: encrypt(refresh_token),
-          access_token_expires_at: expiresAt,
-          ctrader_account_ids: '',
-          selected_account_id: '',
-          status: 'active',
-          active: false,
-          email: '',
-          last_heartbeat_at: null,
-        },
-        permissions: [
-          Permission.read(Role.user(appwriteUserId)),
-          Permission.update(Role.user(appwriteUserId)),
-          Permission.read(Role.users()),
-        ],
-      });
+      // Should not happen — user should have registered first.
+      error(`OAuth callback: no users row for appwrite_user_id=${appwriteUserId}`);
+      return res.redirect(`${sitesUrl}/#/dashboard?success=false&error=account_not_found`);
     }
   } catch (err) {
     error(`Slave row upsert failed: ${err.message}`);
-    return res.redirect(`${sitesUrl}/#/onboarding?success=false&error=db_create`);
+    return res.redirect(`${sitesUrl}/#/dashboard?success=false&error=db_create`);
   }
 
+  // Refresh the Appwrite session cookie so the browser stays authenticated.
   const adminClient = makeAdminClient();
   const account = new Account(adminClient);
   const token = await users.createToken({ userId: appwriteUserId });
   const session = await account.createSession({ userId: appwriteUserId, secret: token.secret });
 
   const cookie = sessionCookie(cookieName(), session.secret);
-  log(`OAuth success user=${appwriteUserId} grant=${grantId} role=${role} hasCredentials=${hasCredentials}`);
+  log(`OAuth success user=${appwriteUserId} grant=${grantId} role=${role}`);
 
-  // Masters and users that already set a PIN go straight to the dashboard.
-  // New slaves without credentials land on onboarding to choose username+PIN.
-  let redirectPath;
-  if (role === 'master' || hasCredentials) {
-    redirectPath = role === 'master' ? '/master' : '/dashboard';
-  } else {
-    redirectPath = '/onboarding';
-  }
   return res.send('', 302, {
-    'Location': `${sitesUrl}/#${redirectPath}?success=true&grant_id=${grantId}`,
+    'Location': `${sitesUrl}/#/dashboard?success=true&grant_id=${grantId}`,
     'Set-Cookie': cookie,
   });
 }
@@ -471,7 +442,7 @@ async function handleSession(req, res, log) {
       try {
         const accountList = await db.listRows({
           databaseId: DB_ID,
-          tableId: 'accounts',
+          tableId: ACCOUNTS_TABLE_ID,
           queries: [Query.equal('grant_id', slave.grant_id)],
         });
         accounts = (accountList.rows || []).map((row) => {

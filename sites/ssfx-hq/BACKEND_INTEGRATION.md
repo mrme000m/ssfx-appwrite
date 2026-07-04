@@ -9,10 +9,10 @@ This document verifies that all UX improvements are properly connected to real b
 - `endpoint`: `https://sgp.cloud.appwrite.io/v1` (Appwrite)
 - `projectId`: `6a22a362002b9ae880bb` (Appwrite Project)
 - `authDomain`: `https://auth.mrme.tech` (Auth Functions)
-- `pinDomain`: `https://pin.mrme.tech` (PIN Auth Functions)
-- `v2ApiBase`: `https://ssfx-api.mrme.tech` (SSFX v2 API)
-- `dataserviceBase`: `https://dataservice.mrme.tech` (Data Service)
-- `agentHarnessBase`: `https://agent.mrme.tech` (Agent Harness)
+- `pinDomain`: `https://auth.mrme.tech` (merged into auth domain) (PIN Auth Functions)
+- `apiBase`: `https://api.mrme.tech` (legacy `v2ApiBase` still supported) (SSFX v2 API)
+- `marketBase`: `https://market.mrme.tech` (legacy `dataserviceBase` still supported) (Data Service)
+- `aiBase`: `https://ai.mrme.tech` (legacy `agentHarnessBase` still supported) (Agent Harness)
 
 ### 2. API Module (`js/api.js`)
 **Backend Connection:** ✅ **VERIFIED**
@@ -25,7 +25,7 @@ This document verifies that all UX improvements are properly connected to real b
 - `pinResetRequest()` → `POST ${pinDomain}/pin-reset/request` ✅
 - `pinResetConfirm()` → `POST ${pinDomain}/pin-reset/confirm` ✅
 
-#### V2API (SSFX v2 Server)
+#### API / V2API (SSFX v2 Server)
 - `health()` → `GET ${v2ApiBase}/health` ✅
 - `listAccounts()` → `GET ${v2ApiBase}/api/accounts` ✅
 - `accountState()` → `GET ${v2ApiBase}/api/accounts/{name}/state` ✅
@@ -44,7 +44,7 @@ This document verifies that all UX improvements are properly connected to real b
 - `entryDecision()` → `POST ${agentHarnessBase}/agent/v1/entry/decision` ✅
 - `lifecyclePlan()` → `POST ${agentHarnessBase}/agent/v1/lifecycle/plan` ✅
 
-#### DataAPI (Data Service)
+#### MarketAPI / DataAPI (Data Service)
 - `health()` → `GET ${dataserviceBase}/api/v1/health` ✅
 - `goldQuant()` → `GET ${dataserviceBase}/api/v1/gold/quant` ✅
 - `goldMtf()` → `GET ${dataserviceBase}/api/v1/gold/mtf` ✅
@@ -59,7 +59,7 @@ This document verifies that all UX improvements are properly connected to real b
 
 #### Trade Config Component (`js/components/trade-config.js`)
 **Backend Connection:** ✅ **VERIFIED**
-- **Load:** `db.listRows()` → Appwrite TablesDB `trade_configs` table ✅
+- **Load:** `db.listRows()` → Appwrite TablesDB `trade_settings` table (legacy `trade_configs` during cutover) ✅
 - **Save:** `db.createRow()` or `db.updateRow()` → Appwrite TablesDB ✅
 - **Permissions:** Sets row-level permissions for user access ✅
 - **Error Handling:** Shows toast on failure with actual error message ✅

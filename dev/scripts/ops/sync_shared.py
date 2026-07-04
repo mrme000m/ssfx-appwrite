@@ -18,7 +18,7 @@ from pathlib import Path
 
 
 def get_project_root() -> Path:
-    return Path(__file__).parent.parent.parent.resolve()
+    return Path(__file__).parent.parent.parent.parent.resolve()
 
 
 def get_function_ids(root: Path) -> list[str]:

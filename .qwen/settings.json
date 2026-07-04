@@ -3,7 +3,8 @@
     "description": "slwp - Appwrite project. Read AGENTS.md for full context. Agent skills in .qwen/skills/ and .agents/skills/."
   },
   "env": {
-    "OPENAI_API_KEY": "$OPENAI_API_KEY"
+    "OPENAI_API_KEY": "$OPENAI_API_KEY",
+    "ALIBABA_CLOUD_API_KEY": "$ALIBABA_CLOUD_API_KEY"
   },
   "modelProviders": {
     "openai": [
@@ -18,6 +19,216 @@
         "name": "gpt-5.5",
         "baseUrl": "https://agentrouter.org/v1",
         "envKey": "OPENAI_API_KEY"
+      },
+      {
+        "id": "qwen3.7-plus",
+        "name": "qwen3.7-plus",
+        "baseUrl": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
+        "envKey": "ALIBABA_CLOUD_API_KEY",
+        "generationConfig": {
+          "contextWindowSize": 1000000,
+          "timeout": 120000,
+          "maxRetries": 2,
+          "samplingParams": {
+            "temperature": 0.3,
+            "max_tokens": 8192
+          }
+        }
+      },
+      {
+        "id": "qwen3.7-max",
+        "name": "qwen3.7-max",
+        "baseUrl": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
+        "envKey": "ALIBABA_CLOUD_API_KEY",
+        "generationConfig": {
+          "contextWindowSize": 500000,
+          "timeout": 120000,
+          "maxRetries": 2,
+          "samplingParams": {
+            "temperature": 0.3,
+            "max_tokens": 8192
+          }
+        }
+      },
+      {
+        "id": "qwen3.6-plus",
+        "name": "qwen3.6-plus",
+        "baseUrl": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
+        "envKey": "ALIBABA_CLOUD_API_KEY",
+        "generationConfig": {
+          "contextWindowSize": 1000000,
+          "timeout": 120000,
+          "maxRetries": 2,
+          "samplingParams": {
+            "temperature": 0.3,
+            "max_tokens": 8192
+          }
+        }
+      },
+      {
+        "id": "qwen3.6-flash",
+        "name": "qwen3.6-flash",
+        "baseUrl": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
+        "envKey": "ALIBABA_CLOUD_API_KEY",
+        "generationConfig": {
+          "contextWindowSize": 1000000,
+          "timeout": 120000,
+          "maxRetries": 2,
+          "samplingParams": {
+            "temperature": 0.2,
+            "max_tokens": 8192
+          }
+        }
+      },
+      {
+        "id": "abc/deepseek-v4-pro",
+        "name": "deepseek-v4-pro (Alibaba)",
+        "baseUrl": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
+        "envKey": "ALIBABA_CLOUD_API_KEY",
+        "generationConfig": {
+          "contextWindowSize": 500000,
+          "timeout": 120000,
+          "maxRetries": 2,
+          "samplingParams": {
+            "temperature": 0.3,
+            "max_tokens": 8192
+          }
+        }
+      },
+      {
+        "id": "abc/deepseek-v4-flash",
+        "name": "deepseek-v4-flash (Alibaba)",
+        "baseUrl": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
+        "envKey": "ALIBABA_CLOUD_API_KEY",
+        "generationConfig": {
+          "contextWindowSize": 1000000,
+          "timeout": 120000,
+          "maxRetries": 2,
+          "samplingParams": {
+            "temperature": 0.2,
+            "max_tokens": 8192
+          }
+        }
+      },
+      {
+        "id": "deepseek-v3.2",
+        "name": "deepseek-v3.2 (Alibaba)",
+        "baseUrl": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
+        "envKey": "ALIBABA_CLOUD_API_KEY",
+        "generationConfig": {
+          "contextWindowSize": 500000,
+          "timeout": 120000,
+          "maxRetries": 2,
+          "samplingParams": {
+            "temperature": 0.3,
+            "max_tokens": 8192
+          }
+        }
+      },
+      {
+        "id": "glm-5.2",
+        "name": "glm-5.2 (Alibaba)",
+        "baseUrl": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
+        "envKey": "ALIBABA_CLOUD_API_KEY",
+        "generationConfig": {
+          "contextWindowSize": 500000,
+          "timeout": 120000,
+          "maxRetries": 2,
+          "samplingParams": {
+            "temperature": 0.3,
+            "max_tokens": 8192
+          }
+        }
+      },
+      {
+        "id": "abc/glm-5.2",
+        "name": "glm-5.2 (Alibaba)",
+        "baseUrl": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
+        "envKey": "ALIBABA_CLOUD_API_KEY",
+        "generationConfig": {
+          "contextWindowSize": 500000,
+          "timeout": 120000,
+          "maxRetries": 2,
+          "samplingParams": {
+            "temperature": 0.3,
+            "max_tokens": 8192
+          }
+        }
+      },
+      {
+        "id": "glm-5",
+        "name": "glm-5 (Alibaba)",
+        "baseUrl": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
+        "envKey": "ALIBABA_CLOUD_API_KEY",
+        "generationConfig": {
+          "contextWindowSize": 500000,
+          "timeout": 120000,
+          "maxRetries": 2,
+          "samplingParams": {
+            "temperature": 0.3,
+            "max_tokens": 8192
+          }
+        }
+      },
+      {
+        "id": "MiniMax-M2.5",
+        "name": "MiniMax-M2.5",
+        "baseUrl": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
+        "envKey": "ALIBABA_CLOUD_API_KEY",
+        "generationConfig": {
+          "contextWindowSize": 500000,
+          "timeout": 120000,
+          "maxRetries": 2,
+          "samplingParams": {
+            "temperature": 0.3,
+            "max_tokens": 8192
+          }
+        }
+      },
+      {
+        "id": "kimi-k2.7-code",
+        "name": "kimi-k2.7-code",
+        "baseUrl": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
+        "envKey": "ALIBABA_CLOUD_API_KEY",
+        "generationConfig": {
+          "contextWindowSize": 1000000,
+          "timeout": 120000,
+          "maxRetries": 2,
+          "samplingParams": {
+            "temperature": 0.2,
+            "max_tokens": 8192
+          }
+        }
+      },
+      {
+        "id": "kimi-k2.6",
+        "name": "kimi-k2.6",
+        "baseUrl": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
+        "envKey": "ALIBABA_CLOUD_API_KEY",
+        "generationConfig": {
+          "contextWindowSize": 1000000,
+          "timeout": 120000,
+          "maxRetries": 2,
+          "samplingParams": {
+            "temperature": 0.3,
+            "max_tokens": 8192
+          }
+        }
+      },
+      {
+        "id": "kimi-k2.5",
+        "name": "kimi-k2.5",
+        "baseUrl": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
+        "envKey": "ALIBABA_CLOUD_API_KEY",
+        "generationConfig": {
+          "contextWindowSize": 1000000,
+          "timeout": 120000,
+          "maxRetries": 2,
+          "samplingParams": {
+            "temperature": 0.3,
+            "max_tokens": 8192
+          }
+        }
       }
     ]
   },
@@ -27,7 +238,7 @@
     }
   },
   "model": {
-    "name": "glm-5.2"
+    "name": "kimi-k2.7-code"
   },
   "mcpServers": {
     "appwrite-api": {

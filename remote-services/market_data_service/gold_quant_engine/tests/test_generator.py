@@ -5,7 +5,10 @@ from typing import Any
 
 import pytest
 
-from ssfx_server.signal_generator import GoldQuantGeneratorConfig, GoldQuantSignalGenerator
+from market_data_service.gold_quant_engine.generator import (
+    GoldQuantGeneratorConfig,
+    GoldQuantSignalGenerator,
+)
 
 
 class _FakeConfig:

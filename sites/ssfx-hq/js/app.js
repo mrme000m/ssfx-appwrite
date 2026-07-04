@@ -79,6 +79,26 @@
     timers.agentLogs = setInterval(refreshAgentLogs, 10000);
   }
 
+  function startFastAccountPolling() {
+    if (timers.fastAccounts) clearInterval(timers.fastAccounts);
+    timers.fastAccounts = setInterval(async () => {
+      await refreshSession();
+      if (window.appState.accounts && window.appState.accounts.length > 0) {
+        window.appState.justLinked = false;
+        clearInterval(timers.fastAccounts);
+        timers.fastAccounts = null;
+      }
+    }, 3000);
+    // Stop fast polling after 60 seconds regardless
+    setTimeout(() => {
+      if (timers.fastAccounts) {
+        clearInterval(timers.fastAccounts);
+        timers.fastAccounts = null;
+        window.appState.justLinked = false;
+      }
+    }, 60000);
+  }
+
   function stopPolling() {
     Object.values(timers).forEach(clearInterval);
     timers = {};
@@ -89,6 +109,11 @@
   window.refreshAgentLogs = refreshAgentLogs;
   window.refreshHealth = refreshHealth;
 
+  window.refreshAccountsNow = async function () {
+    await refreshSession();
+    window.commandBus.dispatchEvent(new CustomEvent('accounts'));
+  };
+
   async function boot() {
     window.Auth.init();
     window.Router.init();
@@ -96,10 +121,19 @@
     const session = await window.Auth.checkSession();
     window.appState.initialized = true;
 
+    // Handle OAuth callback success state
+    const query = window.Router.getQueryParams ? window.Router.getQueryParams() : {};
+    if (query.success === 'true') {
+      window.appState.justLinked = true;
+      window.UI.toast && window.UI.toast('cTrader connected successfully. Discovering accounts…', 'success');
+      window.Router.clearQueryParams && window.Router.clearQueryParams();
+    }
+
     if (session) {
       window.Router.renderShell();
       await refreshAll();
       startPolling();
+      if (window.appState.justLinked) startFastAccountPolling();
       window.Router.render();
     } else {
       window.Router.renderShell();

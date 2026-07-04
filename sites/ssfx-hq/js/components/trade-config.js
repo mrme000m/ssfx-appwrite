@@ -1,8 +1,8 @@
 /**
- * SSFX HQ — Slave trade configuration editor (TablesDB trade_configs).
+ * SSFX HQ — Slave trade configuration editor (TablesDB trade_settings).
  */
 window.TradeConfigComponent = (function () {
-  const TABLE_ID = 'trade_configs';
+  const TABLE_ID = 'trade_settings';
 
   async function loadConfig(db) {
     const userId = window.appState.userId;

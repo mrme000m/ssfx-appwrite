@@ -8,7 +8,7 @@
     },
     "tablesDB": [
         {
-            "$id": "ctrader_auth",
+            "$id": "slwp_platform",
             "name": "cTrader Auth",
             "enabled": true
         },
@@ -20,9 +20,9 @@
     ],
     "tables": [
         {
-            "$id": "trade_configs",
+            "$id": "trade_settings",
             "$permissions": [],
-            "databaseId": "ctrader_auth",
+            "databaseId": "slwp_platform",
             "name": "Trade Configs",
             "enabled": true,
             "rowSecurity": true,
@@ -119,7 +119,7 @@
         {
             "$id": "ephemeral_tokens",
             "$permissions": [],
-            "databaseId": "ctrader_auth",
+            "databaseId": "slwp_platform",
             "name": "Ephemeral Tokens",
             "enabled": true,
             "rowSecurity": false,
@@ -193,7 +193,7 @@
         {
             "$id": "grant_locks",
             "$permissions": [],
-            "databaseId": "ctrader_auth",
+            "databaseId": "slwp_platform",
             "name": "Grant Locks",
             "enabled": true,
             "rowSecurity": false,
@@ -237,9 +237,9 @@
             ]
         },
         {
-            "$id": "slave_accounts",
+            "$id": "users",
             "$permissions": [],
-            "databaseId": "ctrader_auth",
+            "databaseId": "slwp_platform",
             "name": "Slave Accounts",
             "enabled": true,
             "rowSecurity": true,
@@ -403,14 +403,14 @@
             ]
         },
         {
-            "$id": "master_signals",
+            "$id": "signal_broadcasts",
             "$permissions": [
                 "create(\"label:master\")",
                 "read(\"any\")",
                 "update(\"label:master\")",
                 "delete(\"label:master\")"
             ],
-            "databaseId": "ctrader_auth",
+            "databaseId": "slwp_platform",
             "name": "Master Signals",
             "enabled": true,
             "rowSecurity": false,
@@ -484,9 +484,9 @@
             ]
         },
         {
-            "$id": "ctrader_trading_events",
+            "$id": "trading_events",
             "$permissions": [],
-            "databaseId": "ctrader_auth",
+            "databaseId": "slwp_platform",
             "name": "cTrader Trading Events",
             "enabled": true,
             "rowSecurity": false,
@@ -550,9 +550,9 @@
             ]
         },
         {
-            "$id": "accounts",
+            "$id": "ctrader_accounts",
             "$permissions": [],
-            "databaseId": "ctrader_auth",
+            "databaseId": "slwp_platform",
             "name": "cTrader Accounts",
             "enabled": true,
             "rowSecurity": false,
@@ -742,12 +742,14 @@
                     "status": "available",
                     "orders": []
                 }
-            ]
+            ],
+            "$collectionId": "ctrader_accounts",
+            "id": "ctrader_accounts"
         },
         {
-            "$id": "account_events",
+            "$id": "account_state_history",
             "$permissions": [],
-            "databaseId": "ctrader_auth",
+            "databaseId": "slwp_platform",
             "name": "Account Events",
             "enabled": true,
             "rowSecurity": false,
@@ -872,9 +874,9 @@
             ]
         },
         {
-            "$id": "ssfx_accounts",
+            "$id": "signal_slaves",
             "$permissions": [],
-            "databaseId": "ctrader_auth",
+            "databaseId": "slwp_platform",
             "name": "SSFX Accounts",
             "enabled": true,
             "rowSecurity": false,
@@ -982,7 +984,7 @@
         {
             "$id": "ssfx_executions",
             "$permissions": [],
-            "databaseId": "ctrader_auth",
+            "databaseId": "slwp_platform",
             "name": "SSFX Executions",
             "enabled": true,
             "rowSecurity": false,
@@ -1650,7 +1652,7 @@
         {
             "$id": "service_config",
             "$permissions": [],
-            "databaseId": "ctrader_auth",
+            "databaseId": "slwp_platform",
             "name": "Service Config",
             "enabled": true,
             "rowSecurity": false,
@@ -1712,7 +1714,7 @@
         {
             "$id": "ssfx_presets",
             "$permissions": [],
-            "databaseId": "ctrader_auth",
+            "databaseId": "slwp_platform",
             "name": "SSFX Presets",
             "enabled": true,
             "rowSecurity": false,
@@ -1773,7 +1775,7 @@
         {
             "$id": "ssfx_risk_state",
             "$permissions": [],
-            "databaseId": "ctrader_auth",
+            "databaseId": "slwp_platform",
             "name": "SSFX Risk State",
             "enabled": true,
             "rowSecurity": false,
@@ -1864,6 +1866,544 @@
                     ]
                 }
             ]
+        },
+        {
+            "$id": "raw_messages",
+            "$permissions": [],
+            "databaseId": "market_data",
+            "name": "Raw Messages",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "chat_id",
+                    "type": "varchar",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "size": 64,
+                    "encrypt": false
+                },
+                {
+                    "key": "message_id",
+                    "type": "integer",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
+                },
+                {
+                    "key": "text",
+                    "type": "longtext",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "reply_to_message_id",
+                    "type": "integer",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
+                },
+                {
+                    "key": "sender_id",
+                    "type": "integer",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
+                },
+                {
+                    "key": "timestamp_ms",
+                    "type": "integer",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
+                },
+                {
+                    "key": "date",
+                    "type": "varchar",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "size": 32,
+                    "encrypt": false
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "idx_raw_chat_msg",
+                    "type": "unique",
+                    "status": "available",
+                    "columns": [
+                        "chat_id",
+                        "message_id"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "idx_raw_date",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "date"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "idx_raw_chat_id",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "chat_id"
+                    ],
+                    "orders": []
+                }
+            ]
+        },
+        {
+            "$id": "parsed_signals",
+            "$permissions": [],
+            "databaseId": "market_data",
+            "name": "Parsed Signals",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "chat_id",
+                    "type": "varchar",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "size": 64,
+                    "encrypt": false
+                },
+                {
+                    "key": "message_id",
+                    "type": "integer",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
+                },
+                {
+                    "key": "status",
+                    "type": "varchar",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "size": 32,
+                    "encrypt": false
+                },
+                {
+                    "key": "raw_text",
+                    "type": "longtext",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "direction",
+                    "type": "varchar",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "size": 16,
+                    "encrypt": false
+                },
+                {
+                    "key": "symbol",
+                    "type": "varchar",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "size": 32,
+                    "encrypt": false
+                },
+                {
+                    "key": "signal_type",
+                    "type": "varchar",
+                    "required": false,
+                    "array": false,
+                    "default": "NEW",
+                    "size": 16,
+                    "encrypt": false
+                },
+                {
+                    "key": "order_type",
+                    "type": "varchar",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "size": 16,
+                    "encrypt": false
+                },
+                {
+                    "key": "entry_price",
+                    "type": "double",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "min": -1.7976931348623157e+308,
+                    "max": 1.7976931348623157e+308
+                },
+                {
+                    "key": "sl",
+                    "type": "text",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "tp1",
+                    "type": "double",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "min": -1.7976931348623157e+308,
+                    "max": 1.7976931348623157e+308
+                },
+                {
+                    "key": "tp2",
+                    "type": "double",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "min": -1.7976931348623157e+308,
+                    "max": 1.7976931348623157e+308
+                },
+                {
+                    "key": "tp3",
+                    "type": "double",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "min": -1.7976931348623157e+308,
+                    "max": 1.7976931348623157e+308
+                },
+                {
+                    "key": "profit_pips",
+                    "type": "integer",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
+                },
+                {
+                    "key": "close_percentage",
+                    "type": "double",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "min": -1.7976931348623157e+308,
+                    "max": 1.7976931348623157e+308
+                },
+                {
+                    "key": "follow_up_action",
+                    "type": "varchar",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "size": 64,
+                    "encrypt": false
+                },
+                {
+                    "key": "tp_hit_number",
+                    "type": "integer",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
+                },
+                {
+                    "key": "parse_confidence",
+                    "type": "double",
+                    "required": false,
+                    "array": false,
+                    "default": 0,
+                    "min": -1.7976931348623157e+308,
+                    "max": 1.7976931348623157e+308
+                },
+                {
+                    "key": "reply_to_message_id",
+                    "type": "integer",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
+                },
+                {
+                    "key": "timestamp_ms",
+                    "type": "integer",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
+                },
+                {
+                    "key": "parser_used",
+                    "type": "varchar",
+                    "required": false,
+                    "array": false,
+                    "default": "regex",
+                    "size": 64,
+                    "encrypt": false
+                },
+                {
+                    "key": "llm_reasoning",
+                    "type": "text",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "quality_score",
+                    "type": "double",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "min": -1.7976931348623157e+308,
+                    "max": 1.7976931348623157e+308
+                },
+                {
+                    "key": "quality_factors",
+                    "type": "text",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "experience_action",
+                    "type": "varchar",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "size": 32,
+                    "encrypt": false
+                },
+                {
+                    "key": "volume_multiplier",
+                    "type": "double",
+                    "required": false,
+                    "array": false,
+                    "default": 1,
+                    "min": -1.7976931348623157e+308,
+                    "max": 1.7976931348623157e+308
+                },
+                {
+                    "key": "order_id",
+                    "type": "integer",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
+                },
+                {
+                    "key": "position_id",
+                    "type": "integer",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
+                },
+                {
+                    "key": "executed_price",
+                    "type": "double",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "min": -1.7976931348623157e+308,
+                    "max": 1.7976931348623157e+308
+                },
+                {
+                    "key": "error",
+                    "type": "text",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "idx_signal_chat_msg",
+                    "type": "unique",
+                    "status": "available",
+                    "columns": [
+                        "chat_id",
+                        "message_id"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "idx_signal_status",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "status"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "idx_signal_symbol",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "symbol"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "idx_signal_timestamp",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "timestamp_ms"
+                    ],
+                    "orders": []
+                }
+            ]
+        },
+        {
+            "$id": "signal_trades",
+            "$permissions": [],
+            "databaseId": "market_data",
+            "name": "Signal Trades",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "chat_id",
+                    "type": "varchar",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "size": 64,
+                    "encrypt": false
+                },
+                {
+                    "key": "message_id",
+                    "type": "integer",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
+                },
+                {
+                    "key": "result_json",
+                    "type": "longtext",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "recorded_at",
+                    "type": "datetime",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "idx_trade_recorded",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "recorded_at"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "idx_trade_chat_msg",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "chat_id",
+                        "message_id"
+                    ],
+                    "orders": []
+                }
+            ]
+        },
+        {
+            "$id": "ssfx_raw_messages",
+            "$permissions": [],
+            "databaseId": "slwp_platform",
+            "name": "SSFX Raw Messages",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "data_json",
+                    "type": "longtext",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
+                }
+            ],
+            "indexes": []
+        },
+        {
+            "$id": "ssfx_signals",
+            "$permissions": [],
+            "databaseId": "slwp_platform",
+            "name": "SSFX Signals",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "data_json",
+                    "type": "longtext",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
+                }
+            ],
+            "indexes": []
+        },
+        {
+            "$id": "ssfx_trades",
+            "$permissions": [],
+            "databaseId": "slwp_platform",
+            "name": "SSFX Trades",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "data_json",
+                    "type": "longtext",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
+                }
+            ],
+            "indexes": []
         }
     ]
 }

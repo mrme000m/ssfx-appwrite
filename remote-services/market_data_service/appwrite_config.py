@@ -63,7 +63,7 @@ def get_appwrite_ids() -> tuple[str, str, str]:
     """Return (database_id, table_id, row_id) for the service config row."""
     settings = get_settings()
     return (
-        os.getenv("APPWRITE_DATABASE_ID", settings.ctrader_auth_database_id or "ctrader_auth"),
+        os.getenv("APPWRITE_DATABASE_ID", settings.ctrader_auth_database_id or "slwp_platform"),
         os.getenv("APPWRITE_CONFIG_TABLE_ID", "service_config"),
         os.getenv("APPWRITE_CONFIG_ROW_ID", "service_config"),
     )

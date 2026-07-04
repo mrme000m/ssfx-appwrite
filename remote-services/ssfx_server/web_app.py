@@ -14,19 +14,54 @@ from fastapi.responses import JSONResponse
 from telegram import Bot
 
 from market_data_service.signal_experience.classifier import extract_author
+from market_data_service.signal_experience.context_builder import build_intent_context
+from market_data_service.signal_experience.factory import create_signal_experience_store
 from market_data_service.signal_experience.scorer import SignalExperienceScorer
-from market_data_service.signal_experience.store import SignalExperienceStore
 from market_data_service.signal_experience.updater import SignalExperienceUpdater
-from ssfx_parser import RawMessage, SignalStatus
+from ssfx_parser import RawMessage, SignalStatus, TradeSignal
 from ssfx_trader.config import AccountConfig
 from ssfx_trader.factory import create_slave, create_parser
 from ssfx_trader.slave import AccountSlave
 from ssfx_trader.stores.appwrite_account_store import AppwriteAccountStore
+from ssfx_trader.stores.base import SignalStore
 from ssfx_trader.stores.noop_store import NoOpSignalStore
 
 from . import admin_api
+
+def _create_signal_store(config: ServerConfig) -> SignalStore:
+    """Create the configured signal store, falling back to SQLite when allowed."""
+    backend = config.signal_store_backend.lower()
+    if backend == "sqlite":
+        from ssfx_trader.stores.sqlite_signal_store import SQLiteSignalStore
+        return SQLiteSignalStore(config.signal_store_sqlite_path)
+    if backend == "noop":
+        return NoOpSignalStore()
+
+    if backend == "appwrite":
+        try:
+            from ssfx_trader.stores.appwrite_signal_store import AppwriteSignalStore
+            return AppwriteSignalStore(database_id=config.signal_store_appwrite_database_id)
+        except Exception as exc:
+            if config.signal_store_fallback_sqlite:
+                logger.warning(
+                    "Appwrite signal store unavailable (%s); falling back to SQLite at %s",
+                    exc,
+                    config.signal_store_sqlite_path,
+                )
+                from ssfx_trader.stores.sqlite_signal_store import SQLiteSignalStore
+                return SQLiteSignalStore(config.signal_store_sqlite_path)
+            logger.error(
+                "Appwrite signal store unavailable and fallback disabled: %s", exc
+            )
+            return NoOpSignalStore()
+
+    logger.warning("Unknown SIGNAL_STORE_BACKEND=%r; using NoOpSignalStore", backend)
+    return NoOpSignalStore()
 from .config_loader import ServerConfig, load_config
-from .signal_generator import GoldQuantGeneratorConfig, GoldQuantSignalGenerator
+from market_data_service.gold_quant_engine.generator import (
+    GoldQuantGeneratorConfig,
+    GoldQuantSignalGenerator,
+)
 from .telegram_webhook import parse_channel_post
 
 logger = logging.getLogger(__name__)
@@ -38,10 +73,7 @@ class AppState:
         self.trading_enabled = False
         # Account state is always read from Appwrite, even when trading is disabled.
         self.account_store = AppwriteAccountStore()
-        # Signal history: Appwrite-native signal store is not yet implemented.
-        # Using NoOp as placeholder; signal execution still works but history
-        # and duplicate-after-restart protection are not persisted.
-        self.signal_store = NoOpSignalStore()
+        self.signal_store: SignalStore = _create_signal_store(config)
         self.parser = create_parser(config.agent_config())
         self.slaves: dict[str, AccountSlave] = {}
         self._slave_tasks: set[asyncio.Task] = set()
@@ -50,7 +82,11 @@ class AppState:
         self._signal_generator: GoldQuantSignalGenerator | None = None
         if config.signal_experience_enabled:
             try:
-                exp_store = SignalExperienceStore(database_id=config.signal_experience_database_id)
+                # Use factory to create store with automatic fallback
+                exp_store = create_signal_experience_store(
+                    backend="auto",
+                    database_id=config.signal_experience_database_id,
+                )
                 self.experience_scorer = SignalExperienceScorer(
                     exp_store,
                     block_threshold=config.signal_experience_block_threshold,
@@ -68,13 +104,10 @@ class AppState:
             self.trading_enabled = False
             return
 
-        # Signal history is currently no-op; slaves still execute but
-        # duplicate-after-restart protection is not available until an
-        # Appwrite-native signal store is implemented.
         if isinstance(self.signal_store, NoOpSignalStore):
             logger.warning(
                 "NoOpSignalStore active — signal history not persisted. "
-                "Duplicate trades after restart are possible."
+                "Set SIGNAL_STORE_BACKEND=sqlite and mount a persistent volume to enable it."
             )
 
         source = "Appwrite"
@@ -270,6 +303,16 @@ async def _call_signal_intent_agent(
             "reply_to_message_id": msg.reply_to_message_id,
             "text": msg.text[:400],
         })
+
+    experience: dict[str, Any] | None = None
+    scorer = app_state.experience_scorer
+    if scorer is not None:
+        try:
+            signal_stub = TradeSignal(raw_text=text, message_id=message_id, chat_id=chat_id)
+            experience = build_intent_context(signal_stub, app_state.signal_store, scorer.store)
+        except Exception as exc:
+            logger.warning("Failed to build intent context for message %s: %s", message_id, exc)
+
     payload = {
         "raw_text": text,
         "message_id": message_id,
@@ -277,6 +320,7 @@ async def _call_signal_intent_agent(
         "reply_to_message_id": reply_to_message_id,
         "recent_messages": recent[-20:],
         "open_positions": [],
+        "experience": experience,
     }
     try:
         async with httpx.AsyncClient(timeout=2.5) as client:

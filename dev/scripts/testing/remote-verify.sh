@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# remote-services/remote-verify.sh — Remote verification test for Azure VM deployment.
+# remote-services/remote-verify.sh — Remote verification test for VM deployment.
 # Tests both localhost ports (VM internal) and public Cloudflare tunnel hostnames.
 #
 # Usage from local machine:
@@ -88,12 +88,12 @@ echo "[remote-verify] ============================================"
 
 # 6. Public hostnames via Cloudflare Tunnel
 echo "[6/6] Public hostname health checks via Cloudflare Tunnel..."
-check_http "pub/ssfx-api" "https://ssfx-api.mrme.tech/health"
-check_http "pub/dataservice" "https://dataservice.mrme.tech/health"
+check_http "pub/api" "https://api.mrme.tech/health"
+check_http "pub/market" "https://market.mrme.tech/health"
 check_http "pub/ds-sse" "https://ds-sse.mrme.tech/" "false"
 check_http "pub/ds-control" "https://ds-control.mrme.tech/feed/status"
-check_http "pub/ctrader-api" "https://ctrader-api.mrme.tech/health"
-check_http "pub/ctrader-ws" "https://ctrader-ws.mrme.tech/health"
+check_http "pub/ctrader" "https://ctrader.mrme.tech/health"
+check_http "pub/account-hub" "https://account-hub.mrme.tech/health"
 echo ""
 
 echo "============================================================"

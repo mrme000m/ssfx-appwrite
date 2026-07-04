@@ -45,6 +45,14 @@ class ServerConfig:
     gold_quant_signal_interval_sec: float
     gold_quant_min_confidence: float
     gold_quant_agent_min_confidence: float
+    signal_store_backend: str
+    signal_store_appwrite_database_id: str
+    appwrite_raw_messages_table: str
+    appwrite_parsed_signals_table: str
+    appwrite_signal_trades_table: str
+    signal_store_sqlite_path: str
+    signal_store_fallback_sqlite: bool
+    signal_webhook_secret: str
 
     @property
     def webhook_url(self) -> str:
@@ -107,8 +115,8 @@ def load_config(env_file: str | None = None) -> ServerConfig:
         appwrite_endpoint=_env("APPWRITE_ENDPOINT", "https://sgp.cloud.appwrite.io/v1"),
         appwrite_project_id=_env("APPWRITE_PROJECT_ID", "6a22a362002b9ae880bb"),
         appwrite_api_key=_env("APPWRITE_API_KEY"),
-        appwrite_database_id=_env("APPWRITE_DATABASE_ID", "6a44553f0034baa503c8"),
-        appwrite_accounts_table=_env("APPWRITE_ACCOUNTS_TABLE", "ssfx_accounts"),
+        appwrite_database_id=_env("APPWRITE_DATABASE_ID", "slwp_platform"),
+        appwrite_accounts_table=_env("APPWRITE_ACCOUNTS_TABLE", "signal_slaves"),
         appwrite_presets_table=_env("APPWRITE_PRESETS_TABLE", "ssfx_presets"),
         appwrite_executions_table=_env("APPWRITE_EXECUTIONS_TABLE", "ssfx_executions"),
         appwrite_risk_state_table=_env("APPWRITE_RISK_STATE_TABLE", "ssfx_risk_state"),
@@ -128,4 +136,12 @@ def load_config(env_file: str | None = None) -> ServerConfig:
         gold_quant_signal_interval_sec=float(_env("GOLD_QUANT_SIGNAL_INTERVAL_SEC", "60")),
         gold_quant_min_confidence=float(_env("GOLD_QUANT_MIN_CONFIDENCE", "0.75")),
         gold_quant_agent_min_confidence=float(_env("GOLD_QUANT_AGENT_MIN_CONFIDENCE", "0.65")),
+        signal_store_backend=_env("SIGNAL_STORE_BACKEND", "appwrite"),
+        signal_store_appwrite_database_id=_env("APPWRITE_SIGNAL_DATABASE_ID", "market_data"),
+        appwrite_raw_messages_table=_env("APPWRITE_RAW_MESSAGES_TABLE", "raw_messages"),
+        appwrite_parsed_signals_table=_env("APPWRITE_PARSED_SIGNALS_TABLE", "parsed_signals"),
+        appwrite_signal_trades_table=_env("APPWRITE_SIGNAL_TRADES_TABLE", "signal_trades"),
+        signal_store_sqlite_path=_env("SIGNAL_STORE_SQLITE_PATH", "/app/data/signals.db"),
+        signal_store_fallback_sqlite=_env("SIGNAL_STORE_FALLBACK_SQLITE", "true").lower() == "true",
+        signal_webhook_secret=_env("SIGNAL_WEBHOOK_SECRET", ""),
     )

@@ -25,7 +25,8 @@ Rules:
 1. If the message references an earlier message ID (reply_to), prefer linking to that message.
 2. If it says "TP HIT", "SL HIT", "CLOSE", "BREAKEVEN", "MOVE SL", "CANCEL", "ENTRY UPDATE" but no earlier matching signal exists, label it `orphan_close`.
 3. If the same trader posted an opposite trade recently, treat the newest message as `new_signal` and do NOT link it to the older opposite signal.
-4. Be concise; confidence should reflect ambiguity.
+4. Use the supplied signal intelligence (author streak, recent SLs, opposite-direction flag) to reduce confidence when the author is running cold or contradicting themselves.
+5. Be concise; confidence should reflect ambiguity.
 """
 
 
@@ -60,8 +61,26 @@ class SignalIntentAgent(BaseAgent):
             f"Reply to: {request.get('reply_to_message_id')}",
             f"Chat: {request.get('chat_id')}",
             "",
-            "Recent messages (oldest first):",
+            "Signal intelligence:",
         ]
+        experience = request.get("experience") or {}
+        if experience:
+            one_line = experience.get("one_line_summary")
+            if one_line:
+                lines.append(f"  {one_line}")
+            opp = experience.get("opposite_direction_recent") or {}
+            if opp.get("detected"):
+                lines.append(
+                    f"  ⚠️ Opposite-direction signal {opp.get('minutes_ago', '?')} min ago "
+                    f"(msg #{opp.get('opposite_message_id')}) - treat as NEW"
+                )
+            stats = experience.get("author_stats")
+            if stats and stats.get("current_streak", 0) <= -2:
+                lines.append(f"  Author streak is {stats['current_streak']} — be cautious.")
+        else:
+            lines.append("  No prior signal intelligence available.")
+
+        lines.extend(["", "Recent messages (oldest first):"])
         for msg in request.get("recent_messages", []):
             mid = msg.get("message_id", "?")
             reply = msg.get("reply_to_message_id")

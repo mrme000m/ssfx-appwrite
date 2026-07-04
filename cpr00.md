@@ -1,6 +1,6 @@
 # CPR00 — Signal Ingestion Guide for SSFX v2
 
-> How `appwrite-auth` (the downstream trading runtime) should receive trading signals from the upstream `alwaydata` Telegram forwarder.
+> How `appwrite-auth-consolidated` (the downstream trading runtime) should receive trading signals from the upstream `alwaydata` Telegram forwarder.
 >
 > **Last updated:** 2026-07-03 — reflects the signal-parser refactor, promo filtering, structured signal output, and direct HTTP push capability deployed to alwaysdata.
 
@@ -17,10 +17,10 @@
 - For pairs with `forward_via_bot=true`, text is forwarded via the Telegram Bot API (bot must be admin of the destination channel).
 - Snapshots are stored in MariaDB (`signal_log`).
 
-### Downstream: `/Volumes/ExMac/code/ssfx/appwrite-auth`
+### Downstream: `/Volumes/ExMac/code/ssfx/appwrite-auth-consolidated`
 - The trading runtime lives in `remote-services/` and runs on an Azure VM as a Docker container.
 - `ssfx_server/web_app.py` exposes a FastAPI webhook endpoint (`POST /webhook`) for the Telegram Bot API.
-- Incoming `channel_post` updates are parsed by `telegram_webhook.py`, stored in MongoDB, converted to `TradeSignal`, and routed to every configured `AccountFollower` for execution.
+- Incoming `channel_post` updates are parsed by `telegram_webhook.py`, stored in Appwrite TablesDB or local SQLite, converted to `TradeSignal`, and routed to every configured `AccountFollower` for execution.
 
 ```
 VIP source channel
@@ -45,7 +45,7 @@ alwaydata forwarder
        └──► SIGNAL_WEBHOOK_URL (optional direct HTTP push)
                     │
                     ▼
-            ssfx_server /api/signals/inject
+            ssfx_server /api/signals/webhook
 ```
 
 ---
@@ -174,7 +174,7 @@ Key behaviours:
 1. Only `channel_post` updates are processed (`ssfx_server/telegram_webhook.py`).
 2. The handler returns `200 OK` immediately so Telegram does not retry.
 3. Parsing and execution run in a background task.
-4. Raw messages are saved to MongoDB for replay/context.
+4. Raw messages are saved to Appwrite TablesDB or local SQLite for replay/context.
 5. The `ChainedParser` (LLM → regex) converts text to `TradeSignal`.
 6. The signal is distributed to every follower.
 
@@ -236,7 +236,7 @@ If you route admin snapshots to the same channel as destination signals (not rec
 
 ```bash
 # In alwaydata .env
-SIGNAL_WEBHOOK_URL=https://ssfx-api.mrme.tech/api/signals/inject
+SIGNAL_WEBHOOK_URL=https://ssfx-api.mrme.tech/api/signals/webhook
 SIGNAL_WEBHOOK_SECRET=shared-secret-between-alwaydata-and-ssfx
 ```
 
@@ -309,12 +309,12 @@ The upstream forwarder now has **three layers of token resilience** for its cTra
    - Filter by `post.chat_id == SOURCE_CHAT_ID`.
    - Return `200 OK` fast to avoid Telegram retries.
 
-2. **Direct HTTP push (`/api/signals/inject`):**
+2. **Direct HTTP push (`/api/signals/webhook`):**
    - Verify `X-Signal-Signature` HMAC against `SIGNAL_WEBHOOK_SECRET`.
    - Rate-limit the endpoint (e.g. max 10 req/s per IP).
    - Reject unknown fields to prevent injection.
 
-3. **Admin API key:** Keep `ADMIN_API_KEY` long and random; it protects `/api/signals/inject` when used outside the webhook flow.
+3. **Admin API key:** Keep `ADMIN_API_KEY` long and random; it protects `/api/signals/inject` for manual/admin injections. Direct webhooks use `SIGNAL_WEBHOOK_SECRET` instead.
 
 4. **Bot token:** Store `TELEGRAM_BOT_TOKEN` in `v2.env` only; never commit it.
 
@@ -327,7 +327,7 @@ The upstream forwarder now has **three layers of token resilience** for its cTra
 ### Start the runtime
 
 ```bash
-cd /Volumes/ExMac/code/ssfx/appwrite-auth/remote-services
+cd /Volumes/ExMac/code/ssfx/appwrite-auth-consolidated/remote-services
 docker compose up -d
 ```
 
@@ -377,7 +377,7 @@ curl -X POST https://ssfx-api.mrme.tech/api/signals/inject \
 | Scenario | Recommended Reception | File/Path | Notes |
 |----------|----------------------|-----------|-------|
 | Production (public URL) | **Bot webhook** | `ssfx_server/web_app.py::telegram_webhook` | Standard, battle-tested |
-| Production (lowest latency) | **Direct HTTP push** | `signal_processor.py::_post_webhook` → `admin_api.py::inject_signal` | Requires `SIGNAL_WEBHOOK_URL` + secret |
+| Production (lowest latency) | **Direct HTTP push** | `signal_processor.py::_post_webhook` → `admin_api.py::signal_webhook` | Requires `SIGNAL_WEBHOOK_URL` + secret |
 | Local dev / no public URL | Long-polling `getUpdates` | add `_poll_updates` task | Higher latency, simple setup |
 | Price-augmented admin snapshots | Ignore in parser | `telegram_webhook.py` diagnostic guard | Already implemented |
 | Promo/spam from source | **Nothing to do** — upstream drops them | `signal_parser.py::is_promo()` | Zero false positives observed |
@@ -399,7 +399,7 @@ If you are an **AI agent** updating or extending this system, here are the integ
 
 ### Upstream → Downstream Contract (Direct HTTP push)
 
-- **Endpoint:** `POST <SIGNAL_WEBHOOK_URL>`
+- **Endpoint:** `POST <SIGNAL_WEBHOOK_URL>` (downstream route is `/api/signals/webhook`)
 - **Headers:**
   - `Content-Type: application/json`
   - `X-Signal-Signature: sha256=<hex>`
@@ -433,7 +433,7 @@ If you are an **AI agent** updating or extending this system, here are the integ
 - If the webhook update is not a `channel_post`, ignore it (`parse_channel_post` returns `None`).
 - If the text contains `Price-augmented signal`, ignore it (diagnostic).
 - If `chat_id` does not match `SOURCE_CHAT_ID`, ignore it (source filtering).
-- Save raw text to MongoDB before parsing so signals can be replayed.
+- Save raw text to Appwrite TablesDB or local SQLite before parsing so signals can be replayed.
 
 ---
 
@@ -441,6 +441,6 @@ If you are an **AI agent** updating or extending this system, here are the integ
 
 - The upstream now has a **production-grade signal parser** that drops promos and classifies messages before forwarding.
 - **Price augmentation is entry-only** — you will not receive augmented snapshots for manage/close messages.
-- The **recommended production path** remains the Telegram Bot API webhook, but the **direct HTTP push (`SIGNAL_WEBHOOK_URL`)** is the lowest-latency option and includes pre-fetched bid/ask data.
+- The **recommended production path** remains the Telegram Bot API webhook, but the **direct HTTP push (`SIGNAL_WEBHOOK_URL` → `/api/signals/webhook`)** is the lowest-latency option and includes pre-fetched bid/ask data.
 - The upstream can **self-heal cTrader token issues** via a three-tier fallback (broker → refresh → web login), improving overall availability.
 - For agents modifying this system: respect the contracts in §13, verify HMAC signatures on direct pushes, and always filter by `SOURCE_CHAT_ID`.

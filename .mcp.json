@@ -4,9 +4,9 @@
       "command": "/Users/m/.local/bin/mcp-server-appwrite",
       "args": [],
       "env": {
-        "APPWRITE_PROJECT_ID": "${APPWRITE_PROJECT_ID}",
-        "APPWRITE_API_KEY": "${APPWRITE_API_KEY}",
-        "APPWRITE_ENDPOINT": "${APPWRITE_ENDPOINT}"
+        "APPWRITE_PROJECT_ID": "6a22a362002b9ae880bb",
+        "APPWRITE_API_KEY": "standard_32911ff554573e3f8c230b3b6062c5bf17909c0ea6098982268031e2ed9a3d0ecabfdeb656d7bb007fbf04ca20c347500186212c4a63d74d9cb8b9f47ce2eb3bc61c491134b5e10205c5fd75ec52afca46f96c1ca662cd1f8e119c302f94bfd46eaa949db8511c220c599cdcf26a298846ffc84bef977c510fa0b9ec9c6dadc3",
+        "APPWRITE_ENDPOINT": "https://sgp.cloud.appwrite.io/v1"
       }
     },
     "appwrite-docs": {

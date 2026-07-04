@@ -26,8 +26,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass(slots=True)
 class PersisterConfig:
-    database_id: str = "ctrader_auth"
-    table_id: str = "account_events"
+    database_id: str = "slwp_platform"
+    table_id: str = "account_state_history"
     batch_size: int = 50
     flush_interval_seconds: float = 5.0
 

@@ -266,10 +266,10 @@ This section records the current names, the proposed names, and the rationale. T
 |---|---|---|
 | `auth.mrme.tech` | `auth.mrme.tech` | Keep; primary auth domain. |
 | `pin.mrme.tech` | merge to `auth.mrme.tech` | Single auth domain with paths `/auth/pin/*`. |
-| `ssfx-api.mrme.tech` | `api.mrme.tech` | Generic, shorter, service-agnostic. |
-| `dataservice.mrme.tech` | `market.mrme.tech` | Matches market-data purpose. |
-| `agent.mrme.tech` | `ai.mrme.tech` | Shorter, describes function. |
-| `pplx-agent.mrme.tech` | `research.mrme.tech` | Describes long-term research role. |
+| `api.mrme.tech` | `api.mrme.tech` | Generic, shorter, service-agnostic. |
+| `market.mrme.tech` | `market.mrme.tech` | Matches market-data purpose. |
+| `ai.mrme.tech` | `ai.mrme.tech` | Shorter, describes function. |
+| `pplx-ai.mrme.tech` | `research.mrme.tech` | Describes long-term research role. |
 | `account-hub.mrme.tech` | keep | Clear purpose. |
 
 #### Functions
@@ -345,12 +345,12 @@ Current ingress (source of truth: `remote-services/config/tunnel-ingress.json`):
 
 | Hostname | Local service | Purpose |
 |---|---|---|
-| `ssfx-api.mrme.tech` | `localhost:8000` | Telegram webhook + admin API |
+| `api.mrme.tech` | `localhost:8000` | Telegram webhook + admin API |
 | `ds-control.mrme.tech` | `localhost:9000` | Data service control API |
 | `ds-sse.mrme.tech` | `localhost:9001` | MCP SSE live price/tools |
-| `dataservice.mrme.tech` | `localhost:9002` | Market data REST API |
-| `agent.mrme.tech` | `localhost:9003` | AI agent harness |
-| `pplx-agent.mrme.tech` | `localhost:9004` | Perplexity research agent |
+| `market.mrme.tech` | `localhost:9002` | Market data REST API |
+| `ai.mrme.tech` | `localhost:9003` | AI agent harness |
+| `pplx-ai.mrme.tech` | `localhost:9004` | Perplexity research agent |
 | `ctrader.mrme.tech` | `localhost:9300` | cTrader unified service |
 | `account-hub.mrme.tech` | `localhost:9301` | Account hub WebSocket |
 | `app.mrme.tech` | Appwrite Site | SSFX HQ SPA |

@@ -6,10 +6,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 TARGET="${1:-aws}"
 
-SETUP_SCRIPT="${PROJECT_ROOT}/remote-services/setup_vm.py"
+SETUP_SCRIPT="${PROJECT_ROOT}/dev/scripts/setup_vm.py"
 
 case "${TARGET}" in
   aws|vm|default)

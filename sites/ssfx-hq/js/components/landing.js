@@ -4,11 +4,15 @@
 window.LandingComponent = (function () {
   function mount(container) {
     const authenticated = window.Auth.isAuthenticated();
+    const hasGrant = !!window.appState.grantId;
     const cta = authenticated
-      ? `<a class="btn btn-lg btn-primary" href="#/dashboard">Open Command Deck</a>
-         <a class="btn btn-lg btn-ghost" href="#/login">Switch Account</a>`
+      ? (hasGrant
+          ? `<a class="btn btn-lg btn-primary" href="#/dashboard">Open Command Deck</a>
+             <a class="btn btn-lg btn-ghost" href="#/login">Switch Account</a>`
+          : `<a class="btn btn-lg btn-primary" href="${window.API.CFG.authDomain}/auth/ctrader/start?scope=trading">Connect cTrader</a>
+             <a class="btn btn-lg btn-ghost" href="#/login">Switch Account</a>`)
       : `<a class="btn btn-lg btn-primary" href="#/login">Login with PIN</a>
-         <a class="btn btn-lg btn-ghost" href="${window.API.CFG.authDomain}/auth/ctrader/start">Connect cTrader</a>`;
+         <a class="btn btn-lg btn-ghost" href="#/register">Create Account</a>`;
 
     container.innerHTML = `
       <div class="public-page">

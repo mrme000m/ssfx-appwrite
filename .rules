@@ -111,6 +111,10 @@ Cross-agent rules for OpenCode, Claude Code, and Qwen Code working on the slwp p
 - **Config storage**: Store third-party service credentials and configuration in dedicated config tables (e.g., `service_config`), not in user/data tables.
 - **OAuth config**: cTrader OAuth configuration must be stored in the `service_config` table, not in `slave_accounts`.
 
+## Appwrite CLI Skill — Mandatory Load
+
+Before running **any** Appwrite CLI command, modifying `appwrite.config.json`, creating tables/columns, or pushing schemas, **load the `appwrite-cli` skill** from `.qwen/skills/appwrite-cli/SKILL.md` (Qwen) or `.agents/skills/appwrite-cli/SKILL.md` (OpenCode). It contains critical pitfalls (row-ID constraints, non-interactive push flags, column defaults, package naming) learned from production issues. Do not skip it.
+
 ## Agent Collaboration
 
 - Read `AGENTS.md` in the project root for full project context, credentials, and conventions.

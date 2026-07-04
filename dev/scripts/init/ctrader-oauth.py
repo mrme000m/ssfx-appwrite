@@ -16,7 +16,7 @@ from appwrite.services.tables_db import TablesDB
 
 from _env import load_env
 
-DB_ID = "ctrader_auth"
+DB_ID = "slwp_platform"
 SERVICE_CONFIG_KEY = "ctrader_oauth"
 
 
@@ -81,6 +81,7 @@ def main() -> int:
         "client_secret": ctrader["client_secret"],
         "redirect_uri": ctrader["redirect_uri"],
         "environment": ctrader["environment"],
+        "scope": ctrader.get("scope", "trading"),
     }
 
     body = {

@@ -14,7 +14,7 @@ This document captures the architecture, conventions, and operational details di
 | Appwrite organization | `685456084475475206c2` |
 | Primary domain | `mrme.tech` |
 | Cloudflare tunnel | `ssfx_azurue` (`d1e96e86-a44a-457a-a60c-e7d5d5d675bd`) |
-| AWS VM | `aws-ssfx` (current IP `18.207.246.5`, user `ec2-user`) — canonical deployer: `remote-services/setup_vm.py` |
+| AWS VM | `aws-ssfx` (current IP `18.207.246.5`, user `ec2-user`) — canonical deployer: `dev/scripts/setup_vm.py` |
 
 ---
 
@@ -44,7 +44,7 @@ Commands are discovered automatically; hyphens in command names map to underscor
 | `test` | `dev/scripts/test.sh` | Stub |
 | `lint` | `dev/scripts/testing/lint.sh` | Implemented |
 | `integration-test` | `dev/scripts/testing/integration_test.py` | Implemented |
-| `deploy` | `dev/scripts/deploy/deploy.sh` | Implemented (delegates to `remote-services/setup_vm.py`) |
+| `deploy` | `dev/scripts/deploy/deploy.sh` | Implemented (delegates to `dev/scripts/setup_vm.py`) |
 | `deploy-remote <target>` | `dev/scripts/deploy/deploy-remote.sh` | Stub for Azure |
 | `deploy-status` | `dev/scripts/deploy/deploy-status.sh` | Implemented |
 | `init` | `dev/scripts/init.sh` | Implemented |
@@ -177,8 +177,8 @@ Two competing paths exist:
 
 | Script | Remote directory | Notes |
 |--------|------------------|-------|
-| `remote-services/setup_vm.py` | `~/ssfx-remote-services` | **Canonical** AWS VM provision + sync + build + deploy |
-| `remote-services/setup-vm.sh` | `~/ssfx-remote-services` | Thin shell wrapper around `setup_vm.py` |
+| `dev/scripts/setup_vm.py` | `~/ssfx-remote-services` | **Canonical** AWS VM provision + sync + build + deploy |
+| `dev/scripts/setup-vm.sh` | `~/ssfx-remote-services` | Thin shell wrapper around `setup_vm.py` |
 
 | `dev/scripts/ops/remote-services-sync.py` | `~/ctrader-services` | **Deprecated** — stale target directory |
 
@@ -192,14 +192,14 @@ Current intended public hostnames (from `remote-services/config/tunnel-ingress.j
 
 | Hostname | VM service | Port |
 |----------|------------|------|
-| `dataservice.mrme.tech` | localhost | 9002 |
+| `market.mrme.tech` | localhost | 9002 |
 | `ds-sse.mrme.tech` | localhost | 9001 |
-| `ssfx-api.mrme.tech` | localhost | 8000 |
+| `api.mrme.tech` | localhost | 8000 |
 | `ds-control.mrme.tech` | localhost | 9000 |
 | `ds-sse.mrme.tech` | localhost | 9001 |
-| `dataservice.mrme.tech` | localhost | 9002 |
-| `agent.mrme.tech` | localhost | 9003 |
-| `pplx-agent.mrme.tech` | localhost | 9004 |
+| `market.mrme.tech` | localhost | 9002 |
+| `ai.mrme.tech` | localhost | 9003 |
+| `pplx-ai.mrme.tech` | localhost | 9004 |
 | `ctrader.mrme.tech` | localhost | 9300 |
 | `account-hub.mrme.tech` | localhost | 9301 |
 
@@ -322,6 +322,6 @@ appwrite projects get --project-id 6a22a362002b9ae880bb
 curl https://auth.mrme.tech/session
 curl https://app.mrme.tech/
 
-# AWS VM (canonical deployer: remote-services/setup_vm.py)
+# AWS VM (canonical deployer: dev/scripts/setup_vm.py)
 ssh aws-ssfx 'cd ~/ssfx-remote-services && docker compose ps'
 ```

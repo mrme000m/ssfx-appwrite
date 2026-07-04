@@ -52,7 +52,7 @@ def main():
     )
     db = TablesDB(client)
     db_id = "ctrader_auth"
-    table_id = "trade_configs"
+    table_id = "trade_settings"
 
     print("[migrate] Fetching trade_configs rows...")
     offset = 0

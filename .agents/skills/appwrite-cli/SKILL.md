@@ -795,6 +795,51 @@ appwrite update --manual
 appwrite completion install
 ```
 
+## Pitfalls & Lessons Learned (Do Not Repeat)
+
+### Package name is `appwrite-cli`, not `appwrite`
+- The npm package `appwrite` is the **JavaScript SDK** and does **not** install the CLI binary.
+- Correct install: `npm install -g appwrite-cli@latest`
+- Verify with `appwrite --version` and `which appwrite`.
+- After install, the binary may be under the npm global prefix (e.g. `/Volumes/Spare/npm/global/bin/appwrite`). The mise shim may need a moment to resurface.
+
+### Row IDs have strict constraints
+- Appwrite row IDs must be **≤36 characters**.
+- Valid characters: `a-z`, `A-Z`, `0-9`, and `_` only.
+- **No colons, no hyphens, no leading underscore**.
+- If you need a composite key like `{chat_id}:{message_id}`, replace the separator with `_` and truncate to 36 chars: `f"{chat_id}_{message_id}"[:36]`.
+
+### Non-interactive `push` requires `--all --force`
+- `appwrite push tables` alone opens an interactive picker in the terminal.
+- For CI/CD or scripted use, always add **`--all --force`**:
+  ```bash
+  appwrite push tables --all --force
+  appwrite push functions --all --force
+  ```
+
+### Local config must be a superset of remote tables
+- `appwrite push tables` compares local `appwrite.config.json` against the remote project.
+- If a table exists remotely but is **missing from local config**, the CLI will plan to **DELETE** it.
+- Before pushing, ensure all remote tables are represented in `appwrite.config.json`.
+- Use `appwrite pull tables` cautiously — it overwrites local config with remote state.
+
+### Cannot set `default` on `required: true` columns
+- Appwrite rejects a non-null `default` on a column marked `required: true`.
+- Workarounds:
+  - Make the column `required: false` and keep the `default` value.
+  - Keep `required: true` and set `default: null`, then set the value explicitly in code.
+
+### Use `tables-db`, not legacy `databases`
+- The `appwrite databases` command is marked **(Legacy)** and only supports collections/documents.
+- For TablesDB (rows, columns, indexes), use **`appwrite tables-db`**:
+  - `appwrite tables-db create-table`
+  - `appwrite tables-db create-varchar-column`
+  - `appwrite tables-db list-rows`
+
+### Updating the CLI via npm can break the symlink
+- If `appwrite` suddenly becomes "command not found" after `npm install -g appwrite-cli@latest`, the symlink target may have changed.
+- Fix: check `ls -la $(npm prefix -g)/bin/appwrite` and recreate the symlink if needed.
+
 ## Examples
 
 ```bash

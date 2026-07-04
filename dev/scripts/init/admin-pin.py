@@ -20,7 +20,7 @@ from appwrite.services.users import Users
 
 from _env import load_env
 
-DB_ID = "ctrader_auth"
+DB_ID = "slwp_platform"
 MASTER_AUTH_KEY = "master_auth"
 MASTER_USERNAME = "admin"
 

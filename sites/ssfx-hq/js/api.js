@@ -1,8 +1,17 @@
 /**
  * SSFX HQ — API clients for auth functions, SSFX v2 server, agent harness, and data service.
+ * Supports both new (post-consolidation) and legacy config keys during cutover.
  */
 window.API = (function () {
   const CFG = window.APP_CONFIG || {};
+
+  // Backward-compatible base URLs (new names preferred, old names as fallback)
+  const API_BASE = CFG.apiBase || CFG.v2ApiBase || '';
+  const MARKET_BASE = CFG.marketBase || CFG.dataserviceBase || '';
+  const AI_BASE = CFG.aiBase || CFG.agentHarnessBase || '';
+  const RESEARCH_BASE = CFG.researchBase || CFG.pplxAgentBase || '';
+  const ADMIN_KEY = CFG.adminKey || CFG.v2AdminKey || '';
+  const MARKET_API_KEY = CFG.marketApiKey || CFG.dataserviceApiKey || '';
 
   async function fetchJson(url, options = {}) {
     const headers = {
@@ -17,24 +26,24 @@ window.API = (function () {
     return data;
   }
 
-  async function fetchV2(url, options = {}) {
+  async function fetchApi(url, options = {}) {
     const headers = {
       'Content-Type': 'application/json',
       ...(options.headers || {}),
     };
-    if (CFG.v2AdminKey) {
-      headers['x-admin-key'] = CFG.v2AdminKey;
+    if (ADMIN_KEY) {
+      headers['x-admin-key'] = ADMIN_KEY;
     }
     return fetchJson(url, { ...options, headers });
   }
 
-  async function fetchDataService(url, options = {}) {
+  async function fetchMarket(url, options = {}) {
     const headers = {
       'Content-Type': 'application/json',
       ...(options.headers || {}),
     };
-    if (CFG.dataserviceApiKey) {
-      headers['Authorization'] = `Bearer ${CFG.dataserviceApiKey}`;
+    if (MARKET_API_KEY) {
+      headers['Authorization'] = `Bearer ${MARKET_API_KEY}`;
     }
     return fetchJson(url, { ...options, headers });
   }
@@ -51,38 +60,43 @@ window.API = (function () {
     setCredentials: (body) => fetchJson(`${CFG.pinDomain}/set-credentials`, { method: 'POST', body: JSON.stringify(body) }),
     pinResetRequest: (body) => fetchJson(`${CFG.pinDomain}/pin-reset/request`, { method: 'POST', body: JSON.stringify(body) }),
     pinResetConfirm: (body) => fetchJson(`${CFG.pinDomain}/pin-reset/confirm`, { method: 'POST', body: JSON.stringify(body) }),
+    register: (body) => fetchJson(`${CFG.pinDomain}/register`, { method: 'POST', body: JSON.stringify(body) }),
   };
 
-  const V2API = {
-    health: () => fetchV2(`${CFG.v2ApiBase}/health`),
-    listAccounts: () => fetchV2(`${CFG.v2ApiBase}/api/accounts`),
-    accountState: (name) => fetchV2(`${CFG.v2ApiBase}/api/accounts/${encodeURIComponent(name)}/state`),
-    updateAccount: (name, patch) => fetchV2(`${CFG.v2ApiBase}/api/accounts/${encodeURIComponent(name)}`, { method: 'PATCH', body: JSON.stringify(patch) }),
-    listSignals: (limit = 50) => fetchV2(`${CFG.v2ApiBase}/api/signals?limit=${limit}`),
-    signalExecutions: (chatId, messageId) => fetchV2(`${CFG.v2ApiBase}/api/signals/${encodeURIComponent(chatId)}/${messageId}/executions`),
-    injectSignal: (payload) => fetchV2(`${CFG.v2ApiBase}/api/signals/inject`, { method: 'POST', body: JSON.stringify(payload) }),
-    listExecutions: (limit = 50) => fetchV2(`${CFG.v2ApiBase}/api/executions?limit=${limit}`),
-    agentLogs: (limit = 50) => fetchV2(`${CFG.v2ApiBase}/api/agent-logs?limit=${limit}`),
-    signalExperience: () => fetchV2(`${CFG.v2ApiBase}/api/signal-experience`).catch(() => ({})),
-    executionsStream: () => new EventSource(`${CFG.v2ApiBase}/api/executions/stream`, { withCredentials: true }),
+  const API = {
+    health: () => fetchApi(`${API_BASE}/health`),
+    listAccounts: () => fetchApi(`${API_BASE}/api/accounts`),
+    accountState: (name) => fetchApi(`${API_BASE}/api/accounts/${encodeURIComponent(name)}/state`),
+    updateAccount: (name, patch) => fetchApi(`${API_BASE}/api/accounts/${encodeURIComponent(name)}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+    listSignals: (limit = 50) => fetchApi(`${API_BASE}/api/signals?limit=${limit}`),
+    signalExecutions: (chatId, messageId) => fetchApi(`${API_BASE}/api/signals/${encodeURIComponent(chatId)}/${messageId}/executions`),
+    injectSignal: (payload) => fetchApi(`${API_BASE}/api/signals/inject`, { method: 'POST', body: JSON.stringify(payload) }),
+    listExecutions: (limit = 50) => fetchApi(`${API_BASE}/api/executions?limit=${limit}`),
+    agentLogs: (limit = 50) => fetchApi(`${API_BASE}/api/agent-logs?limit=${limit}`),
+    signalExperience: () => fetchApi(`${API_BASE}/api/signal-experience`).catch(() => ({})),
+    executionsStream: () => new EventSource(`${API_BASE}/api/executions/stream`, { withCredentials: true }),
   };
 
   const AgentAPI = {
-    health: () => fetchJson(`${CFG.agentHarnessBase}/health`),
-    signalIntent: (payload) => fetchJson(`${CFG.agentHarnessBase}/agent/v1/signal/intent`, { method: 'POST', body: JSON.stringify(payload) }),
-    entryDecision: (payload) => fetchJson(`${CFG.agentHarnessBase}/agent/v1/entry/decision`, { method: 'POST', body: JSON.stringify(payload) }),
-    lifecyclePlan: (payload) => fetchJson(`${CFG.agentHarnessBase}/agent/v1/lifecycle/plan`, { method: 'POST', body: JSON.stringify(payload) }),
+    health: () => fetchJson(`${AI_BASE}/health`),
+    signalIntent: (payload) => fetchJson(`${AI_BASE}/agent/v1/signal/intent`, { method: 'POST', body: JSON.stringify(payload) }),
+    entryDecision: (payload) => fetchJson(`${AI_BASE}/agent/v1/entry/decision`, { method: 'POST', body: JSON.stringify(payload) }),
+    lifecyclePlan: (payload) => fetchJson(`${AI_BASE}/agent/v1/lifecycle/plan`, { method: 'POST', body: JSON.stringify(payload) }),
   };
 
-  const DataAPI = {
-    health: () => fetchDataService(`${CFG.dataserviceBase}/api/v1/health`),
-    goldQuant: () => fetchDataService(`${CFG.dataserviceBase}/api/v1/gold/quant`).catch(() => ({})),
-    goldMtf: () => fetchDataService(`${CFG.dataserviceBase}/api/v1/gold/mtf`).catch(() => ({})),
-    feedStatus: () => fetchDataService(`${CFG.dataserviceBase}/api/v1/feed/status`).catch(() => ({})),
-    symbols: () => fetchDataService(`${CFG.dataserviceBase}/api/v1/symbols`).catch(() => []),
+  const ResearchAPI = {
+    health: () => fetchJson(`${RESEARCH_BASE}/health`).catch(() => ({})),
+  };
+
+  const MarketAPI = {
+    health: () => fetchMarket(`${MARKET_BASE}/api/v1/health`),
+    goldQuant: () => fetchMarket(`${MARKET_BASE}/api/v1/gold/quant`).catch(() => ({})),
+    goldMtf: () => fetchMarket(`${MARKET_BASE}/api/v1/gold/mtf`).catch(() => ({})),
+    feedStatus: () => fetchMarket(`${MARKET_BASE}/api/v1/feed/status`).catch(() => ({})),
+    symbols: () => fetchMarket(`${MARKET_BASE}/api/v1/symbols`).catch(() => []),
     quality: (symbol) => {
       const path = symbol ? `/api/v1/quality/${encodeURIComponent(symbol)}` : '/api/v1/quality';
-      return fetchDataService(`${CFG.dataserviceBase}${path}`).catch(() => ({}));
+      return fetchMarket(`${MARKET_BASE}${path}`).catch(() => ({}));
     },
   };
 
@@ -93,12 +107,19 @@ window.API = (function () {
     return new window.Appwrite.TablesDB(client);
   }
 
+  // Backward-compatible aliases during hostname/naming cutover
+  const V2API = API;
+  const DataAPI = MarketAPI;
+
   return {
     CFG,
     fetchJson,
     AuthAPI,
+    API,
     V2API,
     AgentAPI,
+    ResearchAPI,
+    MarketAPI,
     DataAPI,
     getTablesDB,
   };

@@ -49,7 +49,7 @@ async function main() {
   const db = new TablesDB(client);
 
   const PROJECT_ID = process.env.APPWRITE_PROJECT_ID;
-  const DB_ID = 'ctrader_auth';
+  const DB_ID = 'slwp_platform';
 
   // Find or create user
   let userId = null;
@@ -98,7 +98,7 @@ async function main() {
   try {
     const list = await db.listRows({
       databaseId: DB_ID,
-      tableId: 'slave_accounts',
+      tableId: 'users',
       queries: [Query.equal('appwrite_user_id', userId)],
     });
     if (list.rows.length > 0) {
@@ -113,7 +113,7 @@ async function main() {
     try {
       await db.createRow({
         databaseId: DB_ID,
-        tableId: 'slave_accounts',
+        tableId: 'users',
         rowId: masterRowId,
         data: {
           appwrite_user_id: userId,
@@ -140,7 +140,7 @@ async function main() {
     try {
       await db.updateRow({
         databaseId: DB_ID,
-        tableId: 'slave_accounts',
+        tableId: 'users',
         rowId: existingRow.$id,
         data: {
           pin_hash: pinHash,

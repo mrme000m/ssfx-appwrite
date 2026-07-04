@@ -38,7 +38,7 @@ async def main() -> None:
         api_key=config.appwrite_api_key,
     )
 
-    database_id = config.ctrader_auth_database_id or "ctrader_auth"
+    database_id = config.ctrader_auth_database_id or "slwp_platform"
 
     hub = AccountHubV2(
         appwrite_client=appwrite_client,
