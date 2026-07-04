@@ -51,6 +51,12 @@ RUNTIME_TABLES = [
     "signal_broadcasts",
     "signal_slaves",
     "ssfx_executions",
+    "ssfx_accounts",
+    "ssfx_signals",
+    "ssfx_trades",
+    "ssfx_risk_state",
+    "ssfx_raw_messages",
+    "ctrader_accounts",
 ]
 
 
@@ -163,6 +169,30 @@ def create_admin(users: Users, db: TablesDB, email: str, pin: str) -> str:
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
     db.create_row(database_id=DB_ID, table_id="service_config", row_id=ID.unique(), data=body)
+
+    # Also create users row so auth-oauth callback can find the master admin.
+    from appwrite.permission import Permission
+    from appwrite.role import Role
+    db.create_row(
+        database_id=DB_ID,
+        table_id="users",
+        row_id=ID.unique(),
+        data={
+            "appwrite_user_id": user_id,
+            "username": MASTER_USERNAME,
+            "pin_hash": pin_hash,
+            "role": "master",
+            "grant_id": "",
+            "active": True,
+            "status": "active",
+            "email": email,
+        },
+        permissions=[
+            Permission.read(Role.user(user_id)),
+            Permission.update(Role.user(user_id)),
+            Permission.read(Role.users()),
+        ],
+    )
     return user_id
 
 

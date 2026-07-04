@@ -33,7 +33,7 @@ def get_admin_pin():
 
 def get_auth_cookie(admin_pin):
     """Authenticate with the admin PIN and get session cookie."""
-    auth_url = 'https://auth.mrme.tech/pin-login'
+    auth_url = 'https://pin.mrme.tech/pin-login'
     
     payload = {
         'username': 'admin',

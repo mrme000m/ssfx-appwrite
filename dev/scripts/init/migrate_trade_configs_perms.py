@@ -51,7 +51,7 @@ def main():
         .set_key(os.environ["APPWRITE_API_KEY"])
     )
     db = TablesDB(client)
-    db_id = "ctrader_auth"
+    db_id = "slwp_platform"
     table_id = "trade_settings"
 
     print("[migrate] Fetching trade_configs rows...")
