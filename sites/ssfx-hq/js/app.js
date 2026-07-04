@@ -121,11 +121,14 @@
     const session = await window.Auth.checkSession();
     window.appState.initialized = true;
 
-    // Handle OAuth callback success state
+    // Handle OAuth callback state
     const query = window.Router.getQueryParams ? window.Router.getQueryParams() : {};
     if (query.success === 'true') {
       window.appState.justLinked = true;
       window.UI.toast && window.UI.toast('cTrader connected successfully. Discovering accounts…', 'success');
+      window.Router.clearQueryParams && window.Router.clearQueryParams();
+    } else if (query.success === 'false' && query.error) {
+      window.UI.toast && window.UI.toast(`cTrader connection failed: ${query.error}`, 'error');
       window.Router.clearQueryParams && window.Router.clearQueryParams();
     }
 

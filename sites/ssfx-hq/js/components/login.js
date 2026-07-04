@@ -3,6 +3,9 @@
  */
 window.LoginComponent = (function () {
   function mount(container) {
+    const params = window.Router.getQueryParams ? window.Router.getQueryParams() : {};
+    const loginRequired = params.error === 'login_required';
+
     container.innerHTML = `
       <div class="public-page">
         <div class="public-card">
@@ -10,6 +13,7 @@ window.LoginComponent = (function () {
             <h1>Enter PIN</h1>
             <p>Authenticate to access your command deck.</p>
           </div>
+          ${loginRequired ? '<div class="alert alert-info" style="margin-bottom:16px">Please login to connect your cTrader account.</div>' : ''}
           <form id="login-form" autocomplete="off">
             <div class="form-group" style="margin-bottom:16px">
               <label class="form-label">Username</label>

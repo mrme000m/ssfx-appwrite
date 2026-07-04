@@ -208,7 +208,10 @@ async function handleStart(req, res, log) {
     log(`OAuth start using authenticated user=${userId}`);
   } else {
     log('OAuth start rejected: no authenticated session');
-    return res.json({ error: 'Login required. Please authenticate with PIN before connecting cTrader.' }, 401, corsHeaders(req.headers['origin'] || ''));
+    const sitesUrl = process.env.SITES_URL || 'https://app.mrme.tech';
+    return res.send('', 302, {
+      Location: `${sitesUrl}/#/login?error=login_required`,
+    });
   }
 
   const requestedScope = typeof req.query.scope === 'string' ? req.query.scope.trim().toLowerCase() : '';
@@ -842,3 +845,4 @@ async function handleAdminResetSlave(req, res, grantId, log, error) {
     return res.json({ error: 'Failed to reset slave' }, 500, corsHeaders(req.headers['origin'] || ''));
   }
 }
+// cache-bust: 1783199021
