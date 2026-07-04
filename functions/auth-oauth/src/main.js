@@ -30,6 +30,14 @@ const {
 const PROJECT_ID = process.env.APPWRITE_PROJECT_ID;
 const DB_ID = process.env.CTRADER_AUTH_DATABASE_ID;
 
+const ALLOWED_SCOPES = ['accounts', 'trading'];
+const DEFAULT_SCOPE = 'trading';
+
+function normalizeScope(value) {
+  const scope = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return ALLOWED_SCOPES.includes(scope) ? scope : DEFAULT_SCOPE;
+}
+
 // Load OAuth config from service_config when available, falling back to env vars.
 // The redirect URI is validated and must be configured explicitly; the old
 // `${SITES_URL}/callback` fallback is removed because the OAuth callback must
@@ -43,6 +51,7 @@ async function getOAuthConfig() {
       clientSecret: svc.client_secret,
       redirectUri: validateRedirectUri(svc.redirect_uri),
       environment: svc.environment,
+      scope: normalizeScope(svc.scope),
     };
   }
   return {
@@ -50,6 +59,7 @@ async function getOAuthConfig() {
     clientSecret: process.env.CTRADER_CLIENT_SECRET,
     redirectUri: validateRedirectUri(process.env.CTRADER_REDIRECT_URI),
     environment: process.env.CTRADER_ENVIRONMENT || 'demo',
+    scope: normalizeScope(process.env.CTRADER_SCOPE),
   };
 }
 
@@ -179,6 +189,8 @@ async function handleStart(req, res, log) {
   }
 
   const userId = req.query.user_id || '';
+  const requestedScope = typeof req.query.scope === 'string' ? req.query.scope.trim().toLowerCase() : '';
+  const scope = ALLOWED_SCOPES.includes(requestedScope) ? requestedScope : oauth.scope;
   const nonce = generateToken();
   const signedState = signState(userId || 'anon_' + nonce, process.env.SESSION_HMAC_KEY);
 
@@ -194,6 +206,7 @@ async function handleStart(req, res, log) {
       payload: JSON.stringify({
         redirect_uri: oauth.redirectUri,
         signed_state: signedState,
+        scope,
       }),
       expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
     },
@@ -202,11 +215,11 @@ async function handleStart(req, res, log) {
   const ctraderUrl = new URL('https://id.ctrader.com/my/settings/openapi/grantingaccess/');
   ctraderUrl.searchParams.set('client_id', oauth.clientId);
   ctraderUrl.searchParams.set('redirect_uri', oauth.redirectUri);
-  ctraderUrl.searchParams.set('scope', 'trading');
+  ctraderUrl.searchParams.set('scope', scope);
   ctraderUrl.searchParams.set('product', 'web');
   ctraderUrl.searchParams.set('state', nonce);
 
-  log(`OAuth start → ${ctraderUrl.toString()}`);
+  log(`OAuth start scope=${scope} → ${ctraderUrl.toString()}`);
   return res.send('', 302, { Location: ctraderUrl.toString() });
 }
 

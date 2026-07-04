@@ -17,6 +17,8 @@ services:
       - "9004:9004"   # PPLX research agent
       - "9300:9300"   # ctrader unified service
       - "9301:9301"   # account hub WS server (persistent cTrader connections)
+    env_file:
+      - ./config/v2.env
     environment:
       - SSFX_ENV_FILE=/app/config/v2.env
       - PYTHONPATH=/app:/app/pplx-agent
@@ -29,7 +31,15 @@ services:
       - ./config/dataservice.env:/app/config/dataservice.env:ro
       - ./config/dataservice-config.yml:/app/config/dataservice-config.yml:ro
       - ./config/v2.env:/app/config/v2.env:ro
-      # ctrader CLI (development — allow runtime iteration without rebuild)
+      # Hot-reload packages for development — rsync changes without rebuild.
+      - ./shared:/app/shared:ro
+      - ./ssfx_parser:/app/ssfx_parser:ro
+      - ./ssfx_server:/app/ssfx_server:ro
+      - ./ssfx_trader:/app/ssfx_trader:ro
+      - ./ctrader:/app/ctrader:ro
+      - ./market_data_service:/app/market_data_service:ro
+      - ./agent_harness:/app/agent_harness:ro
+      - ./ctrader_client:/app/ctrader_client:ro
       - ./ctrader_cli:/app/ctrader_cli:ro
       # PPLX agent code (development — allow runtime iteration without rebuild)
       - ../pplx-agent:/app/pplx-agent:ro
@@ -37,6 +47,8 @@ services:
       - ~/.config/perplexity/cookies.json:/root/.config/perplexity/cookies.json:ro
       # Persistent logs.
       - ./logs:/app/logs
+      # Persistent SQLite sidecar databases (signal store, data service fallback).
+      - ./data:/app/data
     healthcheck:
       test: ["CMD", "bash", "-c", "nc -z 127.0.0.1 8000 && nc -z 127.0.0.1 9001 && nc -z 127.0.0.1 9002 && nc -z 127.0.0.1 9003 && nc -z 127.0.0.1 9004 && nc -z 127.0.0.1 9301"]
       interval: 30s
