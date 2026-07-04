@@ -10,7 +10,7 @@ const defaults = {
   endpoint: 'https://sgp.cloud.appwrite.io/v1',
   projectId: '6a22a362002b9ae880bb',
   authDomain: 'https://auth.mrme.tech',
-  pinDomain: 'https://auth.mrme.tech',
+  pinDomain: 'https://pin.mrme.tech',
   apiBase: 'https://api.mrme.tech',
   v2ApiBase: 'https://api.mrme.tech',
   marketBase: 'https://market.mrme.tech',
